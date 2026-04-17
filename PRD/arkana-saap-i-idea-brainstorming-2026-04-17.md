@@ -6,7 +6,7 @@
 
 ## Strategic Position Dashboard — Continuous Benchmark Monitoring With Shift Alerts (Score: 80)
 
-A persistent, always-on dashboard that tracks an SME owner's key operational metrics against their peer cohort over time — not as a one-time report but as a living instrument. When the owner's relative position shifts meaningfully (their margin drops from second quartile to third, their revenue growth falls behind the peer median, their cost-per-employee rises faster than the cohort), the system sends a plain-language alert with context: "Your labor cost ratio has moved from 34th to 58th percentile in your peer group over the last two quarters. The peer group median has stayed flat — this is your cost rising, not the market shifting." The dashboard includes four non-negotiable table-stakes features — structured pre-processed output, customizable metric views, data export (Excel/PDF), and monitoring alerts — that make it a credible professional tool rather than a toy. This is the subscription product that drives annual recurring revenue at the €4-6k price point.
+A persistent, always-on dashboard that tracks an SME owner's key financial and strategic metrics against their peer cohort over time — not as a one-time report but as a living instrument. When the owner's relative position shifts meaningfully (their margin drops from second quartile to third, their revenue growth falls behind the peer median, their cost-per-employee rises faster than the cohort), the system sends a plain-language alert with context: "Your labor cost ratio has moved from 34th to 58th percentile in your peer group over the last two quarters. The peer group median has stayed flat — this is your cost rising, not the market shifting." The dashboard includes four non-negotiable table-stakes features — structured pre-processed output, customizable metric views, data export (Excel/PDF), and monitoring alerts — that make it a credible professional tool rather than a toy.
 
 Primary Problem(s): [H3] Inability to validate whether internal financial performance represents success or failure
 
@@ -18,9 +18,9 @@ Supporting Insights: Four table-stakes features must be present at launch; Segme
 
 ### What It Is
 
-It is a persistent benchmark monitoring platform that continuously tracks an SME owner's key financial and operational metrics against a segmented peer cohort — and alerts them the moment their relative position shifts in a way that matters.
+It is a persistent benchmark monitoring platform that continuously tracks an SME owner's key financial and strategic metrics against a segmented peer cohort — and alerts them the moment their relative position shifts in a way that matters.
 
-This is not a reporting tool that generates snapshots on demand. It is a live instrument that holds an owner's current standing inside their peer group and watches it change over time. When a metric drifts — when labor costs rise from the 34th to the 58th percentile while the cohort median holds flat — the platform surfaces that movement in plain language, with enough context to distinguish the owner's problem from a market-wide shift. It sits at the intersection of financial performance monitoring and competitive intelligence, but built entirely around the operator rather than the analyst. It is the core subscription product, priced at €4–6k annually, designed to generate the recurring revenue the business model depends on.
+This is not a reporting tool that generates snapshots on demand. It is a live instrument that holds an owner's current standing inside their peer group and watches it change over time. When a metric drifts — when labor costs rise from the 34th to the 58th percentile while the cohort median holds flat — the platform surfaces that movement in plain language, with enough context to distinguish the owner's problem from a market-wide shift. It sits at the intersection of financial performance monitoring and competitive intelligence, but built entirely around the operator rather than the analyst.
 
 ### What It Does
 
