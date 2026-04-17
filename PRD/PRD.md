@@ -1,4 +1,4 @@
-# Product Requirements Document — Strategic Position Dashboard (SAAP)
+# Product Requirements Document — Strategy Radar
 
 *Version 0.3 — 2026-04-17*
 *Primary sources: North Star Definition, Roadmap Definition (MVP). Supporting: Synthetic Research, Solution Area Transition, Idea Brainstorming.*
@@ -7,7 +7,7 @@
 
 ## 1. Summary
 
-The **Strategic Position Dashboard** is a web application for Czech SME owner-operators that delivers monthly **sector briefs** — plain-language intelligence on the owner's sector, peer cohort, and market environment, ending with 2–4 specific, time-horizon-tagged actions.
+The **Strategy Radar** is a web application for Czech SME owner-operators that delivers monthly **sector briefs** — plain-language intelligence on the owner's sector, peer cohort, and market environment, ending with 2–4 specific, time-horizon-tagged actions.
 
 Briefs are the atomic unit of value at MVP. Benchmarks exist in a minimal form of a 4-6 key metrics, existing as a standalone dashboard. Over later increments, benchmarking matures into the continuous monitoring instrument described in the North Star.
 
@@ -327,6 +327,6 @@ Deferred. The v1 validation target is engagement, data acquisition, and lead flo
 **Supporting**
 - [Synthetic Research](arkana-saap-i-synthetic-research-2026-04-17.md) — persona interviews, hypothesis ranking.
 - [Solution Area Transition](arkana-saap-i-solution-area-transition-2026-04-17.md) — confirmed problems, market standards, competitive gaps.
-- [Idea Brainstorming](arkana-saap-i-idea-brainstorming-2026-04-17.md) — Strategic Position Dashboard concept.
+- [Idea Brainstorming](arkana-saap-i-idea-brainstorming-2026-04-17.md) — Strategy Radar concept.
 
 **Note on scope beyond source docs**: The RM Lead Signal Surface (§8.3) and the three ČS business goals in §1, §4, and §6 are stakeholder inputs added in v0.3, not found in the Arkana source documents.
