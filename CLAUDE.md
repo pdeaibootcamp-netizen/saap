@@ -61,7 +61,7 @@ Bake these into every specialist interaction:
 - **Clarifying questions up front, once.** Ambiguity goes into a single numbered list at task start. No mid-stream drip-feeding — that breaks async.
 - **Self-contained artifacts.** Include every input, assumption, and constraint the next reader needs. Assume they cannot ask you.
 - **Idempotent reads.** Never depend on another agent's transient state; always re-read the artifact file.
-- **Read the backlog at task start.** Every specialist reads `docs/project/backlog.md` as the first step of any task. It carries deferred decisions and cross-session continuity context. If your task touches an open backlog item, either resolve it with orchestrator agreement or flag in `docs/project/open-questions.md` — never silently reinterpret the deferral.
+- **Read the backlog and the build plan at task start.** Every specialist reads `docs/project/backlog.md` and `docs/project/build-plan.md` as the first step of any task. Backlog carries deferred decisions and cross-session continuity context; the build plan shows the current phase and which track your work sits in. If your task touches an open backlog item, either resolve it with orchestrator agreement or flag in `docs/project/open-questions.md` — never silently reinterpret the deferral.
 - **Escalate, don't block.** If upstream is contradictory or missing, write an open-question entry in `docs/project/open-questions.md` and stop — don't loop.
 
 ---
@@ -90,7 +90,7 @@ Bake these into every specialist interaction:
 4. **Auto-delegation is enabled.** Each specialist's frontmatter starts with `description: "Use PROACTIVELY ..."` so Claude Code may auto-route relevant requests. You can still override with an explicit `Agent` call naming the specialist.
 5. **Cross-cutting decisions live in `docs/project/decision-log.md`.** When a specialist escalates, either resolve and log it yourself, or ask the human — never silently pass it back.
 6. **Open questions that block a specialist must be resolved or explicitly deferred.** Don't let specialists loop.
-7. **Idempotent reads.** Always re-read `PRD/PRD.md`, the decision log, open-questions, and `docs/project/backlog.md` before delegating. State changes asynchronously; backlog items carry cross-session continuity context that must surface in your delegation briefs.
+7. **Idempotent reads.** Always re-read `PRD/PRD.md`, `docs/project/build-plan.md`, the decision log, open-questions, and `docs/project/backlog.md` before delegating. State changes asynchronously; the build plan anchors the current phase, and backlog items carry cross-session continuity context that must surface in your delegation briefs.
 8. **The hook protects specialists, not you.** Main session has no `agent_type` and can write anywhere — use that power carefully. If you find yourself patching a specialist's file, prefer re-delegating with a corrected brief.
 
 ---

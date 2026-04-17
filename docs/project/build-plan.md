@@ -73,6 +73,8 @@ Orchestrator issues a single message with four parallel `Agent` calls. Each spec
 
 **Phase 1 gate (orchestrator-run):** orchestrator reads all eight artifacts, records any cross-cutting decisions in `decision-log.md`, routes conflicts to the user, and only then opens Phase 2. Expected gate decisions: D-010 tech-stack ratification; D-011 privacy-architecture ratification.
 
+**Phase 1 gate status (2026-04-17): complete — ratified [D-014](decision-log.md).** All eight foundation artifacts landed and reconciled. Cross-cutting decisions: [D-010](decision-log.md) canonical lane identifiers, [D-011](decision-log.md) canonical benchmark categories, [D-012](decision-log.md) revocation = stop-flow-only, [D-013](decision-log.md) Supabase Postgres + Vercel hosting. Reconciliation edits applied to `privacy-architecture.md`, `cohort-math.md`, `adr-0001-tech-stack.md`, `adr-0002-brief-storage-and-delivery.md`, `information-architecture.md`, `trust-and-consent-patterns.md`. 21 open questions tracked in [open-questions.md](open-questions.md): none block Phase 2 entry (remainder are legal review, ČS liaison, specialist-internal follow-ups, or Increment 2+ deferrals). **Phase 2 is open.**
+
 ---
 
 ## 5. Phase 2 — Feature workstreams
@@ -179,3 +181,4 @@ Lifted from PRD §13; orchestrator monitors during build.
 
 - 2026-04-17 — created by orchestrator; MVP-only scope; Phase 0 user-decided per explicit instruction.
 - 2026-04-17 — Phase 0 closed: D-003 through D-009 logged; B-001, B-002 added to backlog. Phase 1 unblocked.
+- 2026-04-17 — Phase 1 closed: eight foundation artifacts landed and reconciled. D-010 through D-014 logged. OQ-001 through OQ-021 tracked in open-questions. Phase 2 unblocked.

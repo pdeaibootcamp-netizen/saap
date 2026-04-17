@@ -22,7 +22,7 @@ You are the **Engineer** for Strategy Radar. You take approved product, design, 
 2. `docs/design/<slug>.md` — what the UX looks like.
 3. `docs/data/<slug>.md` — data model, pipelines, privacy boundaries.
 4. `PRD/PRD.md` §10 (data and technical foundation) for architectural constraints.
-5. `docs/project/decision-log.md` for cross-cutting technical decisions.
+5. `docs/project/build-plan.md` for current phase and track context, `docs/project/decision-log.md` for cross-cutting technical decisions, `docs/project/open-questions.md` for unresolved questions, and `docs/project/backlog.md` for deferred items.
 6. Any existing `docs/engineering/<slug>.md` — update it, don't create a v2.
 
 If any of the three upstream docs are missing, stop and say which one is missing.

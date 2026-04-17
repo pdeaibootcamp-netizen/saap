@@ -34,6 +34,24 @@ The ČS digital banking platform in which Strategy Radar is embedded as the defa
 ### RM (Relationship Manager)
 A ČS banker responsible for SME client relationships. Plays two roles for Strategy Radar: **distribution** (introducing the product to existing clients) and **consumption** (acting on opportunity-flavored lead signals). RM enablement is a first-class workstream alongside the product itself. Source: [PRD §11](../../PRD/PRD.md#11-go-to-market).
 
+### Data lane
+One of four architecturally separate streams of client data in Strategy Radar: (1) **brief lane** — data used to author and render briefs; (2) **user-contributed lane** — data owners actively supply (post-MVP give-to-get); (3) **RM-visible lane** — opportunity-flavored signals surfaced to relationship managers (deferred at MVP per [D-002](../project/decision-log.md)); (4) **credit-risk lane** — ČS's internal credit-risk evaluation data, which Strategy Radar never reads from or writes to. "Architecturally separate" means isolation, not merely access control. Source: [PRD §7.5](../../PRD/PRD.md#7-product-principles), [PRD §10](../../PRD/PRD.md#10-data-and-technical-foundation), [assumption A-015](assumption-log.md).
+
+### Embedded benchmark snippet
+The minimal, in-brief comparative element through which peer benchmarks reach the owner at MVP — a named-quartile verdict plus exact percentile for a single metric, rendered inside a brief. Snippets are grouped by the four MVP categories (see below) and degrade silently (not surfaced at all) when the owner's cohort cell is below the statistical-validity floor. There is **no** standalone benchmark dashboard at MVP. Source: [PRD §8.2](../../PRD/PRD.md#82-peer-position-engine-minimal-mvp), [PRD §4 Non-Goals](../../PRD/PRD.md#4-goals-and-non-goals), [mvp-metric-list.md](mvp-metric-list.md).
+
+### MVP metric categories (the four)
+The four owner-facing grouping categories that structure embedded benchmark snippets inside a brief (per PRD §9 Category-Based Layout). Czech names are canonical (user-facing per [D-004](../project/decision-log.md)); English names are internal:
+1. **Ziskovost** (Profitability) — gross margin, EBITDA margin.
+2. **Náklady a produktivita** (Cost structure & productivity) — labor cost ratio, revenue per employee.
+3. **Efektivita kapitálu** (Capital efficiency) — working capital cycle, ROCE.
+4. **Růst a tržní pozice** (Growth & market position) — revenue growth vs cohort median, pricing power proxy.
+
+Source: [mvp-metric-list.md](mvp-metric-list.md), [D-003](../project/decision-log.md), [PRD §9](../../PRD/PRD.md#9-release-plan).
+
+### Statistical-validity floor suppression (silent-to-user)
+When an owner's cohort cell for a given ratio is below the statistical-validity floor, the ratio is **not surfaced at all** in the owner's embedded snippet — the brief is silent on that metric for that user. The system still records the suppression event; silence is directed at the user, not at instrumentation. Source: [assumption A-017](assumption-log.md), [PRD §10](../../PRD/PRD.md#10-data-and-technical-foundation), [PRD §13.5](../../PRD/PRD.md#13-risks-and-open-questions).
+
 ---
 
 ## How to add an entry
@@ -42,3 +60,7 @@ A ČS banker responsible for SME client relationships. Plays two roles for Strat
 - Every entry: 1–2 sentence definition + link to the authoritative PRD section.
 - If a term is defined in the PRD, link; don't paraphrase.
 - Rename or retire carefully — other artifacts likely link here.
+
+## Changelog
+
+- 2026-04-17 — Phase 1 additions: **Data lane**, **Embedded benchmark snippet**, **MVP metric categories (the four)**, **Statistical-validity floor suppression (silent-to-user)** — introduced by `mvp-metric-list.md` and `assumption-log.md`. — product-manager

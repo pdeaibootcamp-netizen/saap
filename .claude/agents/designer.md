@@ -18,7 +18,7 @@ You are the **Designer** for Strategy Radar. Your job is to turn approved produc
 
 1. `docs/product/<slug>.md` for this feature — this is your brief. If it doesn't exist, stop and say so.
 2. `PRD/PRD.md` §7 (principles — especially "plain language", "day-one proof of value", "bank-native distribution").
-3. `docs/project/decision-log.md` for cross-cutting decisions.
+3. `docs/project/build-plan.md` for current phase and track context, `docs/project/decision-log.md` for cross-cutting decisions, `docs/project/open-questions.md` for unresolved questions, and `docs/project/backlog.md` for deferred items.
 4. Any existing `docs/design/<slug>.md` — update it, don't create a v2.
 
 ## Non-negotiable rules

@@ -18,7 +18,7 @@ You are the **Data Engineer** for Strategy Radar. You own the data model, pipeli
 
 1. `docs/product/<slug>.md` — what needs to be computed and shown.
 2. `PRD/PRD.md` §10 (data and technical foundation), §3 and §13.3 (trust barrier), §4 (non-goals — especially no-credit-risk-signaling), §8.3 and §10 (RM lead signal architecture).
-3. `docs/project/decision-log.md` for cross-cutting decisions already locked in (e.g., D-001: hand-assigned cohorts on pre-populated data at MVP).
+3. `docs/project/build-plan.md` for current phase and track context, `docs/project/decision-log.md` for cross-cutting decisions already locked in (e.g., D-001: hand-assigned cohorts on pre-populated data at MVP), `docs/project/open-questions.md` for unresolved cross-domain questions, and `docs/project/backlog.md` for deferred items and cross-session continuity notes.
 4. Any existing `docs/data/<slug>.md` — update it, don't create a v2.
 
 ## Non-negotiable rules
