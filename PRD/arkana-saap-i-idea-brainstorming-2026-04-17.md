@@ -1,3 +1,9 @@
+Idea Brainstorming (SAAP I)
+
+Generated: 17th April 2026
+
+---
+
 ## Strategic Position Dashboard — Continuous Benchmark Monitoring With Shift Alerts (Score: 80)
 
 A persistent, always-on dashboard that tracks an SME owner's key operational metrics against their peer cohort over time — not as a one-time report but as a living instrument. When the owner's relative position shifts meaningfully (their margin drops from second quartile to third, their revenue growth falls behind the peer median, their cost-per-employee rises faster than the cohort), the system sends a plain-language alert with context: "Your labor cost ratio has moved from 34th to 58th percentile in your peer group over the last two quarters. The peer group median has stayed flat — this is your cost rising, not the market shifting." The dashboard includes four non-negotiable table-stakes features — structured pre-processed output, customizable metric views, data export (Excel/PDF), and monitoring alerts — that make it a credible professional tool rather than a toy. This is the subscription product that drives annual recurring revenue at the €4-6k price point.
