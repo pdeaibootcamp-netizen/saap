@@ -108,7 +108,15 @@ When updating an agent prompt:
 
 ## How to use this
 
-**Single entry point**: natural-language conversation with the orchestrator in the main session. There are no slash commands. State intent in plain English — "let's discover feature X", "design feature Y", "implement feature Z", "review the latest brief template" — and the orchestrator routes to the right specialist(s) based on the request and the state of artifact files under `docs/`.
+**Entry points**:
+- **Natural language** to the orchestrator in the main session — "let's discover feature X", "design feature Y", "implement feature Z". The orchestrator routes to the right specialist(s) based on the request and the state of artifact files under `docs/`.
+- **Direct-address slash commands** — skip the orchestrator and talk to a specific specialist:
+  - `/PM <task>` → Product Manager (replies prefixed `**PM:**`)
+  - `/PD <task>` → Designer (replies prefixed `**PD:**`)
+  - `/EN <task>` → Engineer (replies prefixed `**EN:**`)
+  - `/DE <task>` → Data Engineer (replies prefixed `**DE:**`)
+
+Every specialist response is self-tagged with its role prefix so you always know who is speaking.
 
 **To add or change an agent**: edit the file in `.claude/agents/`. Follow the evolution meta-rule above. Test with a live task before relying on it.
 
