@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
         { status: 403 }
       );
     }
-    consentEventId = current.id;
+    consentEventId = current.consent_event_id;
   } catch (err) {
     console.error("[api/profile] Failed to fetch consent event:", err);
     return NextResponse.json(
@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
       nace_sector,
       size_band: size_band as SizeBand,
       region: region as CzRegion,
-      source: "user_ingest_direct",
+      source: "user_entered",
       consent_event_id: consentEventId,
     });
 

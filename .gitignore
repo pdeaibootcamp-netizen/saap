@@ -1,2 +1,9 @@
 .claude/settings.local.json
 .DS_Store
+
+# Node / Next.js
+src/node_modules/
+src/.next/
+src/next-env.d.ts
+src/.env.local
+src/.env*.local

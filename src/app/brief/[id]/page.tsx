@@ -364,7 +364,7 @@ export default async function BriefPage({
         )}
 
         {/* Observations */}
-        {content.observations?.length > 0 && (
+        {content.observations && content.observations.length > 0 && (
           <div style={{ marginBottom: "24px" }}>
             <h2 style={{ fontSize: "16px", fontWeight: "bold", marginBottom: "12px" }}>
               Pozorování
@@ -413,7 +413,7 @@ export default async function BriefPage({
         )}
 
         {/* Closing actions */}
-        {content.closing_actions?.length > 0 && (
+        {content.closing_actions && content.closing_actions.length > 0 && (
           <div style={{ marginBottom: "24px" }}>
             <h2 style={{ fontSize: "16px", fontWeight: "bold", marginBottom: "12px" }}>
               Doporučené kroky
@@ -479,7 +479,7 @@ export default async function BriefPage({
       )}
 
       {/* Observations */}
-      {content.observations?.length > 0 && (
+      {content.observations && content.observations.length > 0 && (
         <section style={{ marginBottom: "28px" }}>
           <h2 style={{ fontSize: "18px", fontWeight: "bold", marginBottom: "16px" }}>
             Pozorování
@@ -526,7 +526,7 @@ export default async function BriefPage({
       )}
 
       {/* Closing actions */}
-      {content.closing_actions?.length > 0 && (
+      {content.closing_actions && content.closing_actions.length > 0 && (
         <section style={{ marginBottom: "28px" }}>
           <h2 style={{ fontSize: "18px", fontWeight: "bold", marginBottom: "16px" }}>
             Doporučené kroky

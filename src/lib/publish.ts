@@ -102,7 +102,7 @@ function extractBriefContent(contentSections: unknown[]): { content: BriefConten
 
   // Validate email-teaser observation selection
   const hasEmailTeaser = content.observations?.some((obs) => obs.is_email_teaser);
-  if (!hasEmailTeaser && content.observations?.length > 0) {
+  if (!hasEmailTeaser && (content.observations?.length ?? 0) > 0) {
     errors.push("Označte jedno pozorování jako e-mail teaser.");
   }
 

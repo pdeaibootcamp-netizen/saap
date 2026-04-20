@@ -954,12 +954,12 @@ export default function BriefEditorPage({ params }: BriefEditorPageProps) {
             setTitle(content.title ?? "");
             setPublicationMonth(content.publication_month ?? "");
             setOpeningSummary(content.opening_summary ?? "");
-            if (content.observations?.length > 0) {
+            if (content.observations && content.observations.length > 0) {
               setObservations(content.observations);
               const teaserIdx = content.observations.findIndex((o) => o.is_email_teaser);
               if (teaserIdx >= 0) setEmailTeaserObsIndex(teaserIdx);
             }
-            if (content.benchmark_categories?.length > 0) {
+            if (content.benchmark_categories && content.benchmark_categories.length > 0) {
               setCategories(content.benchmark_categories);
               // Find existing email teaser snippet
               for (const cat of content.benchmark_categories) {
@@ -970,7 +970,7 @@ export default function BriefEditorPage({ params }: BriefEditorPageProps) {
                 }
               }
             }
-            if (content.closing_actions?.length > 0) {
+            if (content.closing_actions && content.closing_actions.length > 0) {
               setActions(content.closing_actions);
             }
             setPdfFooterText(content.pdf_footer_text ?? "");

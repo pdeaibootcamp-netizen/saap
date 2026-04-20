@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
       user_id: userId,
       surface: "settings-soukromi",
       channel: "rm-referred-george-embed",
-      ip_prefix: req.headers.get("x-forwarded-for")?.split(",")[0]?.trim().slice(0, 15) ?? null,
+      ip_prefix: req.headers.get("x-forwarded-for")?.split(",")[0]?.trim().slice(0, 15) ?? undefined,
     });
 
     return NextResponse.json({ ok: true });
