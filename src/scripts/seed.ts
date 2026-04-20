@@ -307,66 +307,76 @@ function buildSampleBenchmarkSnippet() {
 
 // ─── Sample brief content sections ────────────────────────────────────────────
 
+/**
+ * Build the single `brief_content` section the UI consumes. Both the analyst
+ * edit page (src/app/admin/briefs/[id]/edit/page.tsx ~L948) and the owner
+ * view page (src/app/brief/[id]/page.tsx ~L309) expect exactly one section
+ * with section_id === "brief_content" whose body is a JSON-stringified
+ * BriefContent object. Any other shape renders as empty.
+ */
 function buildSampleBriefContentSections() {
+  const benchmarkCategories = buildSampleBenchmarkSnippet().categories;
+
+  const content = {
+    title: "Měsíční přehled — Velkoobchod (NACE 46)",
+    publication_month: "Duben 2026",
+    opening_summary:
+      "Velkoobchodní sektor zaznamenal v prvním čtvrtletí 2026 mírný pokles poptávky ze strany maloobchodních odběratelů. Dodací lhůty se zkrátily o 8 % oproti předchozímu roku, náklady na přepravu však meziročně vzrostly o 12 %. Firmy s diverzifikovanou odběratelskou základnou vykazují lepší odolnost.",
+    observations: [
+      {
+        headline: "Marže pod tlakem napříč sektorem",
+        body:
+          "Průměrná hrubá marže firem v NACE 46 klesla v posledních 12 měsících o 1,4 procentního bodu. Hlavními příčinami jsou rostoucí vstupní ceny a nižší vyjednávací síla vůči zahraničním dodavatelům. Firmy, které diverzifikovaly dodavatele do více zemí, si udržely marže na vyšší úrovni.",
+        time_horizon: "Do 3 měsíců",
+        is_email_teaser: true,
+      },
+      {
+        headline: "Digitalizace objednávkových procesů přináší úspory",
+        body:
+          "Podniky, které přešly na plně digitální zpracování objednávek, vykázaly o 7 % nižší provozní náklady na objednávku. Adopce EDI systémů a automatizovaných fakturačních řešení se v sektoru meziročně zdvojnásobila.",
+        time_horizon: "Do 12 měsíců",
+        is_email_teaser: false,
+      },
+      {
+        headline: "Vaše pozice v kohortě",
+        body:
+          "Vaše hrubá marže vás řadí do třetí čtvrtiny firem ve vašem oboru. Zhruba třetina srovnatelných podniků vykazuje vyšší marže — prostor pro zlepšení existuje, ale nejste mezi nejslabšími. Vaše tržby na zaměstnance jsou nadprůměrné (57. percentil), což naznačuje dobrou produktivitu.",
+        time_horizon: "Okamžitě",
+        is_email_teaser: false,
+      },
+    ],
+    closing_actions: [
+      {
+        action_text:
+          "Zkontrolujte smlouvy s klíčovými dodavateli a identifikujte, kde lze sjednat množstevní slevy nebo delší platební lhůty. I malé úpravy podmínek mohou zlepšit cash flow o několik týdnů.",
+        time_horizon: "Okamžitě",
+        category: "naklady-produktivita",
+      },
+      {
+        action_text:
+          "Zvažte pilotní nasazení elektronické fakturace (e-faktura) pro top 5 odběratelů. Podniky, které to zavedly, ušetřily průměrně 2–3 hodiny administrativy týdně na fakturu.",
+        time_horizon: "Do 3 měsíců",
+        category: "naklady-produktivita",
+      },
+      {
+        action_text:
+          "Připravte střednědobý plán diverzifikace dodavatelů pro produktové kategorie s nejvyšší závislostí na jediném zdroji. Cílem je snížit riziko výpadku dodávek a posílit vyjednávací pozici.",
+        time_horizon: "Do 12 měsíců",
+        category: "rust-trzni-pozice",
+      },
+    ],
+    benchmark_categories: benchmarkCategories,
+    pdf_footer_text:
+      "Strategy Radar — Česká spořitelna. Data k dubnu 2026. Kontakt: strategyradar@csas.cz",
+    email_teaser_observation_index: 0,
+  };
+
   return [
     {
-      section_id: "sector-context",
-      heading: "Situace v sektoru",
-      body: "Velkoobchodní sektor (NACE 46) zaznamenal v prvním čtvrtletí 2026 mírný pokles poptávky ze strany maloobchodních odběratelů, zejména v kategorii spotřebního zboží. Průměrné dodací lhůty se zkrátily o 8 % oproti předchozímu roku, což svědčí o normalizaci dodavatelských řetězců po předchozích výkyvech. Inflační tlaky v logistice zůstávají zvýšené — náklady na přepravu meziročně vzrostly o 12 %. Podniky střední velikosti (25–49 zaměstnanců) vykazují lepší odolnost než menší firmy díky větší diverzifikaci odběratelské základny.",
-      order: 1,
-    },
-    {
-      section_id: "observations",
-      heading: "Klíčová pozorování",
-      body: JSON.stringify([
-        // Sector-level observation 1
-        {
-          headline: "Marže pod tlakem napříč sektorem",
-          body: "Průměrná hrubá marže firem v NACE 46 klesla v posledních 12 měsících o 1,4 procentního bodu. Hlavními příčinami jsou rostoucí vstupní ceny a nižší vyjednávací síla vůči zahraničním dodavatelům. Firmy, které diverzifikovaly dodavatele do více zemí, si udržely marže na vyšší úrovni.",
-          time_horizon: "Do 3 měsíců",
-          is_email_teaser: true,
-        },
-        // Sector-level observation 2
-        {
-          headline: "Digitalizace objednávkových procesů přináší úspory",
-          body: "Podniky, které přešly na plně digitální zpracování objednávek, vykázaly o 7 % nižší provozní náklady na objednávku. Adopce EDI systémů a automatizovaných fakturačních řešení se v sektoru meziročně zdvojnásobila.",
-          time_horizon: "Do 12 měsíců",
-          is_email_teaser: false,
-        },
-        // Owner-relative observation
-        {
-          headline: "Vaše pozice v kohortě",
-          body: "Vaše hrubá marže vás řadí do třetí čtvrtiny firem ve vašem oboru. To znamená, že zhruba třetina srovnatelných podniků vykazuje vyšší marže — prostor pro zlepšení existuje, ale nejste mezi nejslabšími. Vaše tržby na zaměstnance jsou nadprůměrné (57. percentil), což naznačuje dobrou produktivitu.",
-          time_horizon: "Okamžitě",
-          is_email_teaser: false,
-        },
-      ]),
-      order: 2,
-    },
-    {
-      section_id: "actions",
-      heading: "Doporučené kroky",
-      body: JSON.stringify([
-        {
-          action_text:
-            "Zkontrolujte smlouvy s klíčovými dodavateli a identifikujte, kde lze sjednat množstevní slevy nebo delší platební lhůty. I malé úpravy podmínek mohou zlepšit cash flow o několik týdnů.",
-          time_horizon: "Okamžitě",
-          category: "naklady-produktivita",
-        },
-        {
-          action_text:
-            "Zvažte pilotní nasazení elektronické fakturace (e-faktura) pro top 5 odběratelů. Podniky, které to zavedly, ušetřily průměrně 2–3 hodiny administrativy týdně na fakturu.",
-          time_horizon: "Do 3 měsíců",
-          category: "naklady-produktivita",
-        },
-        {
-          action_text:
-            "Připravte střednědobý plán diverzifikace dodavatelů pro produktové kategorie s nejvyšší závislostí na jediném zdroji. Cílem je snížit riziko výpadku dodávek a posílit vyjednávací pozici.",
-          time_horizon: "Do 12 měsíců",
-          category: "rust-trzni-pozice",
-        },
-      ]),
-      order: 3,
+      section_id: "brief_content",
+      heading: "Obsah přehledu",
+      body: JSON.stringify(content),
+      order: 0,
     },
   ];
 }

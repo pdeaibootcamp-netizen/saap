@@ -201,6 +201,20 @@ export async function publishBriefRecord(
   checklist_affirmed_by: string,
   checklist_version: string
 ): Promise<Brief> {
+  // content_sections is a JSONB array; append a metadata element rather than
+  // using jsonb_set with a string path (which errors on arrays — the path
+  // element at position 1 must be an integer index, not a key name).
+  const publishMetaSection = {
+    section_id: "_publish_meta",
+    heading: "_publish_meta",
+    body: JSON.stringify({
+      affirmed_by: checklist_affirmed_by,
+      checklist_version,
+      affirmed_at: new Date().toISOString(),
+    }),
+    order: 9999,
+  };
+
   const rows = await sql<Brief[]>`
     UPDATE briefs
     SET
@@ -208,12 +222,7 @@ export async function publishBriefRecord(
       published_at = now(),
       benchmark_snippet = ${sql.json(benchmarkSnapshot as unknown as never)}::jsonb,
       version = version + 1,
-      content_sections = jsonb_set(
-        content_sections,
-        '{publish_meta}',
-        ${sql.json({ affirmed_by: checklist_affirmed_by, checklist_version, affirmed_at: new Date().toISOString() } as unknown as never)}::jsonb,
-        true
-      )
+      content_sections = content_sections || ${sql.json([publishMetaSection] as unknown as never)}::jsonb
     WHERE id = ${id}
       AND publish_state = 'draft'
     RETURNING
