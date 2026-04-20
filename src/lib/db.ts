@@ -59,9 +59,10 @@ export const sql = postgres(DB_URL, {
   // Connection timeout: fail fast if the DB isn't reachable.
   connect_timeout: 10,
 
-  // Transforms: convert snake_case column names to camelCase in returned objects.
-  // This lets TypeScript types use camelCase while the DB schema stays snake_case.
-  transform: postgres.camel,
+  // NO transform. Types and consumers in this codebase use snake_case keys
+  // identical to the DB column names (e.g., brief.publish_state). Enabling
+  // postgres.camel would silently rewrite every returned field to camelCase
+  // and make every snake_case access evaluate to undefined.
 });
 
 /**

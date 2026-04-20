@@ -44,5 +44,5 @@ export const sqlUser = postgres(userDbUrl, {
   max: 5,
   idle_timeout: 30,
   connect_timeout: 10,
-  transform: postgres.camel,
+  // NO transform — see note in db.ts. All consumer types use snake_case.
 });
