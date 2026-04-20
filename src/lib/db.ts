@@ -28,12 +28,14 @@
 
 import postgres from "postgres";
 
-if (!process.env.DATABASE_URL) {
-  throw new Error(
-    "DATABASE_URL environment variable is not set. " +
-      "Copy .env.example to .env.local and populate the Supabase connection string."
-  );
-}
+// Lazy posture: use a placeholder if DATABASE_URL is unset at module load.
+// The postgres library is lazy — it only connects on first query — so build-
+// time page-data collection (which imports every route module) does not need
+// a live DB. Runtime query without a real URL will fail at connect time with
+// a clear error.
+const DB_URL =
+  process.env.DATABASE_URL ||
+  "postgres://placeholder:placeholder@127.0.0.1:5432/placeholder";
 
 /**
  * `sql` — the primary query client for the `brief` data lane.
@@ -45,7 +47,7 @@ if (!process.env.DATABASE_URL) {
  * Export only this symbol — callers should never instantiate postgres() directly,
  * which would bypass the single connection point and make lane tracking harder.
  */
-export const sql = postgres(process.env.DATABASE_URL, {
+export const sql = postgres(DB_URL, {
   // Max connections. Vercel serverless functions are stateless; the pooler
   // endpoint on Supabase handles connection multiplexing above this.
   max: 10,

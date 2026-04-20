@@ -23,16 +23,13 @@
 
 import postgres from "postgres";
 
-// Fall back to DATABASE_URL for MVP trial convenience; in production
-// this MUST be a separate credential pointing to user_contributed_lane_role.
-const userDbUrl = process.env.DATABASE_URL_USER || process.env.DATABASE_URL;
-
-if (!userDbUrl) {
-  throw new Error(
-    "DATABASE_URL_USER (or DATABASE_URL) environment variable is not set. " +
-      "Set DATABASE_URL_USER to the user_contributed lane role connection string."
-  );
-}
+// Lazy posture (see db.ts): placeholder URL so module load doesn't throw
+// during Next.js build-time page-data collection. Runtime queries without
+// a real URL will fail at connect time.
+const userDbUrl =
+  process.env.DATABASE_URL_USER ||
+  process.env.DATABASE_URL ||
+  "postgres://placeholder:placeholder@127.0.0.1:5432/placeholder";
 
 /**
  * `sqlUser` — query client for the user_contributed data lane.
