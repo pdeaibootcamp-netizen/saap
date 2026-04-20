@@ -1,0 +1,54 @@
+/*
+  Strategy Radar — global styles
+  Czech-only product (D-004). Mobile-first (375px minimum per information-architecture.md §2b).
+  No design system library imported yet — ČS George Business component library availability
+  is unconfirmed (OQ-006). Local minimal styles only at scaffold stage.
+*/
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  line-height: 1.5;
+  color: #111827;
+  background-color: #ffffff;
+}
+
+/* Max content width for brief web view — 680px per information-architecture.md §2b */
+.content-container {
+  max-width: 680px;
+  margin-inline: auto;
+  padding-inline: 1rem;
+}
+
+/* Touch targets: minimum 44×44px per information-architecture.md §2b */
+button,
+a[role="button"],
+[role="button"] {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Utility: visually hidden (for accessibility, not display:none) */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}

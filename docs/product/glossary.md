@@ -52,6 +52,24 @@ Source: [mvp-metric-list.md](mvp-metric-list.md), [D-003](../project/decision-lo
 ### Statistical-validity floor suppression (silent-to-user)
 When an owner's cohort cell for a given ratio is below the statistical-validity floor, the ratio is **not surfaced at all** in the owner's embedded snippet — the brief is silent on that metric for that user. The system still records the suppression event; silence is directed at the user, not at instrumentation. Source: [assumption A-017](assumption-log.md), [PRD §10](../../PRD/PRD.md#10-data-and-technical-foundation), [PRD §13.5](../../PRD/PRD.md#13-risks-and-open-questions).
 
+### Brief artifact
+The versioned, published, delivery-ready object emitted by the Monthly Briefing Generation authoring back-end — distinct from the user-facing concept **Sector brief** (above). A brief artifact has authoring state, publish state, a version counter per ADR-0002-D, and is the input to Multi-Format Delivery. Source: [monthly-briefing-generation.md](monthly-briefing-generation.md), [adr-0002-brief-storage-and-delivery.md](../engineering/adr-0002-brief-storage-and-delivery.md).
+
+### Observation (Strategy Radar)
+A templated 2–4-per-brief verdict unit pairing a cohort finding with an owner-actionable frame. Distinct from general English "observation" — in Strategy Radar, an observation has a schema (framing `sector` | `owner_relative`; anchor `ratio` | `narrative`; time-horizon tag) and is subject to the Plain-Language Translation rules. Source: [observation-generation.md](observation-generation.md), [PRD §8.1](../../PRD/PRD.md#81-sector-briefing-engine--what-this-means-for-you-primary-mvp).
+
+### Observation framing (`sector` | `owner_relative`)
+A required sub-field on every observation that determines whether it expresses a sector-level finding (always allowable) or an owner-relative positioning (hard-blocked at authoring when the owner's cohort cell is below the statistical-validity floor). Source: [observation-generation.md](observation-generation.md).
+
+### Observation anchor (`ratio` | `narrative`)
+A required sub-field on every observation that determines whether it is anchored to one of the eight MVP ratios (`ratio`) or to a sector narrative beyond the ratio set (`narrative`). Source: [observation-generation.md](observation-generation.md), [mvp-metric-list.md](mvp-metric-list.md).
+
+### Time-horizon tag
+A required sub-field on every observation and every closing action, drawn from a closed four-value enum: **Okamžitě** / **Do 3 měsíců** / **Do 12 měsíců** / **Více než rok**. Czech labels are user-facing per [D-004](../project/decision-log.md); the enum is shared across `observation-generation.md`, `action-specificity-framing.md`, and [information-architecture.md §2](../design/information-architecture.md). Source: [action-specificity-framing.md](action-specificity-framing.md), [PRD §8.1](../../PRD/PRD.md#81-sector-briefing-engine--what-this-means-for-you-primary-mvp).
+
+### Delivery record
+A per-`(brief_artifact, recipient, surface)` audit row written by the Multi-Format Delivery pipeline at publish time, capturing which version was delivered to whom in which surface (email / WebView / PDF) at what timestamp. Used for engagement measurement (PRD §6 G1) and for consent-revocation enforcement (D-012 stop-flow). Source: [multi-format-delivery.md](multi-format-delivery.md), [adr-0002-brief-storage-and-delivery.md](../engineering/adr-0002-brief-storage-and-delivery.md).
+
 ---
 
 ## How to add an entry

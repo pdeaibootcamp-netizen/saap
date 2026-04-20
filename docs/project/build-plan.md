@@ -182,3 +182,6 @@ Lifted from PRD §13; orchestrator monitors during build.
 - 2026-04-17 — created by orchestrator; MVP-only scope; Phase 0 user-decided per explicit instruction.
 - 2026-04-17 — Phase 0 closed: D-003 through D-009 logged; B-001, B-002 added to backlog. Phase 1 unblocked.
 - 2026-04-17 — Phase 1 closed: eight foundation artifacts landed and reconciled. D-010 through D-014 logged. OQ-001 through OQ-021 tracked in open-questions. Phase 2 unblocked.
+- 2026-04-20 — Phase 2 PM+PD gate closed on branch `trial-phases-2-4`: 9 feature PRDs + 9 designs landed. D-015 logged. 67 specialist OQs indexed by feature artifact; OQ-045..053 promoted cross-cutting. Glossary extended with 6 terms. Phase 3 unblocked.
+- 2026-04-20 — Phase 3 closed on branch `trial-phases-2-4` (partial-ratified): scaffold + full feature implementation + bug fix. D-016 logged. EN-001 fixed; EN-002/003/004 + missing `/fake-george` mock remain as doc-drift / runtime items. Phase 4 unblocked.
+- 2026-04-20 — Phase 4 initial paper verification complete on branch `trial-phases-2-4`. D-017 logged. [phase-4-verification.md](phase-4-verification.md) covers V1–V8 checks with file+line evidence; runtime checks user-gated.
