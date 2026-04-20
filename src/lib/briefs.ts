@@ -163,7 +163,7 @@ export async function createDraftBrief(params: {
     VALUES (
       ${params.nace_sector},
       ${params.author_id},
-      ${sql.json([])}::jsonb,
+      ${sql.json([] as unknown as Record<string, unknown>)}::jsonb,
       'draft'
     )
     RETURNING
@@ -182,8 +182,8 @@ export async function updateBriefContent(
   const rows = await sql<Brief[]>`
     UPDATE briefs
     SET
-      content_sections = ${sql.json(content_sections)}::jsonb,
-      benchmark_snippet = COALESCE(${benchmark_snapshot ? sql.json(benchmark_snapshot) : null}::jsonb, benchmark_snippet),
+      content_sections = ${sql.json(content_sections as unknown as Record<string, unknown>)}::jsonb,
+      benchmark_snippet = COALESCE(${benchmark_snapshot ? sql.json(benchmark_snapshot as unknown as Record<string, unknown>) : null}::jsonb, benchmark_snippet),
       version = version + 1
     WHERE id = ${id}
     RETURNING
@@ -206,12 +206,12 @@ export async function publishBriefRecord(
     SET
       publish_state = 'published',
       published_at = now(),
-      benchmark_snippet = ${sql.json(benchmarkSnapshot)}::jsonb,
+      benchmark_snippet = ${sql.json(benchmarkSnapshot as unknown as Record<string, unknown>)}::jsonb,
       version = version + 1,
       content_sections = jsonb_set(
         content_sections,
         '{publish_meta}',
-        ${sql.json({ affirmed_by: checklist_affirmed_by, checklist_version, affirmed_at: new Date().toISOString() })}::jsonb,
+        ${sql.json({ affirmed_by: checklist_affirmed_by, checklist_version, affirmed_at: new Date().toISOString() } as unknown as Record<string, unknown>)}::jsonb,
         true
       )
     WHERE id = ${id}
