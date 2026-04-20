@@ -147,27 +147,27 @@ interface SectorProfileSeed {
 // All have stable UUIDs so re-runs are idempotent.
 const SECTOR_PROFILE_SEEDS: SectorProfileSeed[] = [
   // NACE 46 (Velkoobchod) — Praha — S1 and S2
-  { userId: "00000000-seed-0001-0000-000000000001", email: "user01@example.cz", nace_sector: "46", size_band: "S1", region: "Praha", source: "prepopulated", label: "46/S1/Praha" },
-  { userId: "00000000-seed-0001-0000-000000000002", email: "user02@example.cz", nace_sector: "46", size_band: "S1", region: "Praha", source: "prepopulated", label: "46/S1/Praha" },
-  { userId: "00000000-seed-0001-0000-000000000003", email: "user03@example.cz", nace_sector: "46", size_band: "S2", region: "Praha", source: "prepopulated", label: "46/S2/Praha" },
-  { userId: "00000000-seed-0001-0000-000000000004", email: "user04@example.cz", nace_sector: "46", size_band: "S2", region: "Praha", source: "user_entered", label: "46/S2/Praha" },
+  { userId: "00000000-5eed-0001-0000-000000000001", email: "user01@example.cz", nace_sector: "46", size_band: "S1", region: "Praha", source: "prepopulated", label: "46/S1/Praha" },
+  { userId: "00000000-5eed-0001-0000-000000000002", email: "user02@example.cz", nace_sector: "46", size_band: "S1", region: "Praha", source: "prepopulated", label: "46/S1/Praha" },
+  { userId: "00000000-5eed-0001-0000-000000000003", email: "user03@example.cz", nace_sector: "46", size_band: "S2", region: "Praha", source: "prepopulated", label: "46/S2/Praha" },
+  { userId: "00000000-5eed-0001-0000-000000000004", email: "user04@example.cz", nace_sector: "46", size_band: "S2", region: "Praha", source: "user_entered", label: "46/S2/Praha" },
   // NACE 46 — Jihozápad — S1 and S2
-  { userId: "00000000-seed-0002-0000-000000000001", email: "user05@example.cz", nace_sector: "46", size_band: "S1", region: "Jihozápad", source: "prepopulated", label: "46/S1/Jihozápad" },
-  { userId: "00000000-seed-0002-0000-000000000002", email: "user06@example.cz", nace_sector: "46", size_band: "S2", region: "Jihozápad", source: "prepopulated", label: "46/S2/Jihozápad" },
+  { userId: "00000000-5eed-0002-0000-000000000001", email: "user05@example.cz", nace_sector: "46", size_band: "S1", region: "Jihozápad", source: "prepopulated", label: "46/S1/Jihozápad" },
+  { userId: "00000000-5eed-0002-0000-000000000002", email: "user06@example.cz", nace_sector: "46", size_band: "S2", region: "Jihozápad", source: "prepopulated", label: "46/S2/Jihozápad" },
   // NACE 10 (Potravinářství) — Praha — S1 and S2
-  { userId: "00000000-seed-0010-0000-000000000001", email: "user07@example.cz", nace_sector: "10", size_band: "S1", region: "Praha", source: "prepopulated", label: "10/S1/Praha" },
-  { userId: "00000000-seed-0010-0000-000000000002", email: "user08@example.cz", nace_sector: "10", size_band: "S2", region: "Praha", source: "user_entered", label: "10/S2/Praha" },
+  { userId: "00000000-5eed-0010-0000-000000000001", email: "user07@example.cz", nace_sector: "10", size_band: "S1", region: "Praha", source: "prepopulated", label: "10/S1/Praha" },
+  { userId: "00000000-5eed-0010-0000-000000000002", email: "user08@example.cz", nace_sector: "10", size_band: "S2", region: "Praha", source: "user_entered", label: "10/S2/Praha" },
   // NACE 10 — Jihozápad — S1 and S2
-  { userId: "00000000-seed-0010-0000-000000000003", email: "user09@example.cz", nace_sector: "10", size_band: "S1", region: "Jihozápad", source: "prepopulated", label: "10/S1/Jihozápad" },
-  { userId: "00000000-seed-0010-0000-000000000004", email: "user10@example.cz", nace_sector: "10", size_band: "S2", region: "Jihozápad", source: "prepopulated", label: "10/S2/Jihozápad" },
+  { userId: "00000000-5eed-0010-0000-000000000003", email: "user09@example.cz", nace_sector: "10", size_band: "S1", region: "Jihozápad", source: "prepopulated", label: "10/S1/Jihozápad" },
+  { userId: "00000000-5eed-0010-0000-000000000004", email: "user10@example.cz", nace_sector: "10", size_band: "S2", region: "Jihozápad", source: "prepopulated", label: "10/S2/Jihozápad" },
   // NACE 62 (IT) — Praha — S2 and S3
-  { userId: "00000000-seed-0062-0000-000000000001", email: "user11@example.cz", nace_sector: "62", size_band: "S2", region: "Praha", source: "user_entered", label: "62/S2/Praha" },
-  { userId: "00000000-seed-0062-0000-000000000002", email: "user12@example.cz", nace_sector: "62", size_band: "S3", region: "Praha", source: "prepopulated", label: "62/S3/Praha" },
+  { userId: "00000000-5eed-0062-0000-000000000001", email: "user11@example.cz", nace_sector: "62", size_band: "S2", region: "Praha", source: "user_entered", label: "62/S2/Praha" },
+  { userId: "00000000-5eed-0062-0000-000000000002", email: "user12@example.cz", nace_sector: "62", size_band: "S3", region: "Praha", source: "prepopulated", label: "62/S3/Praha" },
   // NACE 62 — Střední Čechy — S2 and S3
-  { userId: "00000000-seed-0062-0000-000000000003", email: "user13@example.cz", nace_sector: "62", size_band: "S2", region: "Střední Čechy", source: "prepopulated", label: "62/S2/Střední Čechy" },
-  { userId: "00000000-seed-0062-0000-000000000004", email: "user14@example.cz", nace_sector: "62", size_band: "S3", region: "Střední Čechy", source: "prepopulated", label: "62/S3/Střední Čechy" },
+  { userId: "00000000-5eed-0062-0000-000000000003", email: "user13@example.cz", nace_sector: "62", size_band: "S2", region: "Střední Čechy", source: "prepopulated", label: "62/S2/Střední Čechy" },
+  { userId: "00000000-5eed-0062-0000-000000000004", email: "user14@example.cz", nace_sector: "62", size_band: "S3", region: "Střední Čechy", source: "prepopulated", label: "62/S3/Střední Čechy" },
   // NACE 41 (Stavebnictví) — Severozápad — S1 (rung-4 / below-floor cell)
-  { userId: "00000000-seed-0041-0000-000000000001", email: "user15@example.cz", nace_sector: "41", size_band: "S1", region: "Severozápad", source: "prepopulated", label: "41/S1/Severozápad (below-floor)" },
+  { userId: "00000000-5eed-0041-0000-000000000001", email: "user15@example.cz", nace_sector: "41", size_band: "S1", region: "Severozápad", source: "prepopulated", label: "41/S1/Severozápad (below-floor)" },
 ];
 
 // ─── Sample brief benchmark snippet ──────────────────────────────────────────
@@ -489,7 +489,7 @@ async function seedConsentAndProfiles(summary: SeedSummary): Promise<void> {
   }
 }
 
-async function seedSampleBrief(summary: SeedSummary): Promise<void> {
+async function seedSampleBrief(summary: SeedSummary): Promise<string | null> {
   // Check if a published brief for NACE 46 already exists.
   const { data: existing } = await supabase
     .from("briefs")
@@ -500,26 +500,31 @@ async function seedSampleBrief(summary: SeedSummary): Promise<void> {
 
   if (existing) {
     summary.briefsExisted++;
-    return;
+    return existing.id as string;
   }
 
   const contentSections = buildSampleBriefContentSections();
   const benchmarkSnippet = buildSampleBenchmarkSnippet();
 
-  const { error } = await supabase.from("briefs").insert({
-    nace_sector: "46",
-    publish_state: "published",
-    author_id: "analyst",
-    published_at: new Date("2026-04-01T08:00:00.000Z").toISOString(),
-    content_sections: contentSections,
-    benchmark_snippet: benchmarkSnippet,
-  });
+  const { data: inserted, error } = await supabase
+    .from("briefs")
+    .insert({
+      nace_sector: "46",
+      publish_state: "published",
+      author_id: "analyst",
+      published_at: new Date("2026-04-01T08:00:00.000Z").toISOString(),
+      content_sections: contentSections,
+      benchmark_snippet: benchmarkSnippet,
+    })
+    .select("id")
+    .single();
 
-  if (error) {
+  if (error || !inserted) {
     console.error("[seed] Error inserting sample brief:", error);
-  } else {
-    summary.briefsCreated++;
+    return null;
   }
+  summary.briefsCreated++;
+  return inserted.id as string;
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -549,7 +554,7 @@ async function main() {
 
   // Sample brief
   console.log("[seed] Seeding sample brief for NACE 46...");
-  await seedSampleBrief(summary);
+  const briefId = await seedSampleBrief(summary);
 
   // Summary
   console.log("\n=== Seed summary ===");
@@ -562,6 +567,10 @@ async function main() {
   console.log(`Sector profiles:   created=${summary.sectorProfilesCreated}, already existed=${summary.sectorProfilesExisted}`);
   console.log(`Prepopulated seed: created=${summary.prepopulatedSeedCreated}, already existed=${summary.prepopulatedSeedExisted}`);
   console.log(`Briefs:            created=${summary.briefsCreated}, already existed=${summary.briefsExisted}`);
+  if (briefId) {
+    console.log(`\nSample brief ID:   ${briefId}`);
+    console.log(`View at:           http://localhost:3000/brief/${briefId}`);
+  }
   console.log("\nDone. Safe to re-run — all operations are idempotent.");
 }
 
