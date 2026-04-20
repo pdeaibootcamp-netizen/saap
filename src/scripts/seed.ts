@@ -490,12 +490,13 @@ async function seedConsentAndProfiles(summary: SeedSummary): Promise<void> {
 }
 
 async function seedSampleBrief(summary: SeedSummary): Promise<string | null> {
-  // Check if a published brief for NACE 46 already exists.
+  // Idempotency: match on NACE+author regardless of state. The brief starts as
+  // a draft so the trial analyst can exercise the edit → publish flow on it.
   const { data: existing } = await supabase
     .from("briefs")
     .select("id")
     .eq("nace_sector", "46")
-    .eq("publish_state", "published")
+    .eq("author_id", "analyst")
     .maybeSingle();
 
   if (existing) {
@@ -510,9 +511,9 @@ async function seedSampleBrief(summary: SeedSummary): Promise<string | null> {
     .from("briefs")
     .insert({
       nace_sector: "46",
-      publish_state: "published",
+      publish_state: "draft",
       author_id: "analyst",
-      published_at: new Date("2026-04-01T08:00:00.000Z").toISOString(),
+      published_at: null,
       content_sections: contentSections,
       benchmark_snippet: benchmarkSnippet,
     })
