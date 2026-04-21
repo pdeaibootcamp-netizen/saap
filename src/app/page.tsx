@@ -13,31 +13,12 @@
  * Identity bypass: docs/engineering/v0-2-identity-bypass.md §3–§5.
  */
 
-import { cookies } from "next/headers";
-import { DEMO_OWNER_USER_ID } from "@/lib/demo-owner";
+// Cookie-setting moved to src/middleware.ts — Next.js 14 App Router forbids
+// cookies().set() from a server component (it's only allowed in Server Actions
+// and Route Handlers). The middleware runs before this page renders and sets
+// sr_user_id=DEMO_OWNER_USER_ID if it's missing.
 
 export default async function DashboardPage() {
-  // ── Cookie: set sr_user_id on first visit (v0-2-identity-bypass.md §5) ──────
-  // next/headers cookies() gives read access in RSC; setting a cookie in a server
-  // component requires a response header. We use the Next.js 14 approach of reading
-  // the store and branching — the actual Set-Cookie header is emitted via the
-  // middleware-compatible pattern below.
-  const cookieStore = cookies();
-  const hasIdentityCookie = !!cookieStore.get("sr_user_id")?.value;
-
-  if (!hasIdentityCookie) {
-    // Next.js 14.2+ App Router: cookies() returns ReadonlyRequestCookies which
-    // includes Pick<ResponseCookies, 'set' | 'delete'> — so .set() is available.
-    // The page is dynamically rendered (it reads cookies, so Next opts it out of
-    // static generation). See v0-2-identity-bypass.md §5.
-    cookieStore.set("sr_user_id", DEMO_OWNER_USER_ID, {
-      path: "/",
-      sameSite: "lax",
-      httpOnly: false,
-      maxAge: 60 * 60 * 24 * 30, // 30 days — covers the trial window
-    });
-  }
-
   // ── Layout ───────────────────────────────────────────────────────────────────
   // Tokens from docs/design/dashboard-v0-2/layout.md §5.
   // Breakpoints applied via inline style + media queries in a <style> tag.
