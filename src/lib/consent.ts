@@ -18,6 +18,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import type { ConsentSurface, ConsentChannel } from "../types/data-lanes";
+import { isDemoOwner } from "./demo-owner";
 
 // ─── Supabase admin client (service role — bypasses RLS for consent writes) ──
 
@@ -82,6 +83,11 @@ export async function getCurrentConsent(userId: string): Promise<CurrentConsent 
  * Fail-closed per OQ-049: network error throws, caller must handle.
  */
 export async function hasActiveConsent(userId: string): Promise<boolean> {
+  // v0.2 bypass: demo owner always has consent; skip DB check.
+  // Defence-in-depth guard — the brief page also short-circuits before calling
+  // this function, so this line is not reached in the normal demo path.
+  if (isDemoOwner(userId)) return true;
+
   const consent = await getCurrentConsent(userId);
   if (!consent) return false;
   return consent.latest_event_type === "grant";

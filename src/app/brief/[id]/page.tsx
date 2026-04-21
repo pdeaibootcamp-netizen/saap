@@ -19,11 +19,13 @@
  */
 
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import Link from "next/link";
 import type { Brief, BriefContent, BenchmarkCategory, BenchmarkMetric } from "@/lib/briefs";
 import { getBriefById } from "@/lib/briefs";
 import { resolveUserId } from "@/lib/auth";
 import { hasActiveConsent } from "@/lib/consent";
+import { isDemoOwner, DEMO_OWNER_USER_ID } from "@/lib/demo-owner";
 
 // ─── BenchmarkSnippet ────────────────────────────────────────────────────────
 
@@ -270,26 +272,41 @@ export default async function BriefPage({
   const token = searchParams.token ?? null;
   const briefId = params.id;
 
-  // Resolve user ID
-  const urlSearchParams = new URLSearchParams();
-  if (token) urlSearchParams.set("token", token);
-  const userId = await resolveUserId(urlSearchParams);
+  // Resolve user ID — v0.2: check sr_user_id cookie first (set by dashboard on first visit).
+  // If the cookie holds DEMO_OWNER_USER_ID, we short-circuit the George JWT / Supabase
+  // session chain entirely. See v0-2-identity-bypass.md §4.3.
+  const cookieStore = cookies();
+  const cookieUserId = cookieStore.get("sr_user_id")?.value ?? null;
+  let userId: string | null = null;
+  if (cookieUserId && isDemoOwner(cookieUserId)) {
+    userId = DEMO_OWNER_USER_ID;
+  } else {
+    const urlSearchParams = new URLSearchParams();
+    if (token) urlSearchParams.set("token", token);
+    userId = await resolveUserId(urlSearchParams);
+  }
 
   // Check consent — if no active consent, redirect to consent screen
   // (fail-closed per OQ-049 principles)
   if (userId) {
-    let consentActive = false;
-    try {
-      consentActive = await hasActiveConsent(userId);
-    } catch {
-      // Consent check error: fail-closed, redirect to consent screen
-      if (!isPdf) {
+    // v0.2 bypass: demo owner always has consent; skip DB check entirely.
+    // See v0-2-identity-bypass.md §4.1.
+    if (isDemoOwner(userId)) {
+      // no-op: consent is implicitly granted for the demo owner
+    } else {
+      let consentActive = false;
+      try {
+        consentActive = await hasActiveConsent(userId);
+      } catch {
+        // Consent check error: fail-closed, redirect to consent screen
+        if (!isPdf) {
+          redirect(`/consent?returnTo=/brief/${briefId}${token ? `&token=${token}` : ""}`);
+        }
+      }
+
+      if (!consentActive && !isPdf) {
         redirect(`/consent?returnTo=/brief/${briefId}${token ? `&token=${token}` : ""}`);
       }
-    }
-
-    if (!consentActive && !isPdf) {
-      redirect(`/consent?returnTo=/brief/${briefId}${token ? `&token=${token}` : ""}`);
     }
   }
 
