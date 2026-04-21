@@ -153,6 +153,32 @@ export async function getPublishedBriefByNace(naceSector: string): Promise<Brief
   return rows[0] ?? null;
 }
 
+/**
+ * List all published briefs for a given NACE sector, ordered most-recent first.
+ * Lane: brief (ADR-0002-C). Capped at 20 results for safety.
+ * Used by the v0.2 dashboard briefs list (dashboard-v0-2.md §7).
+ */
+export async function listPublishedBriefsByNace(naceSector: string): Promise<Brief[]> {
+  const rows = await sql<Brief[]>`
+    SELECT
+      id,
+      nace_sector,
+      publish_state,
+      version,
+      author_id,
+      created_at,
+      published_at,
+      content_sections,
+      benchmark_snippet
+    FROM briefs
+    WHERE nace_sector = ${naceSector}
+      AND publish_state = 'published'
+    ORDER BY published_at DESC, created_at DESC, id DESC
+    LIMIT 20
+  `;
+  return rows;
+}
+
 /** Create a new brief draft. Returns the new brief. */
 export async function createDraftBrief(params: {
   nace_sector: string;

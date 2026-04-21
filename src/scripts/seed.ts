@@ -381,6 +381,163 @@ function buildSampleBriefContentSections() {
   ];
 }
 
+// ─── NACE 31 placeholder briefs (Phase 2.2.c) ────────────────────────────────
+
+/**
+ * Minimal benchmark snippet for placeholder briefs (NACE 31).
+ * Four categories populated at the bare minimum required to pass validation.
+ * List UI does not render benchmarks, so values are placeholders only.
+ */
+function buildPlaceholderBenchmarkSnippet() {
+  const minMetric = (id: string, label: string) => ({
+    metric_id: id,
+    metric_label: label,
+    quartile_label: null,
+    percentile: null,
+    verdict_text: null,
+    confidence_state: "below-floor" as const,
+    rung_footnote: "Placeholder — data pro tento přehled nejsou k dispozici.",
+    is_email_teaser_snippet: false,
+  });
+
+  return {
+    cohort_id: "cohort-31-S2-Praha",
+    resolved_at: "2026-04-01T08:00:00.000Z",
+    categories: [
+      {
+        category_id: "ziskovost",
+        category_label: "Ziskovost",
+        metrics: [
+          minMetric("gross_margin", "Hrubá marže"),
+          minMetric("ebitda_margin", "EBITDA marže"),
+        ],
+      },
+      {
+        category_id: "naklady-produktivita",
+        category_label: "Náklady a produktivita",
+        metrics: [
+          minMetric("labor_cost_ratio", "Podíl mzdových nákladů"),
+          minMetric("revenue_per_employee", "Tržby na zaměstnance"),
+        ],
+      },
+      {
+        category_id: "efektivita-kapitalu",
+        category_label: "Efektivita kapitálu",
+        metrics: [
+          minMetric("working_capital_cycle", "Obratový cyklus"),
+          minMetric("roce", "ROCE"),
+        ],
+      },
+      {
+        category_id: "rust-trzni-pozice",
+        category_label: "Růst a tržní pozice",
+        metrics: [
+          minMetric("revenue_growth", "Růst tržeb"),
+          minMetric("pricing_power", "Cenová síla"),
+        ],
+      },
+    ],
+  };
+}
+
+interface PlaceholderBriefDef {
+  /** Stable idempotency key: author_id + nace_sector + title */
+  title: string;
+  publication_month: string;
+  opening_summary: string;
+  observations: { headline: string; body: string; time_horizon: string; is_email_teaser: boolean }[];
+  closing_actions: { action_text: string; time_horizon: string; category: string }[];
+  /** ISO timestamp for published_at — controls ordering and "Nový" flag */
+  published_at: string;
+}
+
+const NACE_31_PLACEHOLDER_BRIEFS: PlaceholderBriefDef[] = [
+  {
+    // Published 10 days ago — "Nový" pill will render
+    title: "[Placeholder] Vývoz českého nábytku do Německa — Q1 2026",
+    publication_month: "Duben 2026",
+    opening_summary:
+      "Vývoz nábytku z České republiky do Německa vzrostl v prvním čtvrtletí 2026 o 4,2 % meziročně. Poptávka po zakázkové výrobě ze segmentu kuchyní a kancelářského nábytku zůstává stabilní, zatímco poptávka po standardizovaném sortimentu mírně klesá v důsledku silné asijské konkurence.",
+    observations: [
+      {
+        headline: "Německý trh roste, ale konkurence sílí",
+        body: "Čeští výrobci nábytku udržují silnou pozici v segmentu zakázkové výroby pro německé odběratele. Standardizované produkty čelí rostoucímu tlaku od asijských dovozců, kteří nabízejí srovnatelnou kvalitu za nižší cenu. Firmy se silnou designovou identitou a kratšími dodacími lhůtami si udržují marže lepší než průměr sektoru.",
+        time_horizon: "Do 3 měsíců",
+        is_email_teaser: true,
+      },
+      {
+        headline: "Logistické náklady rostou pomaleji než v roce 2025",
+        body: "Přepravní náklady na dopravu do Německa vzrostly v Q1 2026 o 3,1 % — výrazně méně než v roce 2025 (+18 %). Stabilizace cen pohonných hmot a obnovení kapacit přepravců přispívají k lepší předvídatelnosti logistických výdajů.",
+        time_horizon: "Do 12 měsíců",
+        is_email_teaser: false,
+      },
+      {
+        headline: "Kurz eura zůstává příznivý",
+        body: "Průměrný kurz EUR/CZK v Q1 2026 (24,85 Kč/EUR) je pro exportéry příznivý. Při zachování tohoto kurzu si firmy fakturující v eurech udržují marže na stabilní korunové úrovni bez nutnosti zajišťovacích operací.",
+        time_horizon: "Okamžitě",
+        is_email_teaser: false,
+      },
+    ],
+    closing_actions: [
+      {
+        action_text:
+          "Zkontrolujte podíl zakázkové vs. standardizované výroby ve vašem exportním portfoliu a zvažte, zda mix odpovídá poptávkovým trendům na německém trhu.",
+        time_horizon: "Okamžitě",
+        category: "rust-trzni-pozice",
+      },
+      {
+        action_text:
+          "Prověřte možnosti uzavření rámcových přepravních smluv s klíčovými dopravci pro zajištění kapacity a ceny v Q2 a Q3 2026.",
+        time_horizon: "Do 3 měsíců",
+        category: "naklady-produktivita",
+      },
+    ],
+    published_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    // Published 35 days ago — outside the 30-day "Nový" window
+    title: "[Placeholder] Tlak dovozců z jihovýchodní Asie na cenotvorbu",
+    publication_month: "Březen 2026",
+    opening_summary:
+      "Dovoz nábytku z jihovýchodní Asie do České republiky vzrostl v roce 2025 o 11 % a trend pokračuje i v roce 2026. Český trh zaznamenává výrazné snížení maloobchodních cen ve standardizovaných kategoriích. Výrobci s vlastními značkami a přímými distribučními kanály udržují lepší marže.",
+    observations: [
+      {
+        headline: "Asijské dovozy stlačují maloobchodní ceny",
+        body: "Průměrná maloobchodní cena standardizovaného sedacího nábytku klesla v roce 2025 o 7 % meziročně. Hlavním faktorem jsou dovozy z Vietnamu a Malajsie, které kombinují nižší výrobní náklady s vylepšenou logistikou (zkrácení doby přepravy z Asie na 22–28 dní).",
+        time_horizon: "Okamžitě",
+        is_email_teaser: true,
+      },
+      {
+        headline: "Přímý prodej B2C jako ochrana marží",
+        body: "Výrobci s vlastními e-shopy nebo showroomy vykazují o 12–18 % vyšší marže oproti těm, kteří distribuují výhradně přes maloobchodní řetězce. Přímý kontakt se zákazníkem umožňuje lépe vysvětlit hodnotu a kvalitu výrobku.",
+        time_horizon: "Do 12 měsíců",
+        is_email_teaser: false,
+      },
+    ],
+    closing_actions: [
+      {
+        action_text:
+          "Analyzujte cenové pozicování vašich klíčových produktových kategorií vůči asijské konkurenci a identifikujte, kde lze zvýraznit diferenciaci (materiály, design, záruky, servis).",
+        time_horizon: "Okamžitě",
+        category: "rust-trzni-pozice",
+      },
+      {
+        action_text:
+          "Zvažte otevření nebo posílení přímého prodejního kanálu (e-shop, showroom) pro segmenty, kde máte silnou designovou identitu.",
+        time_horizon: "Do 12 měsíců",
+        category: "rust-trzni-pozice",
+      },
+      {
+        action_text:
+          "Proveďte srovnání výrobních nákladů na vaše tři největší produktové kategorie a identifikujte komponenty, kde lze substitucí materiálu nebo dodavatele snížit náklady bez ztráty kvality.",
+        time_horizon: "Do 3 měsíců",
+        category: "naklady-produktivita",
+      },
+    ],
+    published_at: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+];
+
 // ─── Seed functions ───────────────────────────────────────────────────────────
 
 interface SeedSummary {
@@ -538,6 +695,79 @@ async function seedSampleBrief(summary: SeedSummary): Promise<string | null> {
   return inserted.id as string;
 }
 
+/**
+ * Seed two NACE 31 placeholder briefs for the v0.2 brief list (Phase 2.2.c).
+ * Idempotency: match on author_id + nace_sector + title (via the first
+ * content_sections element whose section_id === 'brief_content', body JSON .title).
+ * Because title matching on JSONB is expensive, we use a stable author_id
+ * suffix derived from the brief index so the pair is identifiable on re-run.
+ */
+async function seedNace31PlaceholderBriefs(summary: SeedSummary): Promise<void> {
+  const benchmarkSnippet = buildPlaceholderBenchmarkSnippet();
+
+  for (let i = 0; i < NACE_31_PLACEHOLDER_BRIEFS.length; i++) {
+    const def = NACE_31_PLACEHOLDER_BRIEFS[i];
+    // Stable author_id suffix: "placeholder-31-0", "placeholder-31-1" — unique per slot.
+    const authorId = `placeholder-31-${i}`;
+
+    const { data: existing } = await supabase
+      .from("briefs")
+      .select("id")
+      .eq("nace_sector", "31")
+      .eq("author_id", authorId)
+      .maybeSingle();
+
+    if (existing) {
+      summary.briefsExisted++;
+      console.log(`  [seed] NACE 31 placeholder ${i + 1} already exists (id: ${existing.id})`);
+      continue;
+    }
+
+    const content = {
+      title: def.title,
+      publication_month: def.publication_month,
+      opening_summary: def.opening_summary,
+      observations: def.observations,
+      closing_actions: def.closing_actions,
+      benchmark_categories: benchmarkSnippet.categories,
+      pdf_footer_text:
+        "Strategy Radar — Česká spořitelna. Kontakt: strategyradar@csas.cz",
+      email_teaser_observation_index: 0,
+    };
+
+    const contentSections = [
+      {
+        section_id: "brief_content",
+        heading: "Obsah přehledu",
+        body: JSON.stringify(content),
+        order: 0,
+      },
+    ];
+
+    // Publish the placeholder directly (skip draft step — placeholders exercise
+    // the list rendering, not the publish flow). Set published_at explicitly.
+    const { data: inserted, error } = await supabase
+      .from("briefs")
+      .insert({
+        nace_sector: "31",
+        publish_state: "published",
+        author_id: authorId,
+        published_at: def.published_at,
+        content_sections: contentSections,
+        benchmark_snippet: benchmarkSnippet,
+      })
+      .select("id")
+      .single();
+
+    if (error || !inserted) {
+      console.error(`  [seed] Error inserting NACE 31 placeholder ${i + 1}:`, error);
+    } else {
+      summary.briefsCreated++;
+      console.log(`  [seed] NACE 31 placeholder ${i + 1} created (id: ${inserted.id})`);
+    }
+  }
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -567,6 +797,10 @@ async function main() {
   console.log("[seed] Seeding sample brief for NACE 46...");
   const briefId = await seedSampleBrief(summary);
 
+  // NACE 31 placeholder briefs for v0.2 brief list (Phase 2.2.c)
+  console.log("[seed] Seeding 2 NACE 31 placeholder briefs...");
+  await seedNace31PlaceholderBriefs(summary);
+
   // Summary
   console.log("\n=== Seed summary ===");
   console.log(`Analyst:           env-var based (set ADMIN_PASSWORD_HASH=test in .env.local)`);
@@ -577,7 +811,7 @@ async function main() {
   console.log(`Consent events:    created=${summary.consentEventsCreated}, already existed=${summary.consentEventsExisted}`);
   console.log(`Sector profiles:   created=${summary.sectorProfilesCreated}, already existed=${summary.sectorProfilesExisted}`);
   console.log(`Prepopulated seed: created=${summary.prepopulatedSeedCreated}, already existed=${summary.prepopulatedSeedExisted}`);
-  console.log(`Briefs:            created=${summary.briefsCreated}, already existed=${summary.briefsExisted}`);
+  console.log(`Briefs:            created=${summary.briefsCreated}, already existed=${summary.briefsExisted} (includes NACE 46 draft + 2 NACE 31 placeholders)`);
   if (briefId) {
     console.log(`\nSample brief ID:   ${briefId}`);
     console.log(`View at:           http://localhost:3000/brief/${briefId}`);
