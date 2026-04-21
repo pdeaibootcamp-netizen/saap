@@ -115,7 +115,7 @@ When the brief list is being fetched, show two skeleton rows. Each skeleton row 
 ## 5. Spacing and divider treatment
 
 ```
-[Section heading: "Vaše přehledy"]
+[Section heading: "Analýzy"]
   ↓ 12 px (--space-m) margin-bottom on the heading
 [List container <ul>]
   [Row 1 <li>]
@@ -297,3 +297,4 @@ No other design-system additions needed.
 ## Changelog
 
 - 2026-04-21 — initial draft — designer
+- 2026-04-21 — D-019: section heading label in spacing diagram (§5) changed from "Vaše přehledy" to "Analýzy"; individual brief references ("Přehled", "přehledy" as nouns for brief documents) left unchanged — designer

@@ -44,7 +44,7 @@ The page has three stacked regions and nothing else.
 │  padding-top: 24 px; padding-bottom: 32 px                   │
 ├──────────────────────────────────────────────────────────────┤
 │  BRIEF LIST SECTION                                          │
-│  Section heading (H2): "Vaše přehledy"                      │
+│  Section heading (H2): "Analýzy"                            │
 │  Vertical list of brief-list-item rows                       │
 │  padding-top: 0 (section heading provides spacing);          │
 │  padding-bottom: 48 px                                       │
@@ -116,7 +116,7 @@ The `src/app/brief/[id]/page.tsx` implementation establishes the following value
 | Token name | Size | Weight | Line height | Used for |
 |---|---|---|---|---|
 | `--text-display` | 22 px | 700 | 1.3 | Page-level H1 (not used on dashboard — header band is wordmark only) |
-| `--text-heading` | 18 px | 700 | 1.35 | H2 section headings ("Srovnání s vaším oborem", "Vaše přehledy") |
+| `--text-heading` | 18 px | 700 | 1.35 | H2 section headings ("Srovnání s vaším oborem", "Analýzy") |
 | `--text-subheading` | 15 px | 600 | 1.4 | Card headings, category labels |
 | `--text-body` | 15–16 px | 400 | 1.5–1.6 | Body text, brief titles in list |
 | `--text-label` | 13 px | 600 | 1.3 | Metric name label inside tile |
@@ -144,23 +144,25 @@ The header band is minimal — this is a PoC, and the brief explains the product
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  Strategy Radar                                              │
+│  Česká Spořitelna · Strategy Radar                           │
 │  (wordmark, --text-subheading weight 700, --color-ink-primary│
 │   left-aligned, vertically centered in 48 px band)           │
 └──────────────────────────────────────────────────────────────┘
 ```
 
+**Wordmark: "Česká Spořitelna · Strategy Radar"** (D-018). Identical to the brand mark on the brief detail page — same font stack (`system-ui, -apple-system, …, sans-serif`), same size (`--text-subheading` 15 px / weight 700), same separator dot (U+00B7 MIDDLE DOT, rendered as " · ", with a single space either side). The two surfaces must read as one product; the wordmark is the visual anchor for that continuity.
+
 - **Height:** 48 px (mobile), 56 px (desktop). Matches the existing brief page's header rhythm.
 - **Background:** `--color-surface-page` (#ffffff).
 - **Border-bottom:** 1 px `--color-border-subtle` (#e0e0e0).
 - **No navigation links.** No user menu, no settings link, no logout. The PoC owner is hardcoded; settings and consent surfaces are bypassed.
-- **No ČS logo.** The ČS wordmark is present in the brief page and consent screen; the dashboard PoC omits it to keep the header uncluttered. If the PM artifact specifies it, add. Logged as Q-TBD-D-001.
+- **Q-TBD-D-001 — RESOLVED (D-018).** The ČS wordmark question is settled: the full compound wordmark "Česká Spořitelna · Strategy Radar" appears in the header, matching the brief page. No further action needed.
 
 ### Heading levels
 
 - The wordmark is not a heading — it is a decorative text element (`<div>` or `<span>`, not `<h1>`). There is no page-level `<h1>` on the dashboard; the content sections carry `<h2>` headings. This is intentional: the page is a dashboard, not a document, and the visual wordmark substitutes for an accessible `<h1>`.
 
-**Wait — accessibility note.** Screen readers expect one `<h1>` per page. The wordmark should be marked as `<h1 aria-label="Strategy Radar">` with `role="banner"` on the header element. See §9 accessibility checklist.
+**Wait — accessibility note.** Screen readers expect one `<h1>` per page. The wordmark should be marked as `<h1 aria-label="Česká Spořitelna · Strategy Radar">` with `role="banner"` on the header element. See §9 accessibility checklist.
 
 ---
 
@@ -220,7 +222,7 @@ Visual specs for individual tiles: see [tile-states.md](tile-states.md).
 ### 8.1 Section heading
 
 ```
-<h2>Vaše přehledy</h2>
+<h2>Analýzy</h2>
 ```
 
 - Style: `--text-heading` (18 px / 700).
@@ -238,10 +240,10 @@ Visual specs for individual tiles: see [tile-states.md](tile-states.md).
 
 ## 9. Accessibility checklist — dashboard page
 
-- [ ] `<header role="banner">` wraps the header band; contains `<h1 aria-label="Strategy Radar">` for screen readers (wordmark text may be visually styled but must have semantic heading role — see §6 note).
+- [ ] `<header role="banner">` wraps the header band; contains `<h1 aria-label="Česká Spořitelna · Strategy Radar">` for screen readers (wordmark text may be visually styled but must have semantic heading role — see §6 note).
 - [ ] `<main>` wraps both the tile section and the brief list section.
-- [ ] `<h2>` headings are used for both section headings ("Srovnání s vaším oborem" and "Vaše přehledy"); no heading levels are skipped.
-- [ ] Focus order follows visual reading order: header band → tile section heading → tile 1 → tile 2 → … → tile 8 → section divider (non-interactive, skipped) → brief list heading → brief row 1 → brief row 2 → brief row 3.
+- [ ] `<h2>` headings are used for both section headings ("Srovnání s vaším oborem" and "Analýzy"); no heading levels are skipped.
+- [ ] Focus order follows visual reading order: header band → tile section heading → tile 1 → tile 2 → … → tile 8 → section divider (non-interactive, skipped) → "Analýzy" section heading → brief row 1 → brief row 2 → brief row 3.
 - [ ] Tile grid: tiles are either non-interactive (read-only metric display) or interactive links — if non-interactive, they carry `role="region"` with an accessible name equal to the metric name; if interactive (tap-to-brief), the `<a>` carries the full accessible description. Defined further in [tile-states.md §5](tile-states.md).
 - [ ] Tab flow from tile grid to brief list section is natural DOM order (no `tabindex` manipulation needed; tile section precedes brief list in DOM).
 - [ ] Color is never the only signal for quartile position — mandatory redundant signal specified in [tile-states.md §3](tile-states.md).
@@ -249,7 +251,7 @@ Visual specs for individual tiles: see [tile-states.md](tile-states.md).
 - [ ] Text contrast ≥ WCAG AA (4.5:1 body, 3:1 large): `--color-ink-primary` (#1a1a1a) on `--color-surface-page` (#ffffff) = 18.1:1 (passes). `--color-ink-tertiary` (#666) on #ffffff = 5.74:1 (passes AA). Tile text-on-tile-background ratios specified in [tile-states.md §4](tile-states.md).
 - [ ] Section divider (`<hr>`) is `aria-hidden="true"` — presentational only, already conveyed by heading structure.
 - [ ] No motion on the page beyond brief-list-item hover state (colour transition); hover is suppressed for `prefers-reduced-motion` (instant colour switch).
-- [ ] Screen-reader label on the wordmark `<h1>`: "Strategy Radar" (full name).
+- [ ] Screen-reader label on the wordmark `<h1>`: "Česká Spořitelna · Strategy Radar" (full compound name, per D-018).
 - [ ] Loading state: when tiles or brief list are loading, a visible skeleton is shown (see [tile-states.md §2](tile-states.md) and [brief-list-item.md §4](brief-list-item.md)); loading regions carry `aria-busy="true"`.
 
 ---
@@ -292,7 +294,7 @@ These are raised by the designer; the orchestrator assigns final `OQ-NNN` IDs wh
 
 | Local ID | Question | Blocking |
 |---|---|---|
-| Q-TBD-D-001 | Should the ČS wordmark appear in the dashboard header band alongside or instead of "Strategy Radar"? The brief page shows "Česká Spořitelna · Strategy Radar" in a metadata line above H1. The dashboard PoC omits the ČS wordmark from the header to keep chrome minimal. If the PM artifact specifies branding requirements, this needs reconciliation. | PM artifact; not blocking PoC build |
+| Q-TBD-D-001 | ~~Should the ČS wordmark appear in the dashboard header band alongside or instead of "Strategy Radar"?~~ **RESOLVED — D-018 (2026-04-21).** Header wordmark is "Česká Spořitelna · Strategy Radar", matching the brief page. Spec updated in §6 and §9. | Resolved — no action needed |
 | Q-TBD-D-002 | Are tiles purely informational (read-only, `role="region"`) or do they link to something (e.g., deep-link to the relevant brief section)? At v0.2 there is no tile-to-section deep-link behaviour specified. If tiles become interactive, touch-target and focus-state specs in tile-states.md must be updated. | tile-states.md §4 interactive states; not blocking v0.2 PoC |
 | Q-TBD-D-003 | Desktop max-width for the tile grid is proposed at 960 px (vs 680 px for the brief page single column). If the engineer uses a single layout container for both sections, the tile grid at 4 columns will be narrower than 960 px at a 680 px container. Engineer to confirm container strategy and whether a wider container is acceptable for this page. | Engineering layout implementation; not blocking design |
 
@@ -301,3 +303,4 @@ These are raised by the designer; the orchestrator assigns final `OQ-NNN` IDs wh
 ## Changelog
 
 - 2026-04-21 — initial draft — designer
+- 2026-04-21 — D-018: header wordmark specified as "Česká Spořitelna · Strategy Radar"; Q-TBD-D-001 marked resolved; D-019: brief list section heading changed from "Vaše přehledy" to "Analýzy" throughout — designer

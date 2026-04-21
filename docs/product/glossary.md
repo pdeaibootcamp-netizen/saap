@@ -5,7 +5,10 @@
 ---
 
 ### Sector brief
-The atomic unit of value at MVP — a monthly, 2–3 page, sector-calibrated, plain-language document closing with 2–4 time-horizon-tagged actions. At MVP, briefs are human-authored by ČS analysts using back-end tooling. Source: [PRD §1](../../PRD/PRD.md#1-summary), [PRD §8.1](../../PRD/PRD.md#81-sector-briefing-engine--what-this-means-for-you-primary-mvp).
+The atomic unit of value at MVP — a monthly, 2–3 page, sector-calibrated, plain-language document closing with 2–4 time-horizon-tagged actions. At MVP, briefs are human-authored by ČS analysts using back-end tooling. Czech user-facing term for a single brief document: **Přehled**. See also **Analýzy (Strategy Radar)** below for the dashboard-level list heading. Source: [PRD §1](../../PRD/PRD.md#1-summary), [PRD §8.1](../../PRD/PRD.md#81-sector-briefing-engine--what-this-means-for-you-primary-mvp).
+
+### Analýzy (Strategy Radar)
+Czech user-facing heading for the list of sector briefs shown in the owner's dashboard. Každá položka v seznamu je jeden *Přehled* (viz **Sector brief** výše) — "Analýzy" pojmenovává kolekci, nikoli jednotlivý dokument. Uplatňuje se pouze jako nadpis seznamu v dashboardu; jednotlivý brief zůstává dál nazýván "Přehled". Source: [D-019](../project/decision-log.md), [dashboard-v0-2.md §5.3](dashboard-v0-2.md).
 
 ### Exposed Owner
 Primary persona. Owner/CEO of a 10–100 employee Czech firm, sole strategic decision-maker, triggered into evaluating the product by a specific pain event (margin squeeze, competitor pricing, lost tender, etc.). Must see proof of insight within 14 days or disengages. Source: [PRD §3](../../PRD/PRD.md#3-target-users).
@@ -82,3 +85,4 @@ A per-`(brief_artifact, recipient, surface)` audit row written by the Multi-Form
 ## Changelog
 
 - 2026-04-17 — Phase 1 additions: **Data lane**, **Embedded benchmark snippet**, **MVP metric categories (the four)**, **Statistical-validity floor suppression (silent-to-user)** — introduced by `mvp-metric-list.md` and `assumption-log.md`. — product-manager
+- 2026-04-21 — new entry **Analýzy (Strategy Radar)** added per [D-019](../project/decision-log.md); cross-referenced from the **Sector brief** entry so lookups on either term land on both. **Přehled** (singular, = one brief document) definition unchanged. — product-manager

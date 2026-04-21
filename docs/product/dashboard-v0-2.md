@@ -98,7 +98,7 @@ All Czech copy on the dashboard, consolidated for single-source consumption by d
 | Element | Czech string | Notes |
 |---|---|---|
 | Browser tab title | `Strategy Radar` | Plain brand. No "Dashboard" suffix at v0.2. |
-| Page header (visible) | `Přehled` | Single word. This is the existing owner-facing term per [glossary.md](glossary.md) — "Přehled" otherwise denotes a single briefing document, but for the PoC landing surface it carries the landing-page meaning. See §7, OQ-DV02-01. |
+| Page header (visible) | `Česká Spořitelna · Strategy Radar` | Wordmark-only header band, identical to the brief page ([D-018](../project/decision-log.md)). No separate page-title vs. wordmark distinction — the wordmark is the entire header. |
 | Header subline (optional, one sentence) | `Rychlý pohled na vaši firmu a na to, co se aktuálně děje ve vašem oboru.` | Designer may elect to omit for visual density; content stays here if used. |
 
 ### 5.2 Tile grid section
@@ -119,7 +119,7 @@ All Czech copy on the dashboard, consolidated for single-source consumption by d
 
 | Element | Czech string | Notes |
 |---|---|---|
-| Section header | `Přehledy pro váš obor` | Plural "Přehledy" denotes a list of briefing documents; the singular "Přehled" in the page header refers to the landing surface. Both usages are pre-existing in the codebase; see §7, OQ-DV02-01. |
+| Section header | `Analýzy` | Per [D-019](../project/decision-log.md). "Analýzy" is the dashboard-level list heading for the collection of briefs; the singular "Přehled" continues to denote an individual brief document (see [glossary.md](glossary.md)). |
 | Section sub-header (optional) | `Vybrali jsme pro vás aktuální přehledy k oboru, ve kterém podnikáte.` | Designer decides whether to render. |
 | Brief list item — title | Brief title verbatim from the authored brief. | No truncation rule at v0.2 (designer decides wrapping). |
 | Brief list item — publication month | Czech month name + four-digit year — e.g. `duben 2026`, `květen 2026`. Lower-case month name per Czech convention. | Rendered from `published_at`. The month name is derived from `published_at` — there is no separate `publication_month` field the PM commits to; engineer picks the formatting helper. |
@@ -137,14 +137,11 @@ Two sections on `/`, fixed order:
 ```
 +-----------------------------------------------------------+
 | Minimal header                                            |
-|   - Brand wordmark ("Strategy Radar")                     |
+|   - Wordmark ("Česká Spořitelna · Strategy Radar")        |
 |   - No navigation, no profile menu, no bank chrome        |
 +-----------------------------------------------------------+
 | Section 1 — Tile grid                                     |
-|   Section header: "Přehled" / "Vaše pozice v kohortě"     |
-|   (PM note: "Přehled" is page-level chrome above;         |
-|    "Vaše pozice v kohortě" is the tile-section header.    |
-|    Two separate headings, not one.)                       |
+|   Section header: "Vaše pozice v kohortě"                 |
 |                                                           |
 |   8 tiles, one per D-015 metric.                          |
 |   Tiles visually grouped by the four D-015 categories     |
@@ -159,7 +156,7 @@ Two sections on `/`, fixed order:
 |     - below-floor variant: label + empty-state copy       |
 +-----------------------------------------------------------+
 | Section 2 — Briefs for your sector                        |
-|   Section header: "Přehledy pro váš obor"                 |
+|   Section header: "Analýzy"                               |
 |                                                           |
 |   Vertical list of briefs matching the owner's NACE.      |
 |   Each item: title + publication month + NACE badge.      |
@@ -225,7 +222,7 @@ A reviewer (orchestrator or user) can accept this spec when all of the following
 
 ## 12. Open questions to orchestrator
 
-1. **OQ-DV02-01 — "Přehled" term collision on the dashboard surface.** The glossary and existing codebase use "Přehled" as the owner-facing name for a single briefing document ([glossary.md](glossary.md) § Sector brief; also referenced in customer-testing-brief.md §8). §5.1 of this spec reuses "Přehled" as the page-level header of the landing surface, and §5.3 uses "Přehledy pro váš obor" for the briefs list. Two adjacent meanings of the same Czech noun on one screen is a legibility risk. Three resolution options: (a) keep as specced — "Přehled" for the landing, "Přehledy" for the list, accepting that the plural disambiguates; (b) rename the page-level header to something else — candidates: "Dnes ve vaší firmě", "Vaše situace", "Úvodní přehled" — and reserve "Přehled/Přehledy" for briefing documents only; (c) drop the page-level header entirely and let the section headers carry the structure. PM preference: (a) ships the PoC without a rename event that would drift other artifacts, and the plural form is standard Czech. But this is a copy decision the orchestrator should confirm with the user before the designer consumes the copy. If (b), the glossary entry for "Sector brief" / "Přehled" is unaffected — only the landing-page header string changes.
+1. **OQ-DV02-01 — "Přehled" term collision on the dashboard surface.** ~~The glossary and existing codebase use "Přehled" as the owner-facing name for a single briefing document ([glossary.md](glossary.md) § Sector brief; also referenced in customer-testing-brief.md §8). §5.1 of this spec reuses "Přehled" as the page-level header of the landing surface, and §5.3 uses "Přehledy pro váš obor" for the briefs list. Two adjacent meanings of the same Czech noun on one screen is a legibility risk.~~ **Resolved 2026-04-21** via [D-019](../project/decision-log.md) (orchestrator close-out OQ-055): dashboard list heading is **"Analýzy"**; "Přehled" (singular) continues to denote a single brief document. Separately, [D-018](../project/decision-log.md) (orchestrator close-out OQ-056) replaces the page-level header with the "Česká Spořitelna · Strategy Radar" wordmark, removing the "Přehled" collision entirely. Spec §5.1, §5.3, and §6 updated accordingly.
 
 2. **OQ-DV02-02 — Tile tooltip: necessary or noise?** §5.2 defers the question of whether each tile needs one-sentence hover/tooltip copy. PM view: the label + raw + percentile + quartile quartet is already a complete verdict-dataset pair and does not require a tooltip to be legible, and adding one introduces a new maintenance surface. But an accessibility case (screen reader, small viewport) may compel one. Resolution path: designer proposes or declines in `docs/design/dashboard-v0-2/tile-states.md`; if the designer declines, this OQ closes. If the designer proposes one, PM authors the exact Czech string for each of the eight metrics in a spec addendum, sourcing from the "Why it matters to the owner" lines in [mvp-metric-list.md](mvp-metric-list.md).
 
@@ -234,3 +231,4 @@ Both OQs are non-blocking for the designer and data-engineer to start their trac
 ## Changelog
 
 - 2026-04-21 — initial draft for v0.2 customer-testing PoC. Consumes D-015 eight-metric freeze, D-011 four-category grouping, D-014 graceful-degradation posture, D-012 stop-flow revocation boundary. Two OQs logged for orchestrator routing. — product-manager
+- 2026-04-21 — copy update: page header set to "Česká Spořitelna · Strategy Radar" per [D-018](../project/decision-log.md); brief-list heading renamed from "Přehledy pro váš obor" to "Analýzy" per [D-019](../project/decision-log.md). OQ-DV02-01 marked resolved. — product-manager
