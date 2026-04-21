@@ -23,9 +23,12 @@ export default async function DashboardPage() {
   // Tokens from docs/design/dashboard-v0-2/layout.md §5.
   // Breakpoints applied via inline style + media queries in a <style> tag.
 
-  return (
-    <>
-      <style>{`
+  // Inline stylesheet is injected via dangerouslySetInnerHTML to sidestep a
+  // React hydration mismatch: when a <style>{`...`}</style> contains straight
+  // quotes, the server-rendered HTML encodes them as &quot; while the client
+  // decodes them on hydration, and React flags the delta. dangerouslySetInnerHTML
+  // makes React skip the child-content comparison.
+  const dashboardCss = `
         /* Dashboard layout — v0.2 PoC */
         /* docs/design/dashboard-v0-2/layout.md §4.2 max-width + breakpoints */
 
@@ -110,7 +113,11 @@ export default async function DashboardPage() {
           line-height: 1.5;
           text-align: center;
         }
-      `}</style>
+      `;
+
+  return (
+    <>
+      <style dangerouslySetInnerHTML={{ __html: dashboardCss }} />
 
       <div className="db-page">
 
