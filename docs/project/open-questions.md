@@ -132,7 +132,24 @@ Remaining specialist-internal items (design-system confirmations chained on OQ-0
 2. Either (a) resolve directly and add a row to [decision-log.md](decision-log.md) with the matching `D-NNN`, or (b) escalate to the human via `AskUserQuestion`.
 3. Update the `Status` column in this file. Never delete rows — resolved questions stay as an audit trail.
 
+## v0.2 Track A spec gate (2026-04-21)
+
+All raised on branch `trial-v0-2` during Phase 2.1 Track A + Track C spec-writing. Minor accessibility / implementation nits that the engineer + designer can reconcile during Phase 2.2.b–c stay inside the artifact files themselves; only items needing user or cross-lane decision are promoted here.
+
+| Date | ID | Question | Raised by | Blocking | Status |
+|---|---|---|---|---|---|
+| 2026-04-21 | OQ-054 | **`pricing_power` metric floor violation for the demo owner.** DE's NACE 31 / S2 / Praha cohort stub uses n_firms=34, which clears the global N≥30 floor but violates the stricter N≥50 floor declared for `pricing_power` in the Phase 1 cohort math. Shipping the tile as `valid` contradicts the stricter policy; marking it `below-floor` reduces the demo's readout count. Recommendation: accept the looser floor for the PoC only; harden in v0.3. | data-engineer | `docs/data/dummy-owner-metrics.md` §4.1, any v0.3 tightening of per-metric floors. | open — PoC-accept, harden at v0.3 |
+| 2026-04-21 | OQ-055 | **"Přehled" naming collision on the dashboard page.** Glossary defines "Přehled" = a single brief document; PM spec reuses "Přehledy" as the plural list header on the dashboard. Three resolutions offered in `dashboard-v0-2.md` §12 OQ-DV02-01. PM preference: keep-as-specced. | product-manager | Dashboard copy production (affects PD copy pickup + EN implementation). | open — user decision |
+| 2026-04-21 | OQ-056 | **ČS wordmark on the dashboard header band.** Brief page renders "Česká Spořitelna · Strategy Radar"; dashboard PD spec omits ČS wordmark (just "Strategy Radar"). Consistency preference vs. PoC minimalism. | designer | `src/app/page.tsx` header implementation in Phase 2.2.a. | open — user decision |
+| 2026-04-21 | OQ-057 | **Desktop max-width container strategy.** PD proposes 960 px for the dashboard (fits 4 tile columns). Brief page uses 680 px (single column). If a shared layout container is introduced, one of the two page widths loses. | designer → engineer | Phase 2.2.a scaffold. | open — engineer to decide container strategy during 2.2.a |
+| 2026-04-21 | OQ-058 | **Below-floor tile copy — short vs. full form.** PD proposes short "Zatím nedostatek dat pro srovnání" to fit a tile; the frozen full string lives in `quartile-position-display.md` §5.5. PM to confirm short form is acceptable for the tile context. | designer → product-manager | Tile below-floor state rendering. | open — PM to confirm during brief-page-v0-2 artifact write |
+
+Non-promoted: 6 further specialist-internal items flagged in the PD spec files (tile interactivity, category-badge placement, badge contrast nudge 3.54 → 5.74 at #666, `aria-label` double-announce on quartile pill and "Nový" badge, NACE code display-name resolution, brief-list pagination at v0.3+). These stay inside the PD spec where they were raised and are resolved during Phase 2.2 implementation with engineer + PD in thread. Do not re-promote unless a blocker surfaces.
+
+---
+
 ## Changelog
 - 2026-04-17 — initial population after Phase 1 gate. 20 open questions transcribed from engineer, data-engineer, designer artifacts; 2 resolved at gate (D-010, D-011).
 - 2026-04-17 — user decisions on OQ-001 and OQ-002 resolved to D-012 and D-013. OQ-009 moot under D-012. OQ-021 added (retention window) post-reconciliation from data-engineer.
 - 2026-04-20 — Phase 2 PM + PD gate: 67 specialist OQs indexed by feature-artifact (not individually transcribed to keep register readable); 9 cross-cutting items promoted as OQ-045..053.
+- 2026-04-21 — v0.2 Track A + Track C spec gate on branch `trial-v0-2`: OQ-054..058 transcribed (1 DE, 1 PM, 3 PD). 6 specialist-internal items left in-artifact per triage. OQ-055, OQ-056 are user-gated; OQ-054 is PoC-accepted; OQ-057 is engineer-gated; OQ-058 is PM-gated and will close when `brief-page-v0-2.md` is written.
