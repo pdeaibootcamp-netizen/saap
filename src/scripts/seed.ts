@@ -454,7 +454,7 @@ interface PlaceholderBriefDef {
 const NACE_31_PLACEHOLDER_BRIEFS: PlaceholderBriefDef[] = [
   {
     // Published 10 days ago — "Nový" pill will render
-    title: "[Placeholder] Vývoz českého nábytku do Německa — Q1 2026",
+    title: "Vývoz českého nábytku do Německa — Q1 2026",
     publication_month: "Duben 2026",
     opening_summary:
       "Vývoz nábytku z České republiky do Německa vzrostl v prvním čtvrtletí 2026 o 4,2 % meziročně. Poptávka po zakázkové výrobě ze segmentu kuchyní a kancelářského nábytku zůstává stabilní, zatímco poptávka po standardizovaném sortimentu mírně klesá v důsledku silné asijské konkurence.",
@@ -496,7 +496,7 @@ const NACE_31_PLACEHOLDER_BRIEFS: PlaceholderBriefDef[] = [
   },
   {
     // Published 35 days ago — outside the 30-day "Nový" window
-    title: "[Placeholder] Tlak dovozců z jihovýchodní Asie na cenotvorbu",
+    title: "Tlak dovozců z jihovýchodní Asie na cenotvorbu",
     publication_month: "Březen 2026",
     opening_summary:
       "Dovoz nábytku z jihovýchodní Asie do České republiky vzrostl v roce 2025 o 11 % a trend pokračuje i v roce 2026. Český trh zaznamenává výrazné snížení maloobchodních cen ve standardizovaných kategoriích. Výrobci s vlastními značkami a přímými distribučními kanály udržují lepší marže.",
@@ -537,6 +537,161 @@ const NACE_31_PLACEHOLDER_BRIEFS: PlaceholderBriefDef[] = [
     published_at: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString(),
   },
 ];
+
+// ─── Furniture brief (NACE 31) — Phase 2.2.e ──────────────────────────────────
+
+/**
+ * Layperson opener for the furniture brief (§6.1 of brief-page-v0-2.md).
+ * Verbatim — do not paraphrase. Stored as publication.opener_markdown.
+ */
+const FURNITURE_OPENER_MARKDOWN = `**Český nábytkářský průmysl: stabilizace po dvou letech útlumu, ale bez rychlého návratu k růstu.**
+
+Výroba nábytku v České republice se za posledních patnáct let přibližně zdvojnásobila — z asi 34 miliard korun v roce 2009 na 53 miliard v roce 2022. V roce 2024 obor vyrobil zboží přibližně za 49 miliard korun; je to méně než před pandemií, ale po dvou slabších letech se trh začíná stabilizovat. Klíčové je, že tuto hodnotu dnes drží výrazně méně lidí než dřív: v oboru pracuje zhruba 16 tisíc zaměstnanců, oproti 27 tisícům v roce 2009. Produktivita tedy výrazně vzrostla, zároveň ale obor už nemá kde brát další lidi, pokud by poptávka prudce oživila.
+
+Mzdy v nábytkářství rostou pomaleji než v ostatních průmyslových oborech. Pro firmy v oboru je to krátkodobě výhoda — nákladová strana drží. Střednědobě je to ale signál, že obor je u zaměstnanců méně atraktivní než alternativa ve strojírenství nebo automobilovém průmyslu a že nábor kvalifikovaných pracovníků bude stále obtížnější.
+
+Exportní stránka je silná a drží výrobu nad vodou: obchodní bilance nábytku zůstává dlouhodobě kladná, hlavním odbytištěm je Německo a západní Evropa. Domácí poptávka po nábytku v roce 2025 mírně oživila proti předchozímu roku, ale stále se nedostala na úroveň před pandemií. Ekonomické analýzy České spořitelny i Asociace českých nábytkářů předpokládají, že v roce 2026 bude trh pomalu růst, s rizikem na straně stavebnictví — pokud se odkládá dokončování bytových projektů, odkládají se i objednávky kuchyňských linek a vybavení.
+
+Co z toho plyne pro vás jako majitele firmy v oboru: sledujte objednávkovou knihu na následující kvartál — právě v první polovině roku se ukáže, jestli trh opravdu oživuje, nebo se stabilizace zasekne. Hlídejte vývoj mzdových nákladů v kontextu ostatního průmyslu — rychlejší růst u konkurence ve strojírenství znamená, že budete muset na pozice v dílně nabízet stále víc. A pokud váš odbyt stojí z většiny na jednom zahraničním zákazníkovi, zvažte diverzifikaci dřív, než se sejde objednávkový pokles se změnou směnného kurzu.
+
+*Zdroj: Ekonomické a strategické analýzy České spořitelny — Nábytkářský trh v ČR, březen 2026.*`;
+
+/**
+ * Full verbatim ČS publication text extracted from furniture-2026-Q2.docx.
+ * Source file: PRD/publications/furniture-2026-Q2.txt (generated in Phase 2.2.e).
+ * Stored as publication.full_text_markdown — collapsed by default behind
+ * "Číst celou analýzu" disclosure per D-020 / brief-page-v0-2.md §4.
+ *
+ * Note on table rows: the .docx table cells are extracted one per line since
+ * OOXML table cells are each a w:p element. This reads adequately in plain-text
+ * paragraph rendering (v0.2 PoC) without a markdown table library.
+ */
+const FURNITURE_FULL_TEXT_MARKDOWN = `Přehled trhu výrobců
+
+Výroba nábytku (CZ-NACE 31) je součástí zpracovatelského průmyslu a zahrnuje produkci nábytku z různých materiálů, zejména dřeva a materiálů na jeho bázi, ale také kovů, plastů, textilu, kůže či skla. Výrobní procesy spočívají především ve zpracování materiálů a montáži dílů (řezání, tvarování, laminování), přičemž významnou roli hraje design nábytku vycházející z estetických a funkčních požadavků.
+
+Tržby firem ve výrobě nábytku v Česku po propadu během hospodářské krize (34,4 mld. Kč v roce 2009) postupně rostly a v roce 2022 dosáhly historického maxima 53,3 mld. Kč. Mimořádně vysoká úroveň tržeb v roce 2022 byla ovlivněna především výrazným růstem cen vstupů – zejména dřeva, dalších surovin a energií – a celkovým inflačním prostředím, které vedlo k růstu cen finálních výrobků v nábytkářském průmyslu. V roce 2023 však tržby se stagnací ekonomiky klesly na 47,6 mld. Kč. V roce 2024 naopak mírně vzrostly na 49,4 mld. Kč. Ziskovost sektoru se pohybuje v řádu jednotek miliard korun – výsledek hospodaření po zdanění činil v roce 2024 přibližně 2,5 mld. Kč (dlouhodobý vrchol byl v roce 2021 ve výši 3,3 mld. Kč).
+
+Zdroj: MPO, Panorama zpracovatelského průmyslu
+
+Současně je v oddílu Výroba nábytku patrný dlouhodobý pokles zaměstnanosti. Průměrný evidenční počet zaměstnanců se snížil z 27,3 tisíce v roce 2008 na 16,3 tisíce v roce 2024. Počet aktivních podnikatelských subjektů v odvětví rovněž postupně klesá, v roce 2024 činil 4 882 (916 právnických osob a 3 966 pracujících majitelů).
+
+Zdroj: MPO, Panorama zpracovatelského průmyslu
+
+Průměrná mzda ve výrobě nábytku dlouhodobě roste, avšak nadále zůstává pod úrovní průměru zpracovatelského průmyslu. Zatímco v roce 2008 činila ve výrobě nábytku 17 076 Kč (oproti 21 713 Kč ve zpracovatelském průmyslu), v roce 2024 dosáhla 35 207 Kč. Ve stejném období vzrostla průměrná mzda ve zpracovatelském průmyslu na 44 851 Kč.
+
+Zdroj: MPO, Panorama zpracovatelského průmyslu
+
+Hodnotu výroby nábytku v ČR za rok 2025 očekává Asociace českých nábytkářů (AČN) meziročně přibližně o 2 % nižší, a to 51,38 mld. Kč z předchozích 52,62 mld. Kč v roce 2024. Současně AČN předpokládá mírný pokles exportu z 38,75 mld. Kč na 37,98 mld. Kč. Podobný vývoj se očekává také u dovozu nábytku, který by měl meziročně klesnout z 30,73 mld. Kč na 29,8 mld. Kč. Odhady AČN vycházejí z výsledků prvního pololetí a předpokládají, že si trh udrží stejnou dynamiku i ve druhé polovině roku, což odpovídá trendu posledních let.
+
+Zdroj: Asociace českých nábytkářů; data za rok 2025 jsou odhadem AČN na základě výsledků prvního pololetí roku 2025
+
+AČN zároveň předpokládá pokles podílu tuzemských výrobců na trhu s nábytkem v České republice v roce 2025 z 13,87 mld. Kč (31,1 %) v roce 2024 na 13,4 mld. Kč (31,0 %). Podíl dováženého nábytku na spotřebě by měl naopak mírně vzrůst na 69 %. Celková hodnota spotřebovaného nábytku v roce 2025 činila 43,2 mld. Kč (o zhruba 3 % meziročně méně).
+
+Zdroj: data Asociace českých nábytkářů; vlastní zpracování
+
+Data z kartových transakcí České spořitelny
+
+V roce 2021 lze kvůli pandemii koronaviru (uzavření prodejen) pozorovat v online útratách za nábytek v Česku výrazný nárůst o 58,6 %, který byl doprovázen téměř 20% propadem útrat na POS terminálech, tedy v kamenných prodejnách. Tento trend se však v roce 2022 obrátil; útraty přes POS terminály vzrostly o 51,5 %, zatímco e-commerce zaznamenala pokles o 12,8 %. To ukazuje na silnou preferenci zákazníků vrátit se po uvolnění omezení zpět do kamenných prodejen.
+
+V posledních letech se trh stabilizoval. Kamenné prodejny (POS) si nadále drží dominantní podíl na celkovém objemu transakcí, nicméně jejich růst je nyní pozvolný (1,7 % v roce 2024 a 1,2 % v roce 2025). Naproti tomu e-commerce od roku 2023 opět nabrala silnou dynamiku a roste dvouciferným tempem (23,5 % v roce 2024 a 17,5 % v roce 2025).
+
+Zdroj: data České spořitelny; vlastní zpracování
+
+Z dat o kartových transakcích dále vyplývá, že průměrná útrata při online nákupu je zhruba dvojnásobná oproti nákupu na prodejně (POS). To naznačuje, že zákazníci v kamenných prodejnách častěji kupují drobné vybavení a doplňky, zatímco přes internet objednávají větší a dražší kusy nábytku.
+
+Průměrná hodnota nákupu v kamenných prodejnách se v průběhu šesti let chová velmi stabilně a pohybuje se v úzkém rozmezí od zhruba 2 260 Kč (rok 2020) po 2 540 Kč (roky 2022 a 2023). U e-commerce je patrný dlouhodobě rostoucí trend s mírnými výkyvy. Z hodnoty 4 160 Kč v roce 2020 průměrná online útrata postupně vyrostla a v roce 2025 činila 5 100 Kč.
+
+Zdroj: Česká spořitelna; vlastní zpracování
+
+Výrobci nábytku v ČR
+
+Výrobce nábytku v České republice lze rozdělit například podle zaměření produkce na výrobce nábytkových materiálů (zejména desek) a komponentů (nábytkových dílů), samotného bytového nábytku, nábytku pro komerční prostory (mj. kanceláře, hotely, školy, sociální služby), vybavení obchodů a prodejen či regálových systémů a průmyslového nábytku pro sklady a výrobní haly. V ČR působí subjekty zaměřující se jak na sériovou, tak zakázkovou výrobu. A z hlediska velikosti se jedná na jedné straně spektra o firmy s miliardovými obraty, uprostřed o společnosti střední velikosti, tak o malé truhlářské dílny a živnostníky.
+
+Tabulka níže ukazuje podle obratu seřazené firmy z oddílu CZ NACE 31 Výroba nabídku, doplněné o společnosti, jež jsou členy Asociace českých nábytkářů. Jedná se o 68 subjektů, jejichž roční obrat přesahuje 100 mil. Kč. Z finančního přehledu plyne, že necelá pětina (celkem 13) z nich skončila za poslední dostupný finanční rok (nejčastěji 2024) ve ztrátě.
+
+Největší výrobci nábytku v ČR (seřazeno podle obratu): KRONOSPAN CR (4 564 mil. Kč), KOVONA SYSTEM (2 494 mil. Kč), BJS Czech (2 103 mil. Kč), Dřevozpracující družstvo (1 869 mil. Kč), ITAB Shop Concept CZ (1 786 mil. Kč), umdasch Story Design (1 718 mil. Kč), B2B Partner (1 710 mil. Kč), Ahrend (1 455 mil. Kč), INTERLIGNUM (1 239 mil. Kč), BLANÁŘ NÁBYTEK (1 153 mil. Kč) a další.
+
+Zdroj: Databáze Magnusweb Dun and Bradstreet, justice.cz, internetové stránky společností
+
+Prodejci nábytku v ČR
+
+Český trh prodejců nábytku je poměrně koncentrovaný do rukou velkých obchodních domů se zahraničními vlastníky – IKEA, XXXLutz (+Möbelix), SCONTO, ASKO a také JYSK. Vedle nich stojí segment větších online prodejců nábytku (BONAMI). V další řadě pak v ČR působí zhruba 15 středně velkých regionálních či specializovaných prodejců nábytku s obratem 100–400 mil. Kč.
+
+Největší prodejci nábytku v ČR (seřazeno podle obratu): IKEA Česká republika (13 090 mil. Kč), XLCZ Nábytek/XXXLutz (5 793 mil. Kč), JYSK (5 197 mil. Kč), SCONTO Nábytek (3 659 mil. Kč), BONAMI.CZ (1 635 mil. Kč), ASKO – NÁBYTEK (1 437 mil. Kč) a další.
+
+Zdroj: Databáze Magnusweb Dun and Bradstreet, justice.cz, internetové stránky společností
+
+Evropský trh s nábytkem
+
+Polsko je v rámci Evropské unie jednoznačně největším centrem nábytkářského průmyslu (NACE C31) jak z hlediska počtu podniků, tak zaměstnanosti. V roce 2024 tam působilo přibližně 25 tisíc firem a sektor zaměstnával téměř 189 tisíc pracovníků. Významné postavení mají také Itálie, Německo a Francie, které patří mezi hlavní evropské producenty nábytku. Česká republika se s přibližně 4,9 tisíci podniky a zhruba 21 tisíci pracovníky řadí do střední části evropského žebříčku. Data zároveň ukazují, že nábytkářský průmysl je v EU silně koncentrován ve střední a jižní Evropě.
+
+Z hlediska ekonomické výkonnosti nábytkářského průmyslu dosahuje v Evropské unii nejvyššího čistého obratu Itálie, která v roce 2024 vykázala čistý obrat ve výši 26,6 mld. eur. Následuje Německo s 22,4 mld. eur a Polsko s 15,6 mld. eur, které zároveň patří mezi země s největší zaměstnaností v tomto odvětví. Významnou pozici mají také Španělsko a Francie. Česká republika se s obratem kolem 2 mld. eur řadí do střední části evropského žebříčku.
+
+Zdroj: Eurostat
+
+Autoři: Tomáš Kozelský, Radek Novák, Tereza Hrtúsová — Ekonomické a strategické analýzy České spořitelny
+
+Tato publikace je považována za doplňkový zdroj informací. Na informace uvedené v ní nelze pohlížet tak, jako by šlo o údaje nezvratné a nezměnitelné. Publikace je založena na nejlepších informačních zdrojích dostupných v době vydání. Použité informační zdroje jsou všeobecně považované za spolehlivé, avšak Česká spořitelna, a.s. ani její pobočky či zaměstnanci neručí za správnost a úplnost informací. Důležitá upozornění jsou k dispozici na: https://www.csas.cz/cs/research/dulezita-upozorneni`;
+
+/**
+ * Benchmark snippet for NACE 31 furniture brief.
+ * All metrics are below-floor — no real cohort data exists for NACE 31 at MVP.
+ * Kept for analyst-admin completeness per D-020; not rendered on the brief page
+ * (benchmarks live on the dashboard per brief-page-v0-2.md §7).
+ */
+function buildFurnitureBenchmarkSnippet() {
+  const belowFloor = (id: string, label: string) => ({
+    metric_id: id,
+    metric_label: label,
+    quartile_label: null,
+    percentile: null,
+    verdict_text: null,
+    confidence_state: "below-floor" as const,
+    rung_footnote:
+      "Data pro nábytkářský sektor nejsou pro toto srovnání k dispozici.",
+    is_email_teaser_snippet: false,
+  });
+
+  return {
+    cohort_id: "cohort-31-S2-Praha",
+    resolved_at: "2026-04-21T08:00:00.000Z",
+    categories: [
+      {
+        category_id: "ziskovost",
+        category_label: "Ziskovost",
+        metrics: [
+          belowFloor("gross_margin", "Hrubá marže"),
+          belowFloor("ebitda_margin", "EBITDA marže"),
+        ],
+      },
+      {
+        category_id: "naklady-produktivita",
+        category_label: "Náklady a produktivita",
+        metrics: [
+          belowFloor("labor_cost_ratio", "Podíl mzdových nákladů"),
+          belowFloor("revenue_per_employee", "Tržby na zaměstnance"),
+        ],
+      },
+      {
+        category_id: "efektivita-kapitalu",
+        category_label: "Efektivita kapitálu",
+        metrics: [
+          belowFloor("working_capital_cycle", "Obratový cyklus"),
+          belowFloor("roce", "ROCE"),
+        ],
+      },
+      {
+        category_id: "rust-trzni-pozice",
+        category_label: "Růst a tržní pozice",
+        metrics: [
+          belowFloor("revenue_growth", "Růst tržeb"),
+          belowFloor("pricing_power", "Cenová síla"),
+        ],
+      },
+    ],
+  };
+}
 
 // ─── Seed functions ───────────────────────────────────────────────────────────
 
@@ -768,6 +923,138 @@ async function seedNace31PlaceholderBriefs(summary: SeedSummary): Promise<void> 
   }
 }
 
+/**
+ * Seed the furniture sector brief (NACE 31) with full v0.2 content.
+ * Phase 2.2.e — production-ready Czech content from brief-page-v0-2.md §6.
+ *
+ * Idempotency: match on nace_sector="31" + author_id="csas-analyst-radek-novak".
+ * State: published (the furniture brief is the real demo brief for the v0.2 PoC).
+ */
+async function seedFurnitureBrief(summary: SeedSummary): Promise<string | null> {
+  const AUTHOR_ID = "csas-analyst-radek-novak";
+
+  const { data: existing } = await supabase
+    .from("briefs")
+    .select("id")
+    .eq("nace_sector", "31")
+    .eq("author_id", AUTHOR_ID)
+    .maybeSingle();
+
+  if (existing) {
+    summary.briefsExisted++;
+    console.log(`  [seed] Furniture brief (NACE 31) already exists (id: ${existing.id})`);
+    return existing.id as string;
+  }
+
+  // BriefContent shape per briefs.ts — v0.2 with publication block (D-020).
+  const content = {
+    title: "Nábytkářský sektor — duben 2026",
+    publication_month: "Duben 2026",
+    // opening_summary is left empty — the publication.opener_markdown supersedes it
+    // for v0.2 briefs. The v0.1 fallback path uses this field; here it is empty
+    // because the Sektorová analýza block carries the opener.
+    opening_summary: "",
+    publication: {
+      heading: "Sektorová analýza",
+      opener_markdown: FURNITURE_OPENER_MARKDOWN,
+      full_text_markdown: FURNITURE_FULL_TEXT_MARKDOWN,
+      source:
+        "Ekonomické a strategické analýzy České spořitelny — Nábytkářský trh v ČR, březen 2026",
+    },
+    observations: [
+      {
+        // Observation 1 — paired with Action 1 (paired_observation_index: 0)
+        headline: "Objednávky nábytku se letos stabilizují po dvouletém propadu.",
+        body:
+          "Domácí poptávka se v roce 2025 mírně zvedla proti předchozímu roku a ekonomické analýzy předpokládají, že v roce 2026 bude pokračovat pomalý růst. Zásadní období rozhodnou první dva kvartály — pokud zakázky nepřijdou v první polovině roku, oživení se posune.",
+        time_horizon: "Do 3 měsíců",
+        is_email_teaser: false,
+      },
+      {
+        // Observation 2 — paired with Action 2 (paired_observation_index: 1)
+        // is_email_teaser: true per §6.3 of brief-page-v0-2.md
+        headline:
+          "Mzdy v nábytkářství rostou pomaleji než ve zbytku průmyslu — krátkodobá výhoda, střednědobě problém.",
+        body:
+          "Obor má nižší tempo růstu osobních nákladů než strojírenství a automobilový průmysl. Pro vaši nákladovou stranu je to dnes plus, ale znamená to, že při hledání nových lidí do dílny budete nabízet proti stále zajímavější konkurenci.",
+        time_horizon: "Do 12 měsíců",
+        is_email_teaser: true,
+      },
+      {
+        // Observation 3 — paired with Action 3 (paired_observation_index: 2)
+        headline: "Export drží výrobu nad vodou; domácí poptávka se probouzí opatrně.",
+        body:
+          "Obchodní bilance oboru je dlouhodobě kladná a hlavním odbytištěm je Německo a západní Evropa. Pokud vaše tržby stojí z většiny na jednom zahraničním zákazníkovi, koncentrace se v dobrých letech neprojeví — v horších letech může zaskočit.",
+        time_horizon: "Více než rok",
+        is_email_teaser: false,
+      },
+    ],
+    closing_actions: [
+      {
+        // Action 1 — paired with Observation 1
+        action_text:
+          "Zkontrolujte objednávkovou knihu na nadcházející dva kvartály a porovnejte ji se stejným obdobím loni. Pokud zakázky neoživují podle sektorového trendu, prověřte, jestli ztrácíte podíl u stávajících odběratelů, nebo jestli jde o plošný problém trhu.",
+        time_horizon: "Okamžitě",
+        category: "rust-trzni-pozice",
+        paired_observation_index: 0,
+      },
+      {
+        // Action 2 — paired with Observation 2
+        action_text:
+          "Srovnejte své mzdové náklady s průměrem zpracovatelského průmyslu — nejen s nábytkářstvím. Pokud chystáte nábor v dílně v nejbližších měsících, připravte mzdovou nabídku, která odpovídá širšímu průmyslu, ne jen oborovému mediánu.",
+        time_horizon: "Do 3 měsíců",
+        category: "naklady-produktivita",
+        paired_observation_index: 1,
+      },
+      {
+        // Action 3 — paired with Observation 3
+        action_text:
+          "Projděte si odbytové kanály za poslední dva roky. Pokud jeden zákazník nebo jedna země tvoří víc než polovinu tržeb, začněte připravovat druhou odbytovou nohu — oslovení dalšího zahraničního trhu nebo posílení domácího prodeje trvá nejméně dva až tři kvartály.",
+        time_horizon: "Do 12 měsíců",
+        category: "rust-trzni-pozice",
+        paired_observation_index: 2,
+      },
+    ],
+    // benchmark_categories: [] per D-020 — benchmarks moved to dashboard
+    benchmark_categories: [],
+    pdf_footer_text: "Strategy Radar · Česká spořitelna",
+    // email_teaser_observation_index: 1 — Observation 2 is the teaser per §6.3
+    email_teaser_observation_index: 1,
+  };
+
+  const contentSections = [
+    {
+      section_id: "brief_content",
+      heading: "Obsah přehledu",
+      body: JSON.stringify(content),
+      order: 0,
+    },
+  ];
+
+  const benchmarkSnippet = buildFurnitureBenchmarkSnippet();
+
+  const { data: inserted, error } = await supabase
+    .from("briefs")
+    .insert({
+      nace_sector: "31",
+      publish_state: "published",
+      author_id: AUTHOR_ID,
+      published_at: "2026-04-21T08:00:00.000Z",
+      content_sections: contentSections,
+      benchmark_snippet: benchmarkSnippet,
+    })
+    .select("id")
+    .single();
+
+  if (error || !inserted) {
+    console.error("[seed] Error inserting furniture brief:", error);
+    return null;
+  }
+  summary.briefsCreated++;
+  console.log(`  [seed] Furniture brief (NACE 31) created (id: ${inserted.id})`);
+  return inserted.id as string;
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -801,6 +1088,10 @@ async function main() {
   console.log("[seed] Seeding 2 NACE 31 placeholder briefs...");
   await seedNace31PlaceholderBriefs(summary);
 
+  // NACE 31 furniture brief (Phase 2.2.e) — the real v0.2 PoC brief
+  console.log("[seed] Seeding furniture brief (NACE 31, v0.2 with publication block)...");
+  const furnitureBriefId = await seedFurnitureBrief(summary);
+
   // Summary
   console.log("\n=== Seed summary ===");
   console.log(`Analyst:           env-var based (set ADMIN_PASSWORD_HASH=test in .env.local)`);
@@ -811,10 +1102,16 @@ async function main() {
   console.log(`Consent events:    created=${summary.consentEventsCreated}, already existed=${summary.consentEventsExisted}`);
   console.log(`Sector profiles:   created=${summary.sectorProfilesCreated}, already existed=${summary.sectorProfilesExisted}`);
   console.log(`Prepopulated seed: created=${summary.prepopulatedSeedCreated}, already existed=${summary.prepopulatedSeedExisted}`);
-  console.log(`Briefs:            created=${summary.briefsCreated}, already existed=${summary.briefsExisted} (includes NACE 46 draft + 2 NACE 31 placeholders)`);
+  console.log(`Briefs:            created=${summary.briefsCreated}, already existed=${summary.briefsExisted}`);
+  console.log(`  (NACE 46 draft + 2 NACE 31 placeholders + 1 NACE 31 furniture brief)`);
   if (briefId) {
     console.log(`\nSample brief ID:   ${briefId}`);
     console.log(`View at:           http://localhost:3000/brief/${briefId}`);
+  }
+  if (furnitureBriefId) {
+    console.log(`\nFurniture brief ID: ${furnitureBriefId}`);
+    console.log(`View at:            http://localhost:3000/brief/${furnitureBriefId}`);
+    console.log(`  Expected render:   Sektorová analýza opener → "Číst celou analýzu" → 3 paired obs+action cards`);
   }
   console.log("\nDone. Safe to re-run — all operations are idempotent.");
 }
