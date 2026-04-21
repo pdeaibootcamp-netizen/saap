@@ -14,6 +14,8 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { randomUUID } from "crypto";
 import { grantConsent, revokeConsent, getCurrentConsent } from "@/lib/consent";
 import { verifyGeorgeToken } from "@/lib/auth";
 
@@ -50,14 +52,19 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Resolve user ID
+  // Resolve user ID.
+  // Priority: George token > existing sr_user_id cookie > freshly generated UUID.
+  // For PoC (OQ-050) the direct-signup path has no real identity provider, so
+  // we mint a per-browser UUID and persist it as the sr_user_id cookie. All
+  // downstream APIs (profile, revoke, settings) already read this cookie.
+  const cookieStore = cookies();
   let userId: string | null = null;
   if (token) {
     userId = await verifyGeorgeToken(token);
   }
   if (!userId) {
-    // Dev stub: accept a fixed user ID if no token (OQ-050)
-    userId = "stub-user-direct-signup";
+    const existing = cookieStore.get("sr_user_id")?.value;
+    userId = existing && /^[0-9a-f-]{36}$/i.test(existing) ? existing : randomUUID();
   }
 
   const ipPrefix =
@@ -74,7 +81,16 @@ export async function POST(req: NextRequest) {
         channel,
         ip_prefix: ipPrefix,
       });
-      return NextResponse.json({ ok: true, consent_event_id: consentEventId });
+      const res = NextResponse.json({ ok: true, consent_event_id: consentEventId });
+      // Persist user identity on the browser so /api/profile and
+      // /api/consent/revoke can resolve this user on subsequent requests.
+      res.cookies.set("sr_user_id", userId, {
+        path: "/",
+        httpOnly: false,
+        sameSite: "lax",
+        maxAge: 60 * 60 * 24 * 365, // 1 year
+      });
+      return res;
     }
 
     if (action === "revoke") {

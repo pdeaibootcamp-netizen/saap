@@ -14,6 +14,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { verifyGeorgeToken } from "@/lib/auth";
 import { hasActiveConsent, getCurrentConsent } from "@/lib/consent";
 import { upsertProfile } from "@/lib/profiles";
@@ -47,13 +48,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Neplatná hodnota velikosti firmy." }, { status: 400 });
   }
 
-  // Resolve user ID
+  // Resolve user ID.
+  // Priority: George token > sr_user_id cookie (set by /api/consent at grant time).
+  // Without one of these there is no consent_event_id on file, so the upsert
+  // cannot satisfy the FK — reject rather than silently using a stub string.
   let userId: string | null = null;
   if (token) {
     userId = await verifyGeorgeToken(token);
   }
   if (!userId) {
-    userId = "stub-user-direct-signup"; // OQ-050: direct sign-up stub
+    const cookieStore = cookies();
+    const fromCookie = cookieStore.get("sr_user_id")?.value;
+    if (fromCookie && /^[0-9a-f-]{36}$/i.test(fromCookie)) {
+      userId = fromCookie;
+    }
+  }
+  if (!userId) {
+    return NextResponse.json(
+      { error: "Souhlas je nutný před uložením profilu." },
+      { status: 403 }
+    );
   }
 
   // Check active consent before any write (sector-profile-configuration.md §3.1)
