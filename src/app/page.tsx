@@ -300,15 +300,26 @@ export default async function DashboardPage() {
         <main>
           <div className="db-content">
 
-            {/* Section 1 — Tile grid (placeholder for Phase 2.2.b) */}
-            {/* Copy: dashboard-v0-2.md §5.2 section header */}
+            {/* Section 1 — Tile grid (Phase 2.2.b) */}
+            {/* Copy: dashboard-v0-2.md §5.2; heading from PM canonical copy */}
+            {/* Layout: layout.md §7.2; tile states: tile-states.md */}
             <section className="db-tile-section" aria-labelledby="tile-section-heading">
               <h2 id="tile-section-heading" className="db-section-heading">
                 Vaše pozice v kohortě
               </h2>
-              <div className="db-placeholder" aria-label="Ukazatele budou doplněny">
-                Ukazatele budou doplněny v dalším kroku
-              </div>
+
+              {tileProps.length > 0 ? (
+                <div className="db-tile-grid">
+                  {tileProps.map((props) => (
+                    <MetricTile key={props.metricId} {...props} />
+                  ))}
+                </div>
+              ) : (
+                /* Defensive empty state — should not occur for demo owner */
+                <p style={{ color: "#888", fontSize: "15px" }}>
+                  Pro váš obor zatím nejsou k dispozici žádné ukazatele.
+                </p>
+              )}
             </section>
 
             {/* Section divider — layout.md §4.3 */}
