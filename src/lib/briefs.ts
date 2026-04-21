@@ -44,6 +44,15 @@ export interface ClosingAction {
   action_text: string;
   time_horizon: string;
   category: string; // one of the four D-011 category IDs
+  /**
+   * Optional index into BriefContent.observations. When set, the action is
+   * rendered immediately after the observation it refers to (paired layout).
+   * When null/undefined, the action is an orphan and renders under
+   * "Další doporučené kroky". Additive to v0.1 — v0.1 briefs without this
+   * field treat all actions as orphans (v0.1 flat-list fallback).
+   * Introduced in v0.2 per D-020.
+   */
+  paired_observation_index?: number | null;
 }
 
 export interface BenchmarkMetric {
@@ -69,11 +78,37 @@ export interface BenchmarkSnippet {
   categories: BenchmarkCategory[];
 }
 
+/**
+ * Sector publication block added in v0.2 (D-020).
+ * Optional — v0.1 briefs without this field render without the
+ * "Sektorová analýza" block and still load without error.
+ * opener_markdown: always-visible layperson opener (200–400 words).
+ * full_text_markdown: full ČS publication body, collapsed by default.
+ * Source: brief-page-v0-2.md §5.2 / §6.4.
+ *
+ * Rendering note (v0.2): both fields are split on double-newline and
+ * rendered as <p> blocks. No markdown library is imported at v0.2 (plain-text
+ * paragraph rendering is sufficient for the PoC). Upgrade to remark/rehype
+ * for v0.3 when table + list rendering in the full analyst text is needed.
+ */
+export interface BriefPublication {
+  heading: string;              // e.g. "Sektorová analýza"
+  opener_markdown: string;      // layperson opener — always visible
+  full_text_markdown: string;   // full ČS publication — collapsed
+  source: string;               // attribution line
+}
+
 /** Structured content model stored in content_sections */
 export interface BriefContent {
   title: string;
   publication_month: string; // e.g. "Duben 2026"
   opening_summary: string;
+  /**
+   * Optional sector publication block (v0.2, D-020). When absent the
+   * Sektorová analýza block is silently omitted; the page opens with
+   * opening_summary (if present) then the observations/actions section.
+   */
+  publication?: BriefPublication;
   observations: Observation[];
   closing_actions: ClosingAction[];
   benchmark_categories: BenchmarkCategory[];

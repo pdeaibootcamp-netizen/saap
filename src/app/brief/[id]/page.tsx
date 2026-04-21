@@ -1,13 +1,28 @@
 /**
  * /brief/[id] — Owner brief detail view (Surface B — web view)
  *
- * Displays all six content components per information-architecture.md §3 Surface B:
+ * v0.2 shape (D-020, brief-page-v0-2.md):
  *   1. Záhlaví (header)
- *   2. Úvodní přehled (opening summary)
- *   3. Pozorování with time-horizon pills (2–4)
- *   4. Srovnávací přehled — four D-011 category accordions with BenchmarkSnippet
- *   5. Doporučené kroky with time-horizon pills (2–4)
- *   6. Zápatí (footer / PDF download CTA)
+ *   2. Sektorová analýza block — layperson opener (always visible) +
+ *      collapsible full ČS publication (<details>/<summary>).
+ *      Omitted if content.publication is absent (v0.1 brief: render
+ *      opening_summary instead, then observations directly).
+ *   3. Doporučené kroky — paired observation+action cards, then orphan
+ *      actions under "Další doporučené kroky" (omitted when empty).
+ *   4. Zápatí (footer / PDF download CTA)
+ *
+ * Removed in v0.2 (brief-page-v0-2.md §7):
+ *   - "Srovnávací přehled" section (web + PDF surfaces)
+ *   - BenchmarkCategorySection and BenchmarkSnippet JSX components
+ *     (grep confirmed zero callers other than this file; deleted here.
+ *      BenchmarkSnippet type + benchmark_snippet column stay on disk.)
+ *
+ * Fallback for v0.1 briefs (no paired_observation_index on any action):
+ *   All actions treated as orphans → rendered under "Další doporučené kroky".
+ *   Heuristic: if every action's paired_observation_index is undefined or
+ *   null, the brief is v0.1-shaped; fall back to flat-list rendering.
+ *
+ * Container width: 680px reading column (OQ-057 resolved — PD spec §2b).
  *
  * When ?format=pdf query parameter is present: renders without chrome for
  * Puppeteer capture (ADR-0001-C). No nav, no header, just content.
@@ -20,163 +35,15 @@
 
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
-import Link from "next/link";
-import type { Brief, BriefContent, BenchmarkCategory, BenchmarkMetric } from "@/lib/briefs";
+import type { Brief, BriefContent } from "@/lib/briefs";
 import { getBriefById } from "@/lib/briefs";
 import { resolveUserId } from "@/lib/auth";
 import { hasActiveConsent } from "@/lib/consent";
 import { isDemoOwner, DEMO_OWNER_USER_ID } from "@/lib/demo-owner";
 
-// ─── BenchmarkSnippet ────────────────────────────────────────────────────────
-
-function BenchmarkSnippet({ metric }: { metric: BenchmarkMetric }) {
-  // Rung 4 / below-floor: verbatim fallback copy (quartile-position-display.md §5.5)
-  if (metric.confidence_state === "below-floor") {
-    return (
-      <div style={{ padding: "12px 0" }}>
-        <p style={{ fontSize: "14px", color: "#888", fontStyle: "italic" }}>
-          Tento ukazatel zatím nemůžeme spolehlivě porovnat — k dispozici je málo
-          srovnatelných firem v kohortě.
-        </p>
-      </div>
-    );
-  }
-
-  // Empty state (no data this month)
-  if (metric.confidence_state === "empty" || !metric.verdict_text) {
-    return (
-      <div style={{ padding: "12px 0" }}>
-        <p style={{ fontSize: "14px", color: "#888", fontStyle: "italic" }}>
-          Tento ukazatel není pro váš sektor v tomto měsíci k dispozici.
-        </p>
-      </div>
-    );
-  }
-
-  // Render-time guard: if quartileLabel or percentile is null despite valid state,
-  // fall back to empty-state copy (quartile-position-display.md §3 Error row)
-  if (!metric.quartile_label || metric.percentile === null) {
-    return (
-      <div style={{ padding: "12px 0" }}>
-        <p style={{ fontSize: "14px", color: "#888", fontStyle: "italic" }}>
-          Tento ukazatel není pro váš sektor v tomto měsíci k dispozici.
-        </p>
-      </div>
-    );
-  }
-
-  const percentileText = `${metric.percentile}. percentil`;
-  const ariaLabel = `${metric.quartile_label}, ${percentileText}`;
-
-  return (
-    <div style={{ padding: "12px 0", borderBottom: "1px solid #f0f0f0" }}>
-      <p style={{ fontSize: "13px", fontWeight: "600", color: "#555", marginBottom: "4px" }}>
-        {metric.metric_label}
-      </p>
-      <p
-        aria-label={ariaLabel}
-        style={{ fontSize: "15px", color: "#1a1a1a", lineHeight: "1.5", marginBottom: "4px" }}
-      >
-        {metric.verdict_text}
-      </p>
-      {metric.rung_footnote && (
-        <p
-          style={{
-            fontSize: "12px",
-            color: "#888",
-            fontStyle: "italic",
-            lineHeight: "1.4",
-          }}
-        >
-          {metric.rung_footnote}
-        </p>
-      )}
-    </div>
-  );
-}
-
-// ─── BenchmarkCategorySection ─────────────────────────────────────────────────
-
-// The category component uses client-side state for accordion expansion.
-// At SSR time (server component), we pre-expand the first category.
-// Since this is a server component, all categories render expanded in PDF mode.
-// In web mode the first is visually highlighted (CSS-only, no JS accordion at MVP).
-
-function BenchmarkCategorySection({
-  category,
-  isFirst,
-  isPdf,
-}: {
-  category: BenchmarkCategory;
-  isFirst: boolean;
-  isPdf: boolean;
-}) {
-  // Empty category check: all metrics are below-floor or excluded (null verdict_text)
-  const hasAnyContent = category.metrics.some(
-    (m) => m.confidence_state === "valid" && m.verdict_text
-  );
-
-  // The category-based-layout.md specifies per-category empty-state copy
-  const categoryEmptyState: Record<string, string> = {
-    ziskovost:
-      "Srovnání ziskovosti pro váš sektor a velikost firmy tento měsíc nepřinášíme — počet srovnatelných firem v kohortě je zatím nedostatečný.",
-    "naklady-produktivita":
-      "Srovnání nákladů a produktivity pro váš sektor a velikost firmy tento měsíc nepřinášíme — počet srovnatelných firem v kohortě je zatím nedostatečný.",
-    "efektivita-kapitalu":
-      "Srovnání efektivity kapitálu pro váš sektor a velikost firmy tento měsíc nepřinášíme — počet srovnatelných firem v kohortě je zatím nedostatečný.",
-    "rust-trzni-pozice":
-      "Srovnání růstu a tržní pozice pro váš sektor a velikost firmy tento měsíc nepřinášíme — počet srovnatelných firem v kohortě je zatím nedostatečný.",
-  };
-
-  return (
-    <details
-      open={isFirst || isPdf}
-      style={{
-        border: "1px solid #e0e0e0",
-        borderRadius: "6px",
-        marginBottom: "8px",
-        overflow: "hidden",
-      }}
-    >
-      <summary
-        style={{
-          padding: "14px 16px",
-          backgroundColor: "#f8f8f8",
-          cursor: "pointer",
-          fontWeight: "600",
-          fontSize: "15px",
-          listStyle: "none",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          minHeight: "44px",
-        }}
-        aria-label={`${category.category_label} — ${isPdf ? "rozbaleno" : "klikněte pro rozbalení"}`}
-      >
-        <span>{category.category_label}</span>
-        <span style={{ fontSize: "12px", color: "#888" }} aria-hidden="true">
-          ▼
-        </span>
-      </summary>
-
-      <div style={{ padding: "0 16px 16px" }}>
-        {category.metrics.length === 0 || !hasAnyContent ? (
-          <p style={{ fontSize: "14px", color: "#888", padding: "12px 0", fontStyle: "italic" }}>
-            {categoryEmptyState[category.category_id] ?? "Srovnání pro tuto kategorii tento měsíc nepřinášíme."}
-          </p>
-        ) : (
-          category.metrics.map((m) => (
-            <BenchmarkSnippet key={m.metric_id} metric={m} />
-          ))
-        )}
-      </div>
-    </details>
-  );
-}
-
 // ─── Time-horizon pill ────────────────────────────────────────────────────────
 
-function TimeHorizonPill({ label }: { label: string }) {
+function TimeHorizonPill({ label, subordinate = false }: { label: string; subordinate?: boolean }) {
   const colorMap: Record<string, { bg: string; color: string }> = {
     "Okamžitě": { bg: "#fff3e0", color: "#e65100" },
     "Do 3 měsíců": { bg: "#e3f2fd", color: "#0d47a1" },
@@ -191,15 +58,254 @@ function TimeHorizonPill({ label }: { label: string }) {
         display: "inline-block",
         padding: "3px 8px",
         borderRadius: "12px",
-        fontSize: "12px",
+        fontSize: subordinate ? "11px" : "12px",
         fontWeight: "600",
         backgroundColor: style.bg,
         color: style.color,
         marginBottom: "8px",
+        opacity: subordinate ? 0.75 : 1,
       }}
     >
       {label}
     </span>
+  );
+}
+
+// ─── Markdown paragraph renderer ─────────────────────────────────────────────
+// Split on double-newline → render one <p> per block.
+// v0.2 plain-text approach; upgrade to remark/rehype for v0.3 when table +
+// list rendering in the full analyst text is needed (brief-page-v0-2.md §6.4).
+
+function MarkdownParagraphs({
+  text,
+  color = "#1a1a1a",
+  fontSize = "15px",
+}: {
+  text: string;
+  color?: string;
+  fontSize?: string;
+}) {
+  const blocks = text.split(/\n\n+/).map((b) => b.trim()).filter(Boolean);
+  return (
+    <>
+      {blocks.map((block, i) => (
+        <p
+          key={i}
+          style={{
+            fontSize,
+            color,
+            lineHeight: "1.6",
+            marginBottom: i < blocks.length - 1 ? "12px" : "0",
+          }}
+        >
+          {block}
+        </p>
+      ))}
+    </>
+  );
+}
+
+// ─── Sektorová analýza block ──────────────────────────────────────────────────
+// brief-page-v0-2.md §4, design §4.1.
+// Native <details>/<summary>; no JS needed. CSS attribute selector on
+// details[open] summary flips the label text via content: — but because
+// Next.js server components can't inject a <style> block trivially in JSX,
+// we use a data-label approach and inline the two states via ::before in a
+// global style tag.  Simpler alternative used here: render both labels and
+// hide/show with CSS sibling selector via the [open] attribute.
+//
+// Accessibility: <details>/<summary> provides aria-expanded automatically.
+// Chevrons are aria-hidden. <summary> min-height 44px for touch targets.
+
+function SekterovaAnalyzaBlock({
+  heading,
+  openerMarkdown,
+  fullTextMarkdown,
+  source,
+}: {
+  heading: string;
+  openerMarkdown: string;
+  fullTextMarkdown: string;
+  source: string;
+}) {
+  return (
+    <section style={{ marginBottom: "28px" }}>
+      <h2 style={{ fontSize: "18px", fontWeight: "bold", marginBottom: "16px", color: "#1a1a1a" }}>
+        {heading}
+      </h2>
+      <div
+        style={{
+          borderLeft: "4px solid #e0e0e0",
+          paddingLeft: "16px",
+          backgroundColor: "#fafafa",
+          borderRadius: "6px",
+          padding: "16px 16px 16px 20px",
+        }}
+      >
+        {/* Opener — always visible */}
+        <MarkdownParagraphs text={openerMarkdown} color="#1a1a1a" />
+
+        {/* Source attribution */}
+        {source && (
+          <p style={{ fontSize: "13px", color: "#888", marginTop: "12px", fontStyle: "italic" }}>
+            {source}
+          </p>
+        )}
+
+        {/* Collapsible full text — CSS-only label flip via [open] attribute selector */}
+        {fullTextMarkdown && (
+          <>
+            {/* Inline style block: flip summary text on open state.
+                We use a data attribute + content trick to avoid needing a client component. */}
+            <style>{`
+              .sr-disclosure summary::before {
+                content: "▶ Číst celou analýzu";
+                font-size: 14px;
+                font-weight: 600;
+                color: #1a1a1a;
+                cursor: pointer;
+              }
+              .sr-disclosure[open] summary::before {
+                content: "▼ Skrýt celou analýzu";
+              }
+              .sr-disclosure summary:focus {
+                outline: 3px solid #1a1a1a;
+                outline-offset: 2px;
+                border-radius: 2px;
+              }
+              .sr-disclosure summary:hover {
+                background: #f0f0f0;
+                border-radius: 4px;
+              }
+            `}</style>
+            <details className="sr-disclosure" style={{ marginTop: "16px" }}>
+              {/* The visible label text is generated by ::before above so the
+                  summary itself is empty-text but has an accessible name via
+                  the generated content. For screen readers we add an
+                  aria-label that mirrors the collapsed state; the browser
+                  updates aria-expanded automatically. */}
+              <summary
+                style={{
+                  listStyle: "none",
+                  minHeight: "44px",
+                  display: "flex",
+                  alignItems: "center",
+                  padding: "4px 0",
+                  cursor: "pointer",
+                }}
+                aria-label="Číst celou analýzu"
+              />
+              <div style={{ marginTop: "16px", borderTop: "1px solid #e0e0e0", paddingTop: "16px" }}>
+                <MarkdownParagraphs
+                  text={fullTextMarkdown}
+                  color="#444"
+                  fontSize="15px"
+                />
+              </div>
+            </details>
+          </>
+        )}
+      </div>
+    </section>
+  );
+}
+
+// ─── Paired observation + action card ────────────────────────────────────────
+// Design spec §4.2. Continuous 4px left border spans observation → divider → action.
+// "Doporučený krok:" prefix on action is a text signal (not colour-only).
+
+function ObservationActionPair({
+  obsHeadline,
+  obsBody,
+  obsTimeHorizon,
+  actionText,
+  actionTimeHorizon,
+}: {
+  obsHeadline: string;
+  obsBody?: string;
+  obsTimeHorizon?: string;
+  actionText?: string;
+  actionTimeHorizon?: string;
+}) {
+  const hasAction = Boolean(actionText);
+  return (
+    <div
+      style={{
+        borderLeft: "4px solid #1a1a1a",
+        padding: "16px 16px 16px 20px",
+        marginBottom: "32px",
+      }}
+    >
+      {/* Observation */}
+      {obsTimeHorizon && <TimeHorizonPill label={obsTimeHorizon} />}
+      <h3
+        style={{
+          fontSize: "15px",
+          fontWeight: "600",
+          marginBottom: "8px",
+          color: "#1a1a1a",
+          marginTop: "0",
+        }}
+      >
+        {obsHeadline}
+      </h3>
+      {obsBody && (
+        <p style={{ fontSize: "15px", color: "#444", lineHeight: "1.5", marginBottom: hasAction ? "12px" : "0" }}>
+          {obsBody}
+        </p>
+      )}
+
+      {/* Within-pair divider + action */}
+      {hasAction && (
+        <>
+          <div style={{ borderTop: "1px solid #f0f0f0", margin: "12px 0" }} />
+          {actionTimeHorizon && <TimeHorizonPill label={actionTimeHorizon} subordinate />}
+          <p
+            style={{
+              fontSize: "12px",
+              fontWeight: "600",
+              color: "#666",
+              letterSpacing: "0.04em",
+              marginBottom: "4px",
+              marginTop: "0",
+            }}
+          >
+            Doporučený krok:
+          </p>
+          <p style={{ fontSize: "15px", color: "#1a1a1a", lineHeight: "1.5", margin: "0" }}>
+            {actionText}
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── Orphan action card ───────────────────────────────────────────────────────
+// Design spec §4.3. Simpler card: no left-border connector, no label prefix.
+
+function OrphanActionCard({
+  actionText,
+  timeHorizon,
+}: {
+  actionText: string;
+  timeHorizon?: string;
+}) {
+  return (
+    <div
+      style={{
+        border: "1px solid #e0e0e0",
+        borderRadius: "6px",
+        padding: "14px 16px",
+        backgroundColor: "#fafafa",
+        marginBottom: "12px",
+      }}
+    >
+      {timeHorizon && <TimeHorizonPill label={timeHorizon} />}
+      <p style={{ fontSize: "15px", color: "#1a1a1a", lineHeight: "1.5", margin: "0" }}>
+        {actionText}
+      </p>
+    </div>
   );
 }
 
@@ -339,14 +445,32 @@ export default async function BriefPage({
     return <BriefNotReadyScreen />;
   }
 
-  // Resolve benchmark categories: prefer brief.benchmark_snippet over content
-  const categories: BenchmarkCategory[] =
-    brief.benchmark_snippet?.categories ?? content.benchmark_categories ?? [];
-
   const publicationMonth = content.publication_month ?? "—";
   const sectorName = `NACE ${brief.nace_sector}`;
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   const pdfUrl = `/api/pdf/${briefId}`;
+
+  // ─── Paired / orphan computation ─────────────────────────────────────────
+  // v0.1 fallback heuristic: if EVERY action has paired_observation_index
+  // undefined or null, treat as v0.1 flat-list (all orphans).
+  const actions = content.closing_actions ?? [];
+  const observations = content.observations ?? [];
+
+  const isV1Shape = actions.every(
+    (a) => a.paired_observation_index === undefined || a.paired_observation_index === null
+  );
+
+  // For each observation index, find the first paired action (if any).
+  const pairedActionForObs = (obsIdx: number) =>
+    isV1Shape
+      ? undefined
+      : actions.find((a) => a.paired_observation_index === obsIdx);
+
+  // Orphan actions: null/undefined paired_observation_index (or all, if v0.1 shape).
+  const orphanActions = isV1Shape
+    ? actions
+    : actions.filter(
+        (a) => a.paired_observation_index === undefined || a.paired_observation_index === null
+      );
 
   // ── PDF surface: minimal chrome ──
   if (isPdf) {
@@ -373,69 +497,102 @@ export default async function BriefPage({
           <p style={{ fontSize: "14px", color: "#555" }}>{publicationMonth}</p>
         </div>
 
-        {/* Opening summary */}
-        {content.opening_summary && (
+        {/* Sektorová analýza — opener (expanded in PDF; full text omitted for length) */}
+        {content.publication && (
+          <div style={{ marginBottom: "24px" }}>
+            <h2 style={{ fontSize: "16px", fontWeight: "bold", marginBottom: "12px" }}>
+              {content.publication.heading}
+            </h2>
+            <div
+              style={{
+                borderLeft: "3px solid #e0e0e0",
+                paddingLeft: "14px",
+                backgroundColor: "#fafafa",
+                padding: "12px 12px 12px 16px",
+              }}
+            >
+              {content.publication.opener_markdown
+                .split(/\n\n+/)
+                .map((b) => b.trim())
+                .filter(Boolean)
+                .map((block, i) => (
+                  <p key={i} style={{ fontSize: "13px", color: "#1a1a1a", lineHeight: "1.6", marginBottom: "8px" }}>
+                    {block}
+                  </p>
+                ))}
+              {content.publication.source && (
+                <p style={{ fontSize: "11px", color: "#888", fontStyle: "italic", marginTop: "8px" }}>
+                  {content.publication.source}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Opening summary (v0.1 briefs) */}
+        {!content.publication && content.opening_summary && (
           <div style={{ marginBottom: "24px" }}>
             <p style={{ fontSize: "15px", lineHeight: "1.6" }}>{content.opening_summary}</p>
           </div>
         )}
 
-        {/* Observations */}
-        {content.observations && content.observations.length > 0 && (
-          <div style={{ marginBottom: "24px" }}>
-            <h2 style={{ fontSize: "16px", fontWeight: "bold", marginBottom: "12px" }}>
-              Pozorování
-            </h2>
-            {content.observations.map((obs, i) => (
-              <div key={i} style={{ marginBottom: "16px" }}>
-                <p style={{ fontWeight: "600", marginBottom: "4px" }}>
-                  <span
-                    style={{
-                      fontSize: "11px",
-                      backgroundColor: "#f0f0f0",
-                      padding: "2px 6px",
-                      borderRadius: "8px",
-                      marginRight: "8px",
-                    }}
-                  >
-                    {obs.time_horizon}
-                  </span>
-                  {obs.headline}
-                </p>
-                {obs.body && (
-                  <p style={{ fontSize: "13px", color: "#444" }}>{obs.body}</p>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Benchmark categories — fully expanded in PDF */}
-        {categories.length > 0 && (
-          <div style={{ marginBottom: "24px" }}>
-            <h2 style={{ fontSize: "16px", fontWeight: "bold", marginBottom: "12px" }}>
-              Srovnávací přehled
-            </h2>
-            {categories.map((cat) => (
-              <div key={cat.category_id} style={{ marginBottom: "16px" }}>
-                <h3 style={{ fontSize: "14px", fontWeight: "600", marginBottom: "8px" }}>
-                  {cat.category_label}
-                </h3>
-                {cat.metrics.map((m) => (
-                  <BenchmarkSnippet key={m.metric_id} metric={m} />
-                ))}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Closing actions */}
-        {content.closing_actions && content.closing_actions.length > 0 && (
+        {/* Observations + paired actions */}
+        {observations.length > 0 && (
           <div style={{ marginBottom: "24px" }}>
             <h2 style={{ fontSize: "16px", fontWeight: "bold", marginBottom: "12px" }}>
               Doporučené kroky
             </h2>
-            {content.closing_actions.map((action, i) => (
+            {observations.map((obs, i) => {
+              const paired = pairedActionForObs(i);
+              return (
+                <div
+                  key={i}
+                  style={{
+                    marginBottom: "16px",
+                    borderLeft: "2px solid #1a1a1a",
+                    paddingLeft: "12px",
+                  }}
+                >
+                  <p style={{ fontWeight: "600", marginBottom: "4px", fontSize: "14px" }}>
+                    <span
+                      style={{
+                        fontSize: "11px",
+                        backgroundColor: "#f0f0f0",
+                        padding: "2px 6px",
+                        borderRadius: "8px",
+                        marginRight: "8px",
+                      }}
+                    >
+                      {obs.time_horizon}
+                    </span>
+                    {obs.headline}
+                  </p>
+                  {obs.body && (
+                    <p style={{ fontSize: "13px", color: "#444", marginBottom: paired ? "8px" : "0" }}>
+                      {obs.body}
+                    </p>
+                  )}
+                  {paired && (
+                    <div style={{ marginTop: "6px", borderTop: "1px solid #f0f0f0", paddingTop: "6px" }}>
+                      <p style={{ fontSize: "11px", color: "#888", marginBottom: "2px" }}>
+                        Doporučený krok: {paired.time_horizon}
+                      </p>
+                      <p style={{ fontSize: "13px" }}>{paired.action_text}</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Orphan actions */}
+        {orphanActions.length > 0 && (
+          <div style={{ marginBottom: "24px" }}>
+            <h2 style={{ fontSize: "16px", fontWeight: "bold", marginBottom: "12px" }}>
+              Další doporučené kroky
+            </h2>
+            {orphanActions.map((action, i) => (
               <div key={i} style={{ marginBottom: "12px", paddingLeft: "16px", borderLeft: "2px solid #1a1a1a" }}>
                 <p style={{ fontSize: "11px", color: "#888", marginBottom: "2px" }}>
                   {action.time_horizon}
@@ -478,7 +635,7 @@ export default async function BriefPage({
       {/* Brief header */}
       <div style={{ padding: "24px 0 20px", borderBottom: "1px solid #e0e0e0", marginBottom: "24px" }}>
         <p style={{ fontSize: "12px", color: "#888", marginBottom: "4px" }}>
-          Strategy Radar · {sectorName}
+          Česká Spořitelna · Strategy Radar
         </p>
         <h1 style={{ fontSize: "22px", fontWeight: "bold", marginBottom: "4px", color: "#1a1a1a" }}>
           {content.title || `Sektorový přehled — ${sectorName}`}
@@ -486,88 +643,72 @@ export default async function BriefPage({
         <p style={{ fontSize: "14px", color: "#666" }}>{publicationMonth}</p>
       </div>
 
-      {/* Opening summary */}
-      {content.opening_summary && (
+      {/* Sektorová analýza block (v0.2) */}
+      {content.publication ? (
+        <SekterovaAnalyzaBlock
+          heading={content.publication.heading}
+          openerMarkdown={content.publication.opener_markdown}
+          fullTextMarkdown={content.publication.full_text_markdown}
+          source={content.publication.source}
+        />
+      ) : (
+        /* v0.1 fallback: render opening_summary if present */
+        content.opening_summary && (
+          <section style={{ marginBottom: "28px" }}>
+            <p style={{ fontSize: "16px", lineHeight: "1.6", color: "#1a1a1a" }}>
+              {content.opening_summary}
+            </p>
+          </section>
+        )
+      )}
+
+      {/* Doporučené kroky — paired observation+action cards */}
+      {observations.length > 0 && (
         <section style={{ marginBottom: "28px" }}>
-          <p style={{ fontSize: "16px", lineHeight: "1.6", color: "#1a1a1a" }}>
-            {content.opening_summary}
-          </p>
+          <h2 style={{ fontSize: "18px", fontWeight: "bold", marginBottom: "16px", color: "#1a1a1a" }}>
+            Doporučené kroky
+          </h2>
+          {observations.map((obs, i) => {
+            const paired = pairedActionForObs(i);
+            return (
+              <ObservationActionPair
+                key={i}
+                obsHeadline={obs.headline}
+                obsBody={obs.body}
+                obsTimeHorizon={obs.time_horizon}
+                actionText={paired?.action_text}
+                actionTimeHorizon={paired?.time_horizon}
+              />
+            );
+          })}
         </section>
       )}
 
-      {/* Observations */}
-      {content.observations && content.observations.length > 0 && (
+      {/* Další doporučené kroky — orphan actions only; omitted when empty */}
+      {orphanActions.length > 0 && (
         <section style={{ marginBottom: "28px" }}>
-          <h2 style={{ fontSize: "18px", fontWeight: "bold", marginBottom: "16px" }}>
-            Pozorování
+          <h2
+            style={{
+              fontSize: "18px",
+              fontWeight: "bold",
+              marginBottom: "16px",
+              marginTop: "32px",
+              color: "#1a1a1a",
+            }}
+          >
+            Další doporučené kroky
           </h2>
-          {content.observations.map((obs, i) => (
-            <div
+          {orphanActions.map((action, i) => (
+            <OrphanActionCard
               key={i}
-              style={{
-                padding: "16px",
-                border: "1px solid #e0e0e0",
-                borderRadius: "8px",
-                marginBottom: "12px",
-              }}
-            >
-              {obs.time_horizon && <TimeHorizonPill label={obs.time_horizon} />}
-              <h3 style={{ fontSize: "16px", fontWeight: "600", marginBottom: "8px", color: "#1a1a1a" }}>
-                {obs.headline}
-              </h3>
-              {obs.body && (
-                <p style={{ fontSize: "15px", color: "#444", lineHeight: "1.5" }}>
-                  {obs.body}
-                </p>
-              )}
-            </div>
-          ))}
-        </section>
-      )}
-
-      {/* Srovnávací přehled — four category accordions */}
-      {categories.length > 0 && (
-        <section style={{ marginBottom: "28px" }}>
-          <h2 style={{ fontSize: "18px", fontWeight: "bold", marginBottom: "16px" }}>
-            Srovnávací přehled
-          </h2>
-          {categories.map((cat, idx) => (
-            <BenchmarkCategorySection
-              key={cat.category_id}
-              category={cat}
-              isFirst={idx === 0}
-              isPdf={false}
+              actionText={action.action_text}
+              timeHorizon={action.time_horizon}
             />
           ))}
         </section>
       )}
 
-      {/* Closing actions */}
-      {content.closing_actions && content.closing_actions.length > 0 && (
-        <section style={{ marginBottom: "28px" }}>
-          <h2 style={{ fontSize: "18px", fontWeight: "bold", marginBottom: "16px" }}>
-            Doporučené kroky
-          </h2>
-          {content.closing_actions.map((action, i) => (
-            <div
-              key={i}
-              style={{
-                padding: "14px 16px",
-                borderLeft: "3px solid #1a1a1a",
-                marginBottom: "12px",
-                backgroundColor: "#fafafa",
-              }}
-            >
-              {action.time_horizon && <TimeHorizonPill label={action.time_horizon} />}
-              <p style={{ fontSize: "15px", color: "#1a1a1a", lineHeight: "1.5" }}>
-                {action.action_text}
-              </p>
-            </div>
-          ))}
-        </section>
-      )}
-
-      {/* Footer / PDF CTA */}
+      {/* Footer / PDF footer text */}
       {content.pdf_footer_text && (
         <section style={{ marginBottom: "24px" }}>
           <p style={{ fontSize: "14px", color: "#555", lineHeight: "1.5" }}>
