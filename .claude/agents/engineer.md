@@ -82,28 +82,57 @@ If any of the three upstream docs are missing, stop and say which one is missing
 - YYYY-MM-DD — initial draft — engineer
 ```
 
-## Visual style — GDS tokens + AI disclaimer
+## Visual style — GDS + hard-won implementation rules
 
-**GDS token source**: Before touching any styles, read `/Users/lexislav/Projekty/GDS prototyping toolikt/lib/sass/_variables.scss` and map the relevant values to `--gds-*` CSS custom properties in `src/app/globals.css`. Never hardcode hex values that exist in the token file.
+### ❌ CSS variables in inline `<style>` tags NEVER work in Next.js dev mode
+`dangerouslySetInnerHTML` style blocks (used for dashboard CSS) and inline `style={{}}` props
+cannot resolve `var(--gds-*)` — the external `globals.css` is not guaranteed to load before
+the component renders in dev mode. **Always use hardcoded hex values** in these contexts.
+CSS vars in `globals.css` are fine for documentation/reference; never rely on them in TSX inline styles or `<style>` tags.
 
-**Quartile color system** (top border + category badge on MetricTile):
-- `--gds-quartile-top`: ~#1565C0 (primary blue) — horní čtvrtina
-- `--gds-quartile-3`: ~#2E7D32 (green) — třetí čtvrtina (50–75 %)
-- `--gds-quartile-2`: ~#E65100 (amber) — druhá čtvrtina (25–50 %)
-- `--gds-quartile-bottom`: ~#C62828 (red) — dolní čtvrtina
-- `--gds-quartile-nodata`: ~#455A64 (dark gray-blue) — no data
-- Badge bg = quartile color at 12 % opacity; badge text = quartile color
+### Verified GDS hex palette (from toolkit `_variables.scss` + visual review)
 
-**Font**: Inter. Load from `/Users/lexislav/Projekty/GDS prototyping toolikt/dist/treasury/fonts/` via `@font-face` in `globals.css`, or fall back to system-ui if copy is impractical.
+| Token | Hex | Used for |
+|---|---|---|
+| primary blue | `#135ee2` | header bg, "Nový" pill, "Zobrazit" link, focus ring |
+| page bg | `#eef0f4` | `<body>` background, hover state |
+| heading | `#0a285c` | section headings (h2) |
+| card surface | `#ffffff` | tile and list item background |
+| border | `#e4eaf0` | card borders, dividers |
+| text body | `#1a1a1a` | primary text |
+| text secondary | `#537090` | NACE badge text, dates |
+| text muted | `#9e9e9e` | percentile sub-label, footer |
 
-**AI disclaimer — mandatory on every page** (company-wide policy for AI-generated prototypes):
-Add a `<footer>` to `src/app/layout.tsx` so it appears on all pages automatically:
+### Quartile accent system (MetricTile top stripe + badge)
+
+| Quartile | Accent hex | Badge bg | Badge text |
+|---|---|---|---|
+| horní čtvrtina | `#135ee2` | `#E3F2FD` | `#1565C0` |
+| třetí čtvrtina | `#057f19` | `#E8F5E9` | `#2E7D32` |
+| druhá čtvrtina | `#ff6130` | `#FFF3E0` | `#E65100` |
+| spodní čtvrtina | `#cf2a1e` | `#FFEBEE` | `#C62828` |
+| no-data | `#537090` | `#F5F5F5` | `#757575` |
+
+### MetricTile structure (exact — do not reorder)
+1. Accent stripe: `position:absolute; top:0; left:0; right:0; height:4px; borderRadius:0; background:<accentHex>`  
+   Card must have `position:relative; overflow:hidden` — **never use `border-top`** (it rounds the corners)
+2. Metric name: 15px / 600 / `#1a1a1a`, `marginTop:4`
+3. Category badge: `borderRadius:999px; padding:2px 10px; fontSize:12px` — bg + text from quartile badge table above
+4. `<div style={{flex:1}}/>` — spacer
+5. Raw value: 26px / 700 / `#1a1a1a`
+6. Quartile row: `<span color="#333333" fontWeight:600>{label}</span> <span color="#9e9e9e">{percentile}. p.</span>` — **never use accent color here**
+
+### Font
+Copy Inter Variable TTF files from `/Users/lexislav/Projekty/GDS prototyping toolikt/dist/treasury/fonts/`
+into **`src/public/fonts/`** (not root `public/`). Reference via `@font-face` in `src/app/globals.css`.
+
+### AI disclaimer — mandatory on every page
+Add once to `src/app/layout.tsx` inside `<body>`:
 ```tsx
 <footer style={{ textAlign: 'center', padding: '24px 16px 32px', color: '#9E9E9E', fontSize: '13px' }}>
   Tento prototyp byl vygenerován pomocí AI.
 </footer>
 ```
-This is non-negotiable — do not omit it or move it to individual pages.
 
 ## When to stop and escalate
 

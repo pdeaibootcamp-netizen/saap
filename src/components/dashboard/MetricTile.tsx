@@ -137,9 +137,9 @@ export default function MetricTile({
   const tileStyle: React.CSSProperties = {
     position: "relative",
     overflow: "hidden",
-    backgroundColor: "var(--gds-surface-card)",
-    color: "var(--gds-text-body)",
-    border: "1px solid var(--gds-border-default)",
+    backgroundColor: "#ffffff",
+    color: "#1a1a1a",
+    border: "1px solid #e4eaf0",
     borderRadius: "8px",
     padding: "16px",
     minHeight: "130px",
@@ -164,7 +164,7 @@ export default function MetricTile({
           position: "absolute",
           top: 0, left: 0, right: 0,
           height: 4,
-          background: "var(--gds-border-default)",
+          background: "#e4eaf0",
           borderRadius: 0,
         }} />
         <style dangerouslySetInnerHTML={{ __html: skeletonCss }} />
@@ -297,7 +297,7 @@ export default function MetricTile({
 
 const skeletonCss = `
   .mt-skeleton {
-    background: var(--gds-border-default);
+    background: #e4eaf0;
     border-radius: 4px;
     animation: mt-shimmer 1.4s ease-in-out infinite;
   }

@@ -79,7 +79,7 @@ export function BriefListItem({
   const ariaLabel = `Přehled: ${title}, ${publicationMonth}`;
 
   return (
-    <li style={{ listStyle: "none", borderBottom: "1px solid var(--gds-border-default)" }}>
+    <li style={{ listStyle: "none", borderBottom: "1px solid #e4eaf0" }}>
       <Link
         href={`/brief/${briefId}`}
         aria-label={ariaLabel}
@@ -88,7 +88,7 @@ export function BriefListItem({
           padding: "14px 16px",
           textDecoration: "none",
           color: "inherit",
-          backgroundColor: "var(--gds-surface-card)",
+          backgroundColor: "#ffffff",
           minHeight: "72px",
           transition: "background-color 120ms ease",
           cursor: "pointer",
@@ -114,9 +114,9 @@ export function BriefListItem({
               display: "inline-block",
               fontSize: "12px",
               fontWeight: 500,
-              color: "var(--gds-text-secondary)",
-              backgroundColor: "var(--gds-surface-secondary)",
-              border: "1px solid var(--gds-border-default)",
+              color: "#537090",
+              backgroundColor: "#eef0f4",
+              border: "1px solid #e4eaf0",
               borderRadius: "4px",
               padding: "2px 6px",
               lineHeight: "1.4",
@@ -135,7 +135,7 @@ export function BriefListItem({
                 fontSize: "12px",
                 fontWeight: 700,
                 color: "#ffffff",
-                backgroundColor: "var(--gds-color-primary)",
+                backgroundColor: "#135ee2",
                 borderRadius: "999px",
                 padding: "2px 8px",
                 lineHeight: "1.4",
@@ -151,7 +151,7 @@ export function BriefListItem({
           style={{
             fontSize: "16px",
             fontWeight: 700,
-            color: "var(--gds-text-body)",
+            color: "#1a1a1a",
             lineHeight: "1.4",
             marginBottom: "6px",
           }}
@@ -171,14 +171,14 @@ export function BriefListItem({
             lineHeight: "1.4",
           }}
         >
-          <span style={{ color: "var(--gds-text-muted)" }}>{publicationMonth}</span>
+          <span style={{ color: "#9e9e9e" }}>{publicationMonth}</span>
           {/* "Zobrazit" — decorative link text, primary blue per screenshot */}
           <span
             aria-hidden="true"
             style={{
               fontSize: "13px",
               fontWeight: 600,
-              color: "var(--gds-color-primary)",
+              color: "#135ee2",
             }}
           >
             Zobrazit

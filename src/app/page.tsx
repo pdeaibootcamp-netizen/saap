@@ -139,19 +139,19 @@ export default async function DashboardPage() {
   const dashboardCss = `
         /* Dashboard layout — v0.2 PoC */
         /* docs/design/dashboard-v0-2/layout.md §4.2 max-width + breakpoints */
-        /* GDS token migration: hex values replaced with CSS vars from globals.css */
+        /* GDS hex values inlined — globals.css vars not reliable in inline <style> */
 
         .db-page {
           min-height: 100vh;
-          background: var(--gds-page-bg);
-          font-family: 'Inter var', Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-          color: var(--gds-text-body);
+          background: #eef0f4;
+          font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+          color: #1a1a1a;
         }
 
         /* Header band — layout.md §6; GDS primary blue bg per screenshot */
         .db-header {
           height: 48px;
-          background: var(--gds-color-primary);
+          background: #135ee2;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -203,7 +203,7 @@ export default async function DashboardPage() {
         .db-section-heading {
           font-size: 22px;
           font-weight: 700;
-          color: var(--gds-heading-color);
+          color: #0a285c;
           margin: 0 0 16px 0;
           line-height: 1.35;
         }
@@ -236,7 +236,7 @@ export default async function DashboardPage() {
         /* Section divider — layout.md §4.3 */
         .db-divider {
           border: none;
-          border-top: 1px solid var(--gds-border-default);
+          border-top: 1px solid #e4eaf0;
           margin: 0;
         }
 
@@ -248,10 +248,10 @@ export default async function DashboardPage() {
 
         /* Placeholder blocks */
         .db-placeholder {
-          border: 1px dashed var(--gds-border-default);
+          border: 1px dashed #e4eaf0;
           border-radius: 4px;
           padding: 24px 16px;
-          color: var(--gds-text-secondary);
+          color: #537090;
           font-size: 15px;
           line-height: 1.5;
           text-align: center;
@@ -259,17 +259,17 @@ export default async function DashboardPage() {
 
         /* Brief list rows — brief-list-item.md §3 hover/focus/pressed states */
         .bli-row:hover {
-          background-color: var(--gds-page-bg) !important;
+          background-color: #eef0f4 !important;
         }
         @media (prefers-reduced-motion: reduce) {
           .bli-row { transition: none !important; }
         }
         .bli-row:focus-visible {
-          outline: 3px solid var(--gds-color-primary);
+          outline: 3px solid #135ee2;
           outline-offset: -3px;
         }
         .bli-row:active {
-          background-color: var(--gds-border-default) !important;
+          background-color: #e4eaf0 !important;
         }
 
         /* Brief list last-row: no bottom divider — brief-list-item.md §4.1 */
@@ -289,7 +289,7 @@ export default async function DashboardPage() {
         }
         .db-brief-empty-body {
           font-size: 12px;
-          color: var(--gds-text-secondary);
+          color: #537090;
           margin: 0;
           line-height: 1.5;
         }
@@ -311,7 +311,7 @@ export default async function DashboardPage() {
           >
             Strategy Radar
           </h1>
-          <span className="db-header-close" aria-label="Zavřít">Zavřít ×</span>
+          <span className="db-header-close" aria-label="Zavřít" style={{display:'inline-flex', alignItems:'center', gap:'5px'}}>Zavřít <span style={{fontSize: '20px', lineHeight: 1, display:'flex', alignItems:'center'}}>✕</span></span>
         </header>
 
         <main>
