@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 48" role="img" aria-labelledby="kvsTitle kvsDesc">
+  <title id="kvsTitle">KVS Praha — 1924</title>
+  <desc id="kvsDesc">The founding year 1924 as a gold numeral standalone, for anniversary and contextual use on a transparent background.</desc>
+
+  <style>
+    .kvs-gold-f { fill: var(--kvs-gold, #E8B23A); }
+  </style>
+
+  <text class="kvs-gold-f"
+        x="80" y="36"
+        text-anchor="middle"
+        font-family="'Arial Black','Helvetica Neue',Arial,sans-serif"
+        font-size="32"
+        font-weight="900"
+        letter-spacing="4">1924</text>
+</svg>

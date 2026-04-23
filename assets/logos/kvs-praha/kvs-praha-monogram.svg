@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 140" role="img" aria-labelledby="kvsTitle kvsDesc">
+  <title id="kvsTitle">KVS Praha — monogram</title>
+  <desc id="kvsDesc">Circular KVS monogram in gold: for favicon, avatar, and embroidery use on a transparent background.</desc>
+
+  <style>
+    .kvs-gold-s { stroke: var(--kvs-gold, #E8B23A); fill: none; }
+  </style>
+
+  <!-- Monogram circle -->
+  <circle class="kvs-gold-s" cx="70" cy="70" r="60" stroke-width="5"/>
+
+  <!-- Stylized Art Deco KVS (approximation) -->
+  <g class="kvs-gold-s" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+    <!-- K -->
+    <path d="M 40,44 L 40,97"/>
+    <path d="M 40,71 L 64,44"/>
+    <path d="M 40,71 L 64,97"/>
+    <!-- V -->
+    <path d="M 57,44 L 70,97 L 84,44"/>
+    <!-- S -->
+    <path d="M 102,49
+             C 87,49 84,64 97,71
+             C 113,79 110,95 92,96"/>
+  </g>
+</svg>

@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 480" role="img" aria-labelledby="kvsTitle kvsDesc">
+  <title id="kvsTitle">KVS Praha — on crimson (merchandise only)</title>
+  <desc id="kvsDesc">KVS Praha mark on a crimson background, intended for large-format merchandise only. Gold-on-crimson contrast fails WCAG AA; avoid small sizes and screen use.</desc>
+
+  <style>
+    .kvs-navy    { fill: var(--kvs-navy,    #1E2C5C); }
+    .kvs-white   { fill: var(--kvs-white,   #FFFFFF); }
+    .kvs-crimson { fill: var(--kvs-crimson, #C8102E); }
+    .kvs-gold-f  { fill: var(--kvs-gold,    #E8B23A); }
+    .kvs-gold-s  { stroke: var(--kvs-gold,  #E8B23A); fill: none; }
+  </style>
+
+  <defs>
+    <path id="kvs-flag-shape" d="
+      M 62,108
+      C 108,82 152,82 198,100
+      C 244,118 288,118 332,100
+      C 376,82 406,86 418,108
+      L 418,388
+      C 406,410 376,414 332,392
+      C 288,374 244,374 198,392
+      C 152,410 108,410 62,388
+      Z"/>
+    <clipPath id="kvs-flag-clip">
+      <use href="#kvs-flag-shape"/>
+    </clipPath>
+  </defs>
+
+  <!-- Crimson background filling the viewBox -->
+  <rect class="kvs-crimson" x="0" y="0" width="480" height="480"/>
+
+  <!-- Navy left half, clipped to flag silhouette -->
+  <rect class="kvs-navy" x="0" y="0" width="240" height="480" clip-path="url(#kvs-flag-clip)"/>
+
+  <!-- White base of right half, clipped to flag silhouette -->
+  <rect class="kvs-white" x="240" y="0" width="240" height="480" clip-path="url(#kvs-flag-clip)"/>
+
+  <!-- 7 red stripes on the white field -->
+  <g class="kvs-crimson" clip-path="url(#kvs-flag-clip)">
+    <rect x="246" y="0" width="17" height="480"/>
+    <rect x="270" y="0" width="17" height="480"/>
+    <rect x="294" y="0" width="17" height="480"/>
+    <rect x="318" y="0" width="17" height="480"/>
+    <rect x="342" y="0" width="17" height="480"/>
+    <rect x="366" y="0" width="17" height="480"/>
+    <rect x="390" y="0" width="17" height="480"/>
+  </g>
+
+  <!-- Monogram circle -->
+  <circle class="kvs-gold-s" cx="150" cy="208" r="55" stroke-width="5"/>
+
+  <!-- KVS monogram -->
+  <g class="kvs-gold-s" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 122,183 L 122,238"/>
+    <path d="M 122,211 L 146,183"/>
+    <path d="M 122,211 L 146,238"/>
+    <path d="M 139,183 L 152,238 L 166,183"/>
+    <path d="M 182,188
+             C 167,188 164,203 176,210
+             C 192,218 190,234 173,236"/>
+  </g>
+
+  <!-- 1924 -->
+  <text class="kvs-gold-f"
+        x="150" y="298"
+        text-anchor="middle"
+        font-family="'Arial Black','Helvetica Neue',Arial,sans-serif"
+        font-size="22"
+        font-weight="900"
+        letter-spacing="3">1924</text>
+</svg>
