@@ -139,33 +139,49 @@ export default async function DashboardPage() {
   const dashboardCss = `
         /* Dashboard layout — v0.2 PoC */
         /* docs/design/dashboard-v0-2/layout.md §4.2 max-width + breakpoints */
+        /* GDS hex values inlined — globals.css vars not reliable in inline <style> */
 
         .db-page {
           min-height: 100vh;
-          background: #ffffff;
-          font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+          background: #eef0f4;
+          font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
           color: #1a1a1a;
         }
 
-        /* Header band — layout.md §6 */
+        /* Header band — layout.md §6; GDS primary blue bg per screenshot */
         .db-header {
           height: 48px;
-          background: #ffffff;
-          border-bottom: 1px solid #e0e0e0;
+          background: #135ee2;
           display: flex;
           align-items: center;
+          justify-content: center;
+          position: relative;
           padding: 0 16px;
         }
         @media (min-width: 601px) {
           .db-header { height: 56px; padding: 0 24px; }
         }
 
+        /* Wordmark: white text on primary blue */
         .db-wordmark {
-          font-size: 15px;
+          font-size: 17px;
           font-weight: 700;
-          color: #1a1a1a;
+          color: #ffffff;
           line-height: 1.3;
           margin: 0;
+        }
+
+        /* Close button — absolutely positioned right */
+        .db-header-close {
+          position: absolute;
+          right: 16px;
+          color: #ffffff;
+          font-size: 15px;
+          cursor: pointer;
+          background: none;
+          border: none;
+          padding: 0;
+          line-height: 1;
         }
 
         /* Content container — layout.md §4.2 */
@@ -183,11 +199,11 @@ export default async function DashboardPage() {
           .db-content { max-width: 960px; padding: 0; }
         }
 
-        /* Section headings — layout.md §7.1, §8.1 */
+        /* Section headings — layout.md §7.1, §8.1; dark navy per screenshot */
         .db-section-heading {
-          font-size: 18px;
+          font-size: 22px;
           font-weight: 700;
-          color: #1a1a1a;
+          color: #0a285c;
           margin: 0 0 16px 0;
           line-height: 1.35;
         }
@@ -220,7 +236,7 @@ export default async function DashboardPage() {
         /* Section divider — layout.md §4.3 */
         .db-divider {
           border: none;
-          border-top: 1px solid #e0e0e0;
+          border-top: 1px solid #e4eaf0;
           margin: 0;
         }
 
@@ -232,10 +248,10 @@ export default async function DashboardPage() {
 
         /* Placeholder blocks */
         .db-placeholder {
-          border: 1px dashed #e0e0e0;
+          border: 1px dashed #e4eaf0;
           border-radius: 4px;
           padding: 24px 16px;
-          color: #888;
+          color: #537090;
           font-size: 15px;
           line-height: 1.5;
           text-align: center;
@@ -243,17 +259,17 @@ export default async function DashboardPage() {
 
         /* Brief list rows — brief-list-item.md §3 hover/focus/pressed states */
         .bli-row:hover {
-          background-color: #fafafa !important;
+          background-color: #eef0f4 !important;
         }
         @media (prefers-reduced-motion: reduce) {
           .bli-row { transition: none !important; }
         }
         .bli-row:focus-visible {
-          outline: 3px solid #1a1a1a;
+          outline: 3px solid #135ee2;
           outline-offset: -3px;
         }
         .bli-row:active {
-          background-color: #f0f0f0 !important;
+          background-color: #e4eaf0 !important;
         }
 
         /* Brief list last-row: no bottom divider — brief-list-item.md §4.1 */
@@ -268,12 +284,12 @@ export default async function DashboardPage() {
         .db-brief-empty-heading {
           font-size: 15px;
           font-weight: 600;
-          color: #1a1a1a;
+          color: var(--gds-text-body);
           margin: 0 0 8px 0;
         }
         .db-brief-empty-body {
           font-size: 12px;
-          color: #757575;
+          color: #537090;
           margin: 0;
           line-height: 1.5;
         }
@@ -285,16 +301,17 @@ export default async function DashboardPage() {
 
       <div className="db-page">
 
-        {/* Header band — D-018: "Česká Spořitelna · Strategy Radar" */}
-        {/* layout.md §6: wordmark, no nav links */}
+        {/* Header band — D-018: "Strategy Radar" centred, close button right */}
+        {/* layout.md §6: wordmark centred, Zavřít × absolutely positioned right */}
         <header role="banner" className="db-header">
           {/* Accessible h1 per layout.md §6 accessibility note */}
           <h1
             className="db-wordmark"
             aria-label="Strategy Radar"
           >
-            Česká Spořitelna · Strategy Radar
+            Strategy Radar
           </h1>
+          <span className="db-header-close" aria-label="Zavřít" style={{display:'inline-flex', alignItems:'center', gap:'5px'}}>Zavřít <span style={{fontSize: '20px', lineHeight: 1, display:'flex', alignItems:'center'}}>✕</span></span>
         </header>
 
         <main>
