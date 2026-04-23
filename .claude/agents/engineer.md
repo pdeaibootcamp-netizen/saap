@@ -82,6 +82,29 @@ If any of the three upstream docs are missing, stop and say which one is missing
 - YYYY-MM-DD — initial draft — engineer
 ```
 
+## Visual style — GDS tokens + AI disclaimer
+
+**GDS token source**: Before touching any styles, read `/Users/lexislav/Projekty/GDS prototyping toolikt/lib/sass/_variables.scss` and map the relevant values to `--gds-*` CSS custom properties in `src/app/globals.css`. Never hardcode hex values that exist in the token file.
+
+**Quartile color system** (top border + category badge on MetricTile):
+- `--gds-quartile-top`: ~#1565C0 (primary blue) — horní čtvrtina
+- `--gds-quartile-3`: ~#2E7D32 (green) — třetí čtvrtina (50–75 %)
+- `--gds-quartile-2`: ~#E65100 (amber) — druhá čtvrtina (25–50 %)
+- `--gds-quartile-bottom`: ~#C62828 (red) — dolní čtvrtina
+- `--gds-quartile-nodata`: ~#455A64 (dark gray-blue) — no data
+- Badge bg = quartile color at 12 % opacity; badge text = quartile color
+
+**Font**: Inter. Load from `/Users/lexislav/Projekty/GDS prototyping toolikt/dist/treasury/fonts/` via `@font-face` in `globals.css`, or fall back to system-ui if copy is impractical.
+
+**AI disclaimer — mandatory on every page** (company-wide policy for AI-generated prototypes):
+Add a `<footer>` to `src/app/layout.tsx` so it appears on all pages automatically:
+```tsx
+<footer style={{ textAlign: 'center', padding: '24px 16px 32px', color: '#9E9E9E', fontSize: '13px' }}>
+  Tento prototyp byl vygenerován pomocí AI.
+</footer>
+```
+This is non-negotiable — do not omit it or move it to individual pages.
+
 ## When to stop and escalate
 
 Log in `docs/project/open-questions.md` and stop when:

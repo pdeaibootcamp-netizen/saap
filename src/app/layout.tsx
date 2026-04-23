@@ -30,7 +30,13 @@ export default function RootLayout({
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        {/* Mandatory AI-prototype disclaimer — required for all AI-generated prototypes */}
+        <footer style={{ textAlign: 'center', padding: '24px 16px 32px', color: '#9E9E9E', fontSize: '13px' }}>
+          Tento prototyp byl vygenerován pomocí AI.
+        </footer>
+      </body>
     </html>
   );
 }

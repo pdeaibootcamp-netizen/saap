@@ -79,7 +79,7 @@ export function BriefListItem({
   const ariaLabel = `Přehled: ${title}, ${publicationMonth}`;
 
   return (
-    <li style={{ listStyle: "none", borderBottom: "1px solid #e0e0e0" }}>
+    <li style={{ listStyle: "none", borderBottom: "1px solid var(--gds-border-default)" }}>
       <Link
         href={`/brief/${briefId}`}
         aria-label={ariaLabel}
@@ -88,7 +88,7 @@ export function BriefListItem({
           padding: "14px 16px",
           textDecoration: "none",
           color: "inherit",
-          backgroundColor: "var(--bli-bg, #ffffff)",
+          backgroundColor: "var(--gds-surface-card)",
           minHeight: "72px",
           transition: "background-color 120ms ease",
           cursor: "pointer",
@@ -107,15 +107,16 @@ export function BriefListItem({
           }}
         >
           {/* NACE badge — aria-hidden: text is included in row aria-label */}
+          {/* bg: --gds-surface-secondary (#eef0f4), text: --gds-text-secondary (#537090) */}
           <span
             aria-hidden="true"
             style={{
               display: "inline-block",
               fontSize: "12px",
               fontWeight: 500,
-              color: "#555555",
-              backgroundColor: "#f5f5f5",
-              border: "1px solid #e0e0e0",
+              color: "var(--gds-text-secondary)",
+              backgroundColor: "var(--gds-surface-secondary)",
+              border: "1px solid var(--gds-border-default)",
               borderRadius: "4px",
               padding: "2px 6px",
               lineHeight: "1.4",
@@ -125,6 +126,7 @@ export function BriefListItem({
           </span>
 
           {/* "Nový" pill — brief-list-item.md §6.2 */}
+          {/* bg: --gds-color-primary, text: white, fully-rounded (border-radius: 999px) */}
           {isNew && (
             <span
               aria-label="Nový přehled"
@@ -132,10 +134,10 @@ export function BriefListItem({
                 display: "inline-block",
                 fontSize: "12px",
                 fontWeight: 700,
-                color: "#1b5e20",
-                backgroundColor: "#e8f5e9",
-                borderRadius: "4px",
-                padding: "2px 6px",
+                color: "#ffffff",
+                backgroundColor: "var(--gds-color-primary)",
+                borderRadius: "999px",
+                padding: "2px 8px",
                 lineHeight: "1.4",
               }}
             >
@@ -144,12 +146,12 @@ export function BriefListItem({
           )}
         </div>
 
-        {/* Row B — title — brief-list-item.md §2.2, --text-subheading (15px/600) */}
+        {/* Row B — title — brief-list-item.md §2.2, bold ~16px */}
         <div
           style={{
-            fontSize: "15px",
-            fontWeight: 600,
-            color: "#1a1a1a",
+            fontSize: "16px",
+            fontWeight: 700,
+            color: "var(--gds-text-body)",
             lineHeight: "1.4",
             marginBottom: "6px",
           }}
@@ -157,7 +159,7 @@ export function BriefListItem({
           {title}
         </div>
 
-        {/* Row C — publication month + chevron */}
+        {/* Row C — publication month + "Zobrazit" link */}
         <div
           style={{
             display: "flex",
@@ -166,14 +168,20 @@ export function BriefListItem({
             alignItems: "center",
             fontSize: "12px",
             fontWeight: 400,
-            color: "#757575",
             lineHeight: "1.4",
           }}
         >
-          <span>{publicationMonth}</span>
-          {/* Chevron — decorative, aria-hidden */}
-          <span aria-hidden="true" style={{ fontSize: "16px", color: "#bdbdbd" }}>
-            ›
+          <span style={{ color: "var(--gds-text-muted)" }}>{publicationMonth}</span>
+          {/* "Zobrazit" — decorative link text, primary blue per screenshot */}
+          <span
+            aria-hidden="true"
+            style={{
+              fontSize: "13px",
+              fontWeight: 600,
+              color: "var(--gds-color-primary)",
+            }}
+          >
+            Zobrazit
           </span>
         </div>
       </Link>
