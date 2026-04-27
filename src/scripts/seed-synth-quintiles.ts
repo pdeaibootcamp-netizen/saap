@@ -26,30 +26,32 @@
  * Do NOT edit src/scripts/seed.ts directly — Track A owns it.
  */
 
-import postgres from "postgres";
+import { createClient } from "@supabase/supabase-js";
 import {
   seedSynthQuintilesForNaceDivision,
   SYNTH_NACE_DIVISIONS,
 } from "../lib/seed-synth-quintiles";
 
 async function main() {
-  const dbUrl =
-    process.env.DATABASE_URL_USER ||
-    process.env.DATABASE_URL ||
-    "postgres://placeholder:placeholder@127.0.0.1:5432/placeholder";
-
-  const sql = postgres(dbUrl, { max: 3, idle_timeout: 30, connect_timeout: 15 });
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceKey) {
+    throw new Error(
+      "[seed-synth] NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must " +
+      "be set in .env.local — seed uses the Supabase REST client (HTTPS), not " +
+      "the postgres TCP library."
+    );
+  }
+  const supabase = createClient(supabaseUrl, serviceKey, {
+    auth: { persistSession: false },
+  });
 
   console.log(`[seed-synth] Seeding synth quintiles for ${SYNTH_NACE_DIVISIONS.length} NACE divisions: ${SYNTH_NACE_DIVISIONS.join(", ")}`);
 
-  try {
-    for (const division of SYNTH_NACE_DIVISIONS) {
-      await seedSynthQuintilesForNaceDivision(division, sql);
-    }
-    console.log("[seed-synth] Done. All synth quintiles seeded successfully.");
-  } finally {
-    await sql.end();
+  for (const division of SYNTH_NACE_DIVISIONS) {
+    await seedSynthQuintilesForNaceDivision(division, supabase);
   }
+  console.log("[seed-synth] Done. All synth quintiles seeded successfully.");
 }
 
 main().catch((err) => {

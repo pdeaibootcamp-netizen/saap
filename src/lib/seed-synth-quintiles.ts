@@ -292,16 +292,20 @@ function validateOrdering(row: SynthRow): void {
 
 /**
  * Seed synthetic quintiles for a given NACE division into cohort_aggregates.
- * Idempotent: ON CONFLICT only updates if the existing row has source='synthetic'.
- * Does not overwrite source='real' rows.
+ * Idempotent: upsert on (nace_division, metric_id, source) — does not
+ * overwrite source='real' rows because the composite PK includes source.
+ *
+ * Uses Supabase REST client (HTTPS) instead of the postgres TCP library —
+ * the developer's network blocks 5432/6543. Same posture as the working
+ * src/scripts/seed.ts.
  *
  * @param division — 2-digit NACE division, e.g. "49"
- * @param sql      — postgres client
+ * @param supabase — `@supabase/supabase-js` client created with the service-role key
  */
 export async function seedSynthQuintilesForNaceDivision(
   division: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  sql: any
+  supabase: any
 ): Promise<void> {
   const rows = SYNTH_ROWS.filter((r) => r.nace_division === division);
   if (rows.length === 0) {
@@ -314,30 +318,31 @@ export async function seedSynthQuintilesForNaceDivision(
     validateOrdering(row);
   }
 
-  for (const row of rows) {
-    await sql`
-      INSERT INTO cohort_aggregates (
-        nace_division, metric_id,
-        q1, q2, median, q3, q4,
-        n_proxy, source,
-        generated_at, generated_by, methodology_note
-      ) VALUES (
-        ${row.nace_division}, ${row.metric_id},
-        ${row.q1}, ${row.q2}, ${row.median}, ${row.q3}, ${row.q4},
-        200, 'synthetic',
-        now(), 'de-spec-2026-04-27', ${row.methodology_note}
-      )
-      ON CONFLICT (nace_division, metric_id, source) DO UPDATE SET
-        q1               = EXCLUDED.q1,
-        q2               = EXCLUDED.q2,
-        median           = EXCLUDED.median,
-        q3               = EXCLUDED.q3,
-        q4               = EXCLUDED.q4,
-        n_proxy          = EXCLUDED.n_proxy,
-        generated_at     = now(),
-        generated_by     = EXCLUDED.generated_by,
-        methodology_note = EXCLUDED.methodology_note
-    `;
+  const payload = rows.map((row) => ({
+    nace_division: row.nace_division,
+    metric_id: row.metric_id,
+    q1: row.q1,
+    q2: row.q2,
+    median: row.median,
+    q3: row.q3,
+    q4: row.q4,
+    n_proxy: 200,
+    source: "synthetic",
+    generated_by: "de-spec-2026-04-27",
+    methodology_note: row.methodology_note,
+  }));
+
+  const { error } = await supabase
+    .from("cohort_aggregates")
+    .upsert(payload, {
+      onConflict: "nace_division,metric_id,source",
+      ignoreDuplicates: false,
+    });
+
+  if (error) {
+    throw new Error(
+      `[seed-synth] Supabase upsert failed for NACE ${division}: ${error.message}`
+    );
   }
 
   console.log(`[seed-synth] Seeded ${rows.length} synth rows for NACE ${division}.`);

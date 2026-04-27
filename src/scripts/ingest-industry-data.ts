@@ -22,9 +22,28 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as readline from "readline";
-import postgres from "postgres";
+import { createClient } from "@supabase/supabase-js";
 
 // ── Args ──────────────────────────────────────────────────────────────────────
+
+// If no --file is passed, auto-detect the only Excel in PRD/industry-data/.
+// If no --nace-division is passed, default to "49" (the v0.3 demo NACE).
+const DEFAULT_INDUSTRY_DIR = path.resolve(process.cwd(), "..", "PRD", "industry-data");
+
+function autoDetectFile(): string | null {
+  if (!fs.existsSync(DEFAULT_INDUSTRY_DIR)) return null;
+  const xlsxFiles = fs
+    .readdirSync(DEFAULT_INDUSTRY_DIR)
+    .filter((f) => f.endsWith(".xlsx"));
+  if (xlsxFiles.length === 0) return null;
+  if (xlsxFiles.length > 1) {
+    console.warn(
+      `[ingest] Multiple .xlsx files in ${DEFAULT_INDUSTRY_DIR}; picking ${xlsxFiles[0]}. ` +
+      `Pass --file explicitly to override.`
+    );
+  }
+  return path.join(DEFAULT_INDUSTRY_DIR, xlsxFiles[0]);
+}
 
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -32,16 +51,22 @@ function parseArgs() {
     const i = args.indexOf(flag);
     return i !== -1 ? args[i + 1] : undefined;
   };
-  const file = get("--file");
+  const fileArg = get("--file");
   const yearArg = get("--year");
-  const naceDivision = get("--nace-division");
-  if (!file) throw new Error("--file is required");
-  if (!naceDivision || !/^\d{2}$/.test(naceDivision))
+  const naceDivisionArg = get("--nace-division") ?? "49";
+  const file = fileArg ?? autoDetectFile();
+  if (!file) {
+    throw new Error(
+      `--file is required and no .xlsx auto-detected in PRD/industry-data/. ` +
+      `Drop the file there or pass --file explicitly.`
+    );
+  }
+  if (!/^\d{2}$/.test(naceDivisionArg))
     throw new Error("--nace-division must be a 2-digit string");
   return {
     file: path.resolve(file),
     yearOverride: yearArg ? parseInt(yearArg, 10) : null,
-    naceDivision,
+    naceDivision: naceDivisionArg,
   };
 }
 
@@ -158,115 +183,137 @@ async function main() {
   const unmappedCities: string[] = [];
   const errorLog: string[] = [];
 
-  // DB connection
-  const dbUrl =
-    process.env.DATABASE_URL_USER ||
-    process.env.DATABASE_URL ||
-    "postgres://placeholder:placeholder@127.0.0.1:5432/placeholder";
-  const sql = postgres(dbUrl, { max: 5, idle_timeout: 30, connect_timeout: 15 });
+  // DB connection — use Supabase REST client (HTTPS) instead of postgres
+  // TCP library, because the developer's network blocks outbound 5432/6543
+  // (well-established issue from v0.1).
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceKey) {
+    throw new Error(
+      "[ingest] NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be " +
+      "set in .env.local — the ingest writes via the Supabase REST client (not " +
+      "the postgres TCP library)."
+    );
+  }
+  const supabase = createClient(supabaseUrl, serviceKey, {
+    auth: { persistSession: false },
+  });
 
-  try {
-    // Process rows in a single transaction for atomicity (cohort-ingestion.md §5.3)
-    await sql.begin(async (tx) => {
-      for (const row of rows) {
-        // ── IČO ───────────────────────────────────────────────────────────────
-        const icoRaw = String(row["IČO"] ?? row["ICO"] ?? "").trim().replace(/\s/g, "").padStart(8, "0");
-        if (!/^\d{8}$/.test(icoRaw)) {
-          skippedMalformedIco++;
-          errorLog.push(`Malformed IČO: ${JSON.stringify(row["IČO"])}`);
-          continue;
-        }
+  // Build the rows to upsert in memory first; then batch-upsert to Supabase.
+  type RowToUpsert = {
+    ico: string;
+    year: number;
+    nace_class: string;
+    nace_division: string;
+    cz_region: string | null;
+    size_band: "S1" | "S2" | "S3";
+    revenue_czk: number | null;
+    profit_czk: number | null;
+    employee_count: number | null;
+    net_margin: number | null;
+    revenue_per_employee: number | null;
+    source_file: string;
+  };
+  const rowsToUpsert: RowToUpsert[] = [];
 
-        // ── NACE ──────────────────────────────────────────────────────────────
-        const naceRaw = String(row["Hlavní NACE"] ?? row["Hlavni NACE"] ?? "").trim();
-        const nace = normaliseNace(naceRaw);
-        if (!nace || nace.naceDivision !== expectedDivision) {
-          skippedNaceMismatch++;
-          errorLog.push(`NACE mismatch: ${naceRaw} (expected division ${expectedDivision})`);
-          continue;
-        }
+  for (const row of rows) {
+    // ── IČO ───────────────────────────────────────────────────────────────
+    const icoRaw = String(row["IČO"] ?? row["ICO"] ?? "").trim().replace(/\s/g, "").padStart(8, "0");
+    if (!/^\d{8}$/.test(icoRaw)) {
+      skippedMalformedIco++;
+      errorLog.push(`Malformed IČO: ${JSON.stringify(row["IČO"])}`);
+      continue;
+    }
 
-        // ── Year ──────────────────────────────────────────────────────────────
-        const year = yearOverride ?? (Number(row["Rok"]) || 2024);
+    // ── NACE ──────────────────────────────────────────────────────────────
+    const naceRaw = String(row["Hlavní NACE"] ?? row["Hlavni NACE"] ?? "").trim();
+    const nace = normaliseNace(naceRaw);
+    if (!nace || nace.naceDivision !== expectedDivision) {
+      skippedNaceMismatch++;
+      errorLog.push(`NACE mismatch: ${naceRaw} (expected division ${expectedDivision})`);
+      continue;
+    }
 
-        // ── Revenue / profit ─────────────────────────────────────────────────
-        const revenueCzk = row["Obrat"] != null ? Number(row["Obrat"]) : null;
-        const profitCzk = row["Hospodářský výsledek"] != null ? Number(row["Hospodářský výsledek"]) : null;
+    // ── Year ──────────────────────────────────────────────────────────────
+    const year = yearOverride ?? (Number(row["Rok"]) || 2024);
 
-        // ── Employee count → size band ────────────────────────────────────────
-        const exactCount = row["Počet zaměstnanců"] != null ? Number(row["Počet zaměstnanců"]) : null;
-        const bucket = row["Kategorie počtu zaměstnanců CZ"] != null
-          ? String(row["Kategorie počtu zaměstnanců CZ"])
-          : null;
+    // ── Revenue / profit ─────────────────────────────────────────────────
+    const revenueCzk = row["Obrat"] != null ? Number(row["Obrat"]) : null;
+    const profitCzk = row["Hospodářský výsledek"] != null ? Number(row["Hospodářský výsledek"]) : null;
 
-        let employeeCount: number | null = null;
-        let sizeBand: "S1" | "S2" | "S3" | null = null;
+    // ── Employee count → size band ────────────────────────────────────────
+    const exactCount = row["Počet zaměstnanců"] != null ? Number(row["Počet zaměstnanců"]) : null;
+    const bucket = row["Kategorie počtu zaměstnanců CZ"] != null
+      ? String(row["Kategorie počtu zaměstnanců CZ"])
+      : null;
 
-        if (exactCount !== null && !isNaN(exactCount)) {
-          employeeCount = Math.round(exactCount);
-          sizeBand = employeeCountToSizeBand(employeeCount);
-        } else {
-          sizeBand = bucketToSizeBand(bucket);
-        }
+    let employeeCount: number | null = null;
+    let sizeBand: "S1" | "S2" | "S3" | null = null;
 
-        if (sizeBand === null) {
-          skippedNoEmployee++;
-          errorLog.push(`Missing employee data: IČO=${icoRaw}`);
-          continue;
-        }
+    if (exactCount !== null && !isNaN(exactCount)) {
+      employeeCount = Math.round(exactCount);
+      sizeBand = employeeCountToSizeBand(employeeCount);
+    } else {
+      sizeBand = bucketToSizeBand(bucket);
+    }
 
-        // ── Region ───────────────────────────────────────────────────────────
-        const cityRaw = row["Obec sídla"] != null ? String(row["Obec sídla"]).trim() : null;
-        const region = lookupRegion(cityRaw, cityMap);
-        if (region) {
-          regionMapped++;
-        } else {
-          regionUnmapped++;
-          if (cityRaw && !unmappedCities.includes(cityRaw)) {
-            unmappedCities.push(cityRaw);
-          }
-        }
+    if (sizeBand === null) {
+      skippedNoEmployee++;
+      errorLog.push(`Missing employee data: IČO=${icoRaw}`);
+      continue;
+    }
 
-        // ── Derived metrics ───────────────────────────────────────────────────
-        const { netMargin, revenuePerEmployee } = derivedMetrics(revenueCzk, profitCzk, employeeCount);
-        if (netMargin !== null) netMarginCount++;
-        if (revenuePerEmployee !== null) revenuePerEmployeeCount++;
-
-        // ── Upsert ────────────────────────────────────────────────────────────
-        sizeBandCounts[sizeBand]++;
-
-        await tx`
-          INSERT INTO cohort_companies (
-            ico, year, nace_class, nace_division, cz_region, size_band,
-            revenue_czk, profit_czk, employee_count,
-            net_margin, revenue_per_employee,
-            source_file, ingested_at
-          ) VALUES (
-            ${icoRaw}, ${year}, ${nace.naceClass}, ${nace.naceDivision},
-            ${region as string | null}::cz_region, ${sizeBand}::size_band,
-            ${revenueCzk}, ${profitCzk}, ${employeeCount},
-            ${netMargin}, ${revenuePerEmployee},
-            ${path.basename(file)}, now()
-          )
-          ON CONFLICT (ico, year) DO UPDATE SET
-            nace_class            = EXCLUDED.nace_class,
-            nace_division         = EXCLUDED.nace_division,
-            cz_region             = EXCLUDED.cz_region,
-            size_band             = EXCLUDED.size_band,
-            revenue_czk           = EXCLUDED.revenue_czk,
-            profit_czk            = EXCLUDED.profit_czk,
-            employee_count        = EXCLUDED.employee_count,
-            net_margin            = EXCLUDED.net_margin,
-            revenue_per_employee  = EXCLUDED.revenue_per_employee,
-            source_file           = EXCLUDED.source_file,
-            ingested_at           = now()
-        `;
-
-        ingested++;
+    // ── Region ───────────────────────────────────────────────────────────
+    const cityRaw = row["Obec sídla"] != null ? String(row["Obec sídla"]).trim() : null;
+    const region = lookupRegion(cityRaw, cityMap);
+    if (region) {
+      regionMapped++;
+    } else {
+      regionUnmapped++;
+      if (cityRaw && !unmappedCities.includes(cityRaw)) {
+        unmappedCities.push(cityRaw);
       }
+    }
+
+    // ── Derived metrics ───────────────────────────────────────────────────
+    const { netMargin, revenuePerEmployee } = derivedMetrics(revenueCzk, profitCzk, employeeCount);
+    if (netMargin !== null) netMarginCount++;
+    if (revenuePerEmployee !== null) revenuePerEmployeeCount++;
+
+    sizeBandCounts[sizeBand]++;
+
+    rowsToUpsert.push({
+      ico: icoRaw,
+      year,
+      nace_class: nace.naceClass,
+      nace_division: nace.naceDivision,
+      cz_region: region,
+      size_band: sizeBand,
+      revenue_czk: revenueCzk,
+      profit_czk: profitCzk,
+      employee_count: employeeCount,
+      net_margin: netMargin,
+      revenue_per_employee: revenuePerEmployee,
+      source_file: path.basename(file),
     });
-  } finally {
-    await sql.end();
+    ingested++;
+  }
+
+  // ── Batch upsert via Supabase REST (HTTPS) ──────────────────────────────
+  // Supabase upsert handles ON CONFLICT (ico, year) DO UPDATE via onConflict + ignoreDuplicates: false.
+  console.log(`[ingest] Upserting ${rowsToUpsert.length} rows in batches of 500…`);
+  const BATCH_SIZE = 500;
+  for (let i = 0; i < rowsToUpsert.length; i += BATCH_SIZE) {
+    const batch = rowsToUpsert.slice(i, i + BATCH_SIZE);
+    const { error } = await supabase
+      .from("cohort_companies")
+      .upsert(batch, { onConflict: "ico,year", ignoreDuplicates: false });
+    if (error) {
+      throw new Error(
+        `[ingest] Supabase upsert failed at batch starting row ${i}: ${error.message}`
+      );
+    }
+    console.log(`  upserted ${Math.min(i + BATCH_SIZE, rowsToUpsert.length)} / ${rowsToUpsert.length}`);
   }
 
   // ── Write unmapped cities log ─────────────────────────────────────────────
