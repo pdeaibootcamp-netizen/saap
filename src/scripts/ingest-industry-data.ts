@@ -203,6 +203,7 @@ async function main() {
   let skippedMalformedIco = 0;
   let skippedNoEmployee = 0;
   let skippedNaceMismatch = 0;
+  let skippedStaleYear = 0;
   let netMarginCount = 0;
   let revenuePerEmployeeCount = 0;
   let regionMapped = 0;
@@ -263,7 +264,18 @@ async function main() {
     }
 
     // ── Year ──────────────────────────────────────────────────────────────
-    const year = yearOverride ?? (Number(row["Rok"]) || 2024);
+    // Excel cells like "2024 (odhad)" become NaN; empty cells become 0.
+    // Both fall back to the override or 2024 (current).
+    const yearParsed = Number(row["Rok"]);
+    const year = yearOverride ?? (Number.isFinite(yearParsed) && yearParsed > 0 ? yearParsed : 2024);
+    // DB CHECK constraint requires year BETWEEN 2015 AND 2030.
+    // A handful of firms have only old reports (2009–2014) — too stale for the
+    // current-cohort percentile compute; skip them with a clear log entry.
+    if (year < 2015 || year > 2030) {
+      skippedStaleYear++;
+      errorLog.push(`Stale year ${year} (out of 2015–2030 window): IČO=${icoRaw}`);
+      continue;
+    }
 
     // ── Revenue / profit ─────────────────────────────────────────────────
     const revenueCzk = row["Obrat"] != null ? Number(row["Obrat"]) : null;
@@ -355,10 +367,10 @@ async function main() {
   }
 
   // ── Summary ───────────────────────────────────────────────────────────────
-  const skippedTotal = skippedMalformedIco + skippedNoEmployee + skippedNaceMismatch;
+  const skippedTotal = skippedMalformedIco + skippedNoEmployee + skippedNaceMismatch + skippedStaleYear;
   console.log(`\n[ingest] ── Summary ─────────────────────────────────────────`);
   console.log(`Ingested ${ingested} rows out of ${rows.length} source rows.`);
-  console.log(`Skipped: ${skippedTotal} (${skippedMalformedIco} malformed IČO, ${skippedNoEmployee} missing employee fields, ${skippedNaceMismatch} NACE mismatch).`);
+  console.log(`Skipped: ${skippedTotal} (${skippedMalformedIco} malformed IČO, ${skippedNoEmployee} missing employee fields, ${skippedNaceMismatch} NACE mismatch, ${skippedStaleYear} stale year < 2015).`);
   console.log(`Coverage:`);
   console.log(`  net_margin           computed for ${netMarginCount} rows (${pct(netMarginCount, ingested)} %)`);
   console.log(`  revenue_per_employee computed for ${revenuePerEmployeeCount} rows (${pct(revenuePerEmployeeCount, ingested)} %)`);
