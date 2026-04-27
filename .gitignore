@@ -14,3 +14,6 @@ src/tsconfig.tsbuildinfo
 PRD/industry-data/*.xlsx
 PRD/industry-data/*.xls
 PRD/industry-data/*.csv
+
+# Local data folder (raw imports, exports, scratch files — never commit)
+/data/
