@@ -345,17 +345,29 @@ async function main() {
 
     // ── Revenue / profit / employees ─────────────────────────────────────
     // Column headers in the source Excel are verbose ("Obrat, Výnosy (Kč, …)",
-    // "Hospodářský výsledek za účetní období (Kč)", etc.). Look up by substring
-    // match against the row's keys so we don't break on minor header variations
-    // between different industry-data exports.
-    const findCol = (substr: string): unknown => {
-      const key = Object.keys(row).find((k) => k.toLowerCase().includes(substr.toLowerCase()));
-      return key !== undefined ? row[key] : null;
+    // "Hospodářský výsledek za účetní období (Kč)", etc.) and vary across
+    // exports (freight uses "Obec sídla"; furniture uses "Město"). Match by
+    // priority — try the most specific alias first so we don't bind the
+    // wrong column. E.g. "Hospodářský" alone would hit "Provozní hospodářský
+    // výsledek" (operating profit) before the "za účetní období" net-profit
+    // column we actually want.
+    const findCol = (substrs: string[]): unknown => {
+      for (const substr of substrs) {
+        const lower = substr.toLowerCase();
+        const key = Object.keys(row).find((k) => k.toLowerCase().includes(lower));
+        if (key !== undefined) return row[key];
+      }
+      return null;
     };
-    const revenueRaw = findCol("Obrat");
-    const profitRaw = findCol("Hospodářský výsledek");
-    const exactCountRaw = findCol("Počet zaměstnanců");
-    const bucketRaw = findCol("Kategorie počtu zaměstnanců");
+    // Revenue: prefer "Obrat, Výnosy" (freight & furniture). Avoid the
+    // "Kategorie obratu" bucket label collision. Fall back to "Tržby, Výkony"
+    // (alternate revenue field in some exports).
+    const revenueRaw = findCol(["Obrat, Výnosy", "Tržby, Výkony"]);
+    // Profit: prefer "za účetní období" (net profit). Avoid "Provozní"
+    // (operating profit) and "před zdaněním" (pre-tax) which are different metrics.
+    const profitRaw = findCol(["Hospodářský výsledek za účetní"]);
+    const exactCountRaw = findCol(["Počet zaměstnanců"]);
+    const bucketRaw = findCol(["Kategorie počtu zaměstnanců"]);
 
     const revenueCzk = revenueRaw != null && revenueRaw !== "" ? Number(revenueRaw) : null;
     const profitCzk = profitRaw != null && profitRaw !== "" ? Number(profitRaw) : null;
@@ -392,7 +404,9 @@ async function main() {
     }
 
     // ── Region ───────────────────────────────────────────────────────────
-    const cityRaw = row["Obec sídla"] != null ? String(row["Obec sídla"]).trim() : null;
+    // City column varies: freight exports use "Obec sídla", furniture uses "Město".
+    const cityRawRaw = findCol(["Obec sídla", "Město"]);
+    const cityRaw = cityRawRaw != null ? String(cityRawRaw).trim() : null;
     const region = lookupRegion(cityRaw, cityMap);
     if (region) {
       regionMapped++;
