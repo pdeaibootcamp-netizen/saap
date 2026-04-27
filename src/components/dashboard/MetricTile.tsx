@@ -61,8 +61,10 @@ const QUARTILE_STYLES: Record<QuartileLabel, QuartileStyle> = {
   "spodní čtvrtina": { accentVar: "var(--gds-quartile-bottom)", accentHex: "#C62828" },
 };
 
-// ask state uses amber — same hex as druhá čtvrtina but semantically "action available"
-const CTA_ACCENT_HEX = "#E65100";
+// ask state uses neutral blue-grey — distinct from any quartile colour and
+// non-alarming (the tile is asking for input, not flagging a problem).
+// Was amber #E65100 — flagged in user testing as too close to druhá čtvrtina + alarming.
+const CTA_ACCENT_HEX = "#78909C";
 
 // ─── Props ───────────────────────────────────────────────────────────────────
 
@@ -156,13 +158,17 @@ export default function MetricTile({
   // ── Tile base style ─────────────────────────────────────────────────────────
   const tileStyle: React.CSSProperties = {
     position: "relative",
-    overflow: "hidden",
+    // Note: no overflow:hidden here — ask-state tile content (label + help text +
+    // input row + error + buttons) easily exceeds the 130px base height; clipping
+    // hid the input field. Tiles in ask state grow to fit their content; the grid
+    // row stretches to align. The accent stripe is positioned with overflow visible
+    // and is always at top:0 anyway.
     backgroundColor: "#ffffff",
     color: "#1a1a1a",
     border: "1px solid #e4eaf0",
     borderRadius: "8px",
     padding: "16px",
-    minHeight: confidenceState === "ask" ? "180px" : "130px",
+    minHeight: confidenceState === "ask" ? "240px" : "130px",
     display: "flex",
     flexDirection: "column",
     gap: "6px",
@@ -357,6 +363,8 @@ export default function MetricTile({
               aria-invalid={hasError}
               style={{
                 flex: 1,
+                minWidth: 0,            // allow shrink in narrow tiles (override flex auto min-width)
+                width: "100%",          // belt + suspenders for older flex impls
                 height: 40,
                 fontSize: 16,
                 fontWeight: 400,

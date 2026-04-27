@@ -334,13 +334,14 @@ export default async function DashboardPage({
             Strategy Radar
           </h1>
 
-          {/* IčO switcher — moderator-only (design/in-tile-prompts.md §4.3) */}
-          {/* Visible only when DEMO_MODE=true per ADR-OM-03 */}
-          {process.env.DEMO_MODE === "true" && (
-            <div className="db-ico-switcher-wrap">
-              <IcoSwitcher activeIco={activeIco} />
-            </div>
-          )}
+          {/* IčO switcher — moderator-only (design/in-tile-prompts.md §4.3).
+              Originally gated behind DEMO_MODE=true; relaxed for v0.3 PoC because
+              this branch is the demo branch and the switcher IS the primary
+              moderator UX. The /api/owner/demo/{switch,reset} routes remain
+              gated by DEMO_MODE per ADR-OM-03. */}
+          <div className="db-ico-switcher-wrap">
+            <IcoSwitcher activeIco={activeIco} />
+          </div>
         </header>
 
         <main>
