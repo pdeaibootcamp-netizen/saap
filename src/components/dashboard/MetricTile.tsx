@@ -351,17 +351,17 @@ export default function MetricTile({
             type="button"
             onClick={() => setExpanded(true)}
             style={{
-              alignSelf: "flex-start",
+              width: "100%",
               backgroundColor: "transparent",
               color: "#1565C0",
               border: "1px solid #1565C0",
-              borderRadius: 4,
-              height: 32,
-              padding: "0 12px",
+              borderRadius: 999,
+              padding: "4px 12px",
               fontSize: 13,
               fontWeight: 600,
               cursor: "pointer",
               fontFamily: "inherit",
+              minHeight: 0,
             }}
           >
             Doplnit hodnotu
