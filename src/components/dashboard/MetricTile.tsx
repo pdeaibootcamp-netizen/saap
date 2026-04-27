@@ -121,16 +121,18 @@ export default function MetricTile({
   const [validationError, setValidationError] = useState<string | null>(null);
   const [patchError, setPatchError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Two-step ask flow: tile starts collapsed (button only), expands on click.
+  // Less aggressive than always showing the input — the form appears only
+  // when the moderator/owner deliberately chooses to fill that metric.
+  const [expanded, setExpanded] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Focus input when tile enters ask state (accessibility: design §6)
+  // When the user clicks "Doplnit hodnotu", focus the input on the next render.
   useEffect(() => {
-    if (confidenceState === "ask" && inputRef.current) {
-      // Don't autofocus on initial load — only when explicitly activated
-      // (The tile renders in ask state from page load; autofocus would move
-      // focus to the first ask tile, which is acceptable per design spec §6)
+    if (confidenceState === "ask" && expanded && inputRef.current) {
+      inputRef.current.focus();
     }
-  }, [confidenceState]);
+  }, [confidenceState, expanded]);
 
   // ── Derive visual style ─────────────────────────────────────────────────────
   const isValid = confidenceState === "valid" && quartileLabel !== null;
@@ -315,13 +317,71 @@ export default function MetricTile({
     const errorMsg = validationError ?? patchError;
     const hasError = errorMsg !== null;
 
+    // Collapsed view: greyed-out tile with metric name + help text + button.
+    // Only on click does the form expand to show the input.
+    // Tile keeps a smaller min-height when collapsed (130px, same as no-data state)
+    // and grows to ~240px when expanded.
+    const collapsedTileStyle: React.CSSProperties = {
+      ...tileStyle,
+      minHeight: 130,
+      backgroundColor: "#f5f6f8", // subtle grey wash distinguishes from valid tiles
+    };
+
+    if (!expanded) {
+      return (
+        <div
+          role="region"
+          aria-label={ariaLabel}
+          style={collapsedTileStyle}
+        >
+          {/* Subtle grey accent stripe — "action available", not alarming */}
+          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 4, background: CTA_ACCENT_HEX, borderRadius: 0 }} />
+
+          {/* Metric name (slightly muted) */}
+          <span style={{ fontSize: 15, fontWeight: 600, color: "#374151", lineHeight: 1.3, marginTop: 4 }}>
+            {metricLabel}
+          </span>
+
+          {/* Empty-state copy — shorter than the help text */}
+          <span style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.4 }}>
+            Hodnota zatím nezadána
+          </span>
+
+          {/* Spacer to push button to bottom */}
+          <div style={{ flexGrow: 1 }} />
+
+          {/* "Doplnit hodnotu" link/button */}
+          <button
+            type="button"
+            onClick={() => setExpanded(true)}
+            style={{
+              alignSelf: "flex-start",
+              backgroundColor: "transparent",
+              color: "#1565C0",
+              border: "1px solid #1565C0",
+              borderRadius: 4,
+              height: 32,
+              padding: "0 12px",
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            Doplnit hodnotu
+          </button>
+        </div>
+      );
+    }
+
+    // Expanded view: full form (input + unit + Uložit / Zrušit).
     return (
       <div
         role="region"
         aria-label={ariaLabel}
         style={tileStyle}
       >
-        {/* Amber accent stripe — "action available", not quartile meaning */}
+        {/* Accent stripe */}
         <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 4, background: CTA_ACCENT_HEX, borderRadius: 0 }} />
 
         {/* Metric name */}
@@ -329,7 +389,7 @@ export default function MetricTile({
           {metricLabel}
         </span>
 
-        {/* Help text — always visible, never placeholder-only (design §4.1) */}
+        {/* Help text — full prompt copy when the form is open */}
         {promptHelpText && (
           <span
             id={`${metricId}-help`}
@@ -433,6 +493,7 @@ export default function MetricTile({
                 setInputValue("");
                 setValidationError(null);
                 setPatchError(null);
+                setExpanded(false);
               }}
               style={{
                 backgroundColor: "transparent",
