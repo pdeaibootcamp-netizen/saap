@@ -623,18 +623,24 @@ export default async function BriefPage({
         fontFamily: "'Inter var', Inter, system-ui, sans-serif",
       }}
     >
+      {/* Header CSS — identical breakpoints as dashboard .db-header */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        .bp-header {
+          height: 48px;
+          background: #135ee2;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          position: relative;
+          padding: 0 16px;
+        }
+        @media (min-width: 601px) {
+          .bp-header { height: 56px; padding: 0 24px; }
+        }
+      `}} />
+
       {/* Blue header stripe — matches dashboard header */}
-      <header
-        style={{
-          height: "48px",
-          background: "#135ee2",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          position: "relative",
-          padding: "0 16px",
-        }}
-      >
+      <header className="bp-header">
         <a
           href="/"
           style={{
