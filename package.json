@@ -1,0 +1,12 @@
+{
+  "name": "saap-root",
+  "private": true,
+  "scripts": {
+    "dev": "npm run dev --prefix src",
+    "build": "npm run build --prefix src",
+    "start": "npm run start --prefix src",
+    "lint": "npm run lint --prefix src",
+    "test": "npm run test --prefix src",
+    "install:src": "npm install --prefix src"
+  }
+}
