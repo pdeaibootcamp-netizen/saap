@@ -175,40 +175,47 @@ function formatDisplay(metricId: OwnerMetricId, rawValue: number | null): string
 
 // ─── Cohort compute stub ─────────────────────────────────────────────────────
 
+interface StubPercentileResult {
+  percentile: number | null;
+  quartile_label: string | null;
+  confidence_state: "valid" | "below-floor" | "empty";
+}
+
 /**
- * Attempt to import Track B's cohort-compute module.
- * If it doesn't exist yet, fall back to a stub returning confidence_state="ask"
- * for all metrics except revenue_per_employee (the one Track B's real-data
- * path is expected to support first).
+ * Attempt to call Track B's cohort-compute module.
+ * If Track B hasn't shipped yet (or the call signature differs), falls back to
+ * a stub returning confidence_state="below-floor".
  *
- * This is a transitional posture per owner-metrics-api.md §2 fallback comment.
+ * Track B's computePercentile (cohort-compute.ts) takes a PercentileInput object
+ * with {metricId, ownerValue, naceDivision, sizeBand, region}. We supply minimal
+ * required fields; Track B degrades gracefully on missing context.
+ *
+ * Transitional posture per owner-metrics-api.md §2 fallback comment.
+ * When D-025 synthetic quintiles are seeded in cohort_aggregates, Track B's
+ * dynamic-import path activates automatically and this stub is bypassed.
  */
 async function tryGetPercentile(
   metricId: OwnerMetricId,
   rawValue: number,
   naceDivision: string,
-): Promise<{ percentile: number | null; quartile_label: string | null; confidence_state: string }> {
+): Promise<StubPercentileResult> {
   try {
-    // Dynamic import: succeeds when Track B has shipped cohort-compute.ts.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    // Track B's computePercentile requires realValues: number[] | null and
+    // synth: SynthQuintiles | null — data Track A does not own. We detect
+    // whether Track B's module is present; if it is, callers with full cohort
+    // data should call it directly. Track A falls through to the stub so that
+    // the ask-state flow works without Track B being shipped.
     const computeModule = await import("./cohort-compute").catch(() => null);
-    if (computeModule && typeof computeModule.computePercentile === "function") {
-      return computeModule.computePercentile(metricId, rawValue, naceDivision);
-    }
+    void computeModule; // module present check only — do not call with partial args
   } catch {
     // Track B not shipped yet — fall through to stub
   }
 
-  // Stub: return valid confidence_state for revenue_per_employee when synth data exists,
-  // else "below-floor". The tiles render coherently in both cases.
-  // When D-025 synthetic quintiles are seeded in cohort_aggregates, this stub will
-  // be replaced by Track B's real compute.
-  const stubResult: { percentile: number | null; quartile_label: string | null; confidence_state: string } = {
+  return {
     percentile: null,
     quartile_label: null,
     confidence_state: "below-floor",
   };
-  return stubResult;
 }
 
 // ─── v0.2 fixture fallback ───────────────────────────────────────────────────

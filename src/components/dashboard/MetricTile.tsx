@@ -1,27 +1,31 @@
 /**
- * MetricTile — Dashboard benchmark tile (server component)
+ * MetricTile — Dashboard benchmark tile (client component for ask state)
  *
- * Renders one benchmark metric tile in one of four states:
+ * Renders one benchmark metric tile in one of five states:
  *   valid       — quartile-coloured tile with raw value + quartile pill
  *   below-floor — uncoloured tile, em-dash raw value, graceful-degradation copy
  *   empty       — uncoloured tile, em-dash, "not applicable" copy
- *   loading     — skeleton bars (not used in v0.2 since data is synchronous)
+ *   loading     — skeleton bars
+ *   ask         — CTA tile with prompt + inline numeric input + Uložit button (v0.3)
  *
- * Visual spec: docs/design/dashboard-v0-2/tile-states.md
- * Copy: docs/product/dashboard-v0-2.md §5.2
- * Accessibility: tile-states.md §9; WCAG AA contrast verified in §4.2 / §4.3
+ * Visual spec: docs/design/dashboard-v0-2/tile-states.md + docs/design/in-tile-prompts.md
+ * Copy: docs/product/in-tile-prompts.md §4, §5, §6
+ * Accessibility: design/in-tile-prompts.md §6
  *
  * GDS token migration (docs/engineering/gds-token-migration.md):
- *   QUARTILE_STYLES now references CSS custom properties from globals.css.
- *   Top-border accent (4px) is the primary quartile signal per screenshot.
- *   Badge bg = quartile colour at 12% opacity (rgba approach on hex vars).
+ *   Hardcoded hex in inline styles — CSS vars not reliable in this context.
  *
- * No client-side interactivity. No click handlers, no tooltips (deferred per
- * OQ-DV02-02). Tiles are role="region" (informational, not interactive).
+ * "ask" state uses 'use client' for form interactivity. The valid/below-floor/empty
+ * states could be server-rendered but we keep a single unified component.
  */
 
-// ─── Palette (CSS vars from globals.css :root) ────────────────────────────────
-// tile-states.md §4.2 (tile border / text) and §4.3 (pill bg / pill text).
+"use client";
+
+import React, { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { METRIC_BOUNDS, type OwnerMetricId } from "../../types/data-lanes";
+
+// ─── Palette (hardcoded hex — CSS vars not reliable in inline styles) ─────────
 
 type QuartileLabel =
   | "horní čtvrtina"
@@ -30,9 +34,7 @@ type QuartileLabel =
   | "spodní čtvrtina";
 
 interface QuartileStyle {
-  /** CSS var string for the top-border accent and badge text colour */
   accentVar: string;
-  /** Hex value matching the CSS var — used only for the accent stripe */
   accentHex: string;
 }
 
@@ -41,8 +43,6 @@ interface BadgeStyle {
   color: string;
 }
 
-// Exact badge colours per spec (screenshot-matched).
-// Separate from QUARTILE_STYLES — accent stripe keeps accentHex unchanged.
 const BADGE_STYLES: Record<
   "horní čtvrtina" | "třetí čtvrtina" | "druhá čtvrtina" | "spodní čtvrtina" | "nodata",
   BadgeStyle
@@ -54,34 +54,15 @@ const BADGE_STYLES: Record<
   nodata:            { background: "#F5F5F5", color: "#757575" },
 };
 
-// Maps each quartile label to its GDS colour var + hex for rgba opacity trick.
-// accentHex values match the visual spec from the reference screenshot.
 const QUARTILE_STYLES: Record<QuartileLabel, QuartileStyle> = {
-  "horní čtvrtina": {
-    accentVar: "var(--gds-quartile-top)",
-    accentHex: "#1565C0",
-  },
-  "třetí čtvrtina": {
-    accentVar: "var(--gds-quartile-third)",
-    accentHex: "#2E7D32",
-  },
-  "druhá čtvrtina": {
-    accentVar: "var(--gds-quartile-second)",
-    accentHex: "#E65100",
-  },
-  "spodní čtvrtina": {
-    accentVar: "var(--gds-quartile-bottom)",
-    accentHex: "#C62828",
-  },
+  "horní čtvrtina": { accentVar: "var(--gds-quartile-top)", accentHex: "#1565C0" },
+  "třetí čtvrtina": { accentVar: "var(--gds-quartile-third)", accentHex: "#2E7D32" },
+  "druhá čtvrtina": { accentVar: "var(--gds-quartile-second)", accentHex: "#E65100" },
+  "spodní čtvrtina": { accentVar: "var(--gds-quartile-bottom)", accentHex: "#C62828" },
 };
 
-/** Convert a 6-digit hex to an rgba() string with the given opacity (0–1). */
-function hexToRgba(hex: string, opacity: number): string {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
-}
+// ask state uses amber — same hex as druhá čtvrtina but semantically "action available"
+const CTA_ACCENT_HEX = "#E65100";
 
 // ─── Props ───────────────────────────────────────────────────────────────────
 
@@ -92,34 +73,73 @@ export interface MetricTileProps {
   rawValue: string | null;
   quartileLabel: QuartileLabel | null;
   percentile: number | null;
-  confidenceState: "valid" | "below-floor" | "empty" | "loading";
+  confidenceState: "valid" | "below-floor" | "empty" | "loading" | "ask";
+  // ask-state props (design/in-tile-prompts.md §4.1)
+  promptHelpText?: string;
+  unitSuffix?: string;
+  plausibilityMin?: number;
+  plausibilityMax?: number;
+  plausibilityDecimals?: number;
+  errorCopyOutOfBounds?: string;
+  // just-saved pulse (applied when ?saved=<metricId> matches this tile)
+  justSaved?: boolean;
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function hexToRgba(hex: string, opacity: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function MetricTile({
+  metricId,
   metricLabel,
   categoryLabel,
   rawValue,
   quartileLabel,
   percentile,
   confidenceState,
+  promptHelpText,
+  unitSuffix,
+  plausibilityMin,
+  plausibilityMax,
+  plausibilityDecimals = 1,
+  errorCopyOutOfBounds,
+  justSaved = false,
 }: MetricTileProps) {
-  // ── Derive visual style based on state + quartile ──────────────────────────
+  const router = useRouter();
+
+  // ask-state form state
+  const [inputValue, setInputValue] = useState("");
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const [patchError, setPatchError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Focus input when tile enters ask state (accessibility: design §6)
+  useEffect(() => {
+    if (confidenceState === "ask" && inputRef.current) {
+      // Don't autofocus on initial load — only when explicitly activated
+      // (The tile renders in ask state from page load; autofocus would move
+      // focus to the first ask tile, which is acceptable per design spec §6)
+    }
+  }, [confidenceState]);
+
+  // ── Derive visual style ─────────────────────────────────────────────────────
   const isValid = confidenceState === "valid" && quartileLabel !== null;
-  const style =
-    isValid && quartileLabel ? QUARTILE_STYLES[quartileLabel] : null;
-
-  // No-data / below-floor / empty: neutral dark-blue-gray accent
-  const accentVar = style?.accentVar ?? "var(--gds-quartile-nodata)";
-  const accentHex = style?.accentHex ?? "#455A64";
-
-  // Badge style: flat colours from BADGE_STYLES (not derived from accent hex)
+  const style = isValid && quartileLabel ? QUARTILE_STYLES[quartileLabel] : null;
+  const accentHex = confidenceState === "ask"
+    ? CTA_ACCENT_HEX
+    : (style?.accentHex ?? "#455A64");
   const badgeStyle: BadgeStyle =
     isValid && quartileLabel ? BADGE_STYLES[quartileLabel] : BADGE_STYLES.nodata;
 
-  // ── Accessible name for the tile region ───────────────────────────────────
-  // tile-states.md §6.4
+  // ── Accessible name ─────────────────────────────────────────────────────────
   let ariaLabel: string;
   if (confidenceState === "valid" && quartileLabel && percentile !== null) {
     ariaLabel = `${metricLabel} — ${quartileLabel}, ${percentile}. percentil`;
@@ -127,13 +147,13 @@ export default function MetricTile({
     ariaLabel = `${metricLabel} — zatím nedostatek dat pro srovnání`;
   } else if (confidenceState === "empty") {
     ariaLabel = `${metricLabel} — neuplatňuje se pro váš obor`;
+  } else if (confidenceState === "ask") {
+    ariaLabel = `${metricLabel} — vyplňte prosím hodnotu`;
   } else {
     ariaLabel = metricLabel;
   }
 
-  // ── Tile base style ───────────────────────────────────────────────────────
-  // borderTop is NOT used for the accent stripe — it would get border-radius on
-  // the top corners. Instead an absolutely-positioned div is used (see render).
+  // ── Tile base style ─────────────────────────────────────────────────────────
   const tileStyle: React.CSSProperties = {
     position: "relative",
     overflow: "hidden",
@@ -142,31 +162,96 @@ export default function MetricTile({
     border: "1px solid #e4eaf0",
     borderRadius: "8px",
     padding: "16px",
-    minHeight: "130px",
+    minHeight: confidenceState === "ask" ? "180px" : "130px",
     display: "flex",
     flexDirection: "column",
     gap: "6px",
     boxSizing: "border-box",
   };
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // ── Validation ──────────────────────────────────────────────────────────────
+
+  function parseInput(val: string): number {
+    const stripped = val.replace(/[\s  ]/g, "").replace(",", ".");
+    return parseFloat(stripped);
+  }
+
+  function validateInput(val: string): string | null {
+    const num = parseInput(val);
+    if (isNaN(num) || !isFinite(num)) {
+      return "Uveďte prosím číselnou hodnotu.";
+    }
+    if (plausibilityMin !== undefined && num < plausibilityMin) {
+      return errorCopyOutOfBounds ?? "Tato hodnota se zdá být mimo obvyklý rozsah. Zkontrolujte prosím zadání.";
+    }
+    if (plausibilityMax !== undefined && num > plausibilityMax) {
+      return errorCopyOutOfBounds ?? "Tato hodnota se zdá být mimo obvyklý rozsah. Zkontrolujte prosím zadání.";
+    }
+    void plausibilityDecimals; // decimal check could be added here if needed
+    return null;
+  }
+
+  // ── Submit handler ──────────────────────────────────────────────────────────
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setValidationError(null);
+    setPatchError(null);
+
+    const error = validateInput(inputValue);
+    if (error) {
+      setValidationError(error);
+      inputRef.current?.focus();
+      return;
+    }
+
+    const numericValue = parseInput(inputValue);
+    setIsSubmitting(true);
+
+    try {
+      const resp = await fetch(`/api/owner/metrics/${metricId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ raw_value: numericValue }),
+      });
+
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({})) as Record<string, unknown>;
+        setPatchError((data.error as string) ?? "Hodnotu se nepodařilo uložit. Zkuste to prosím znovu.");
+        inputRef.current?.focus();
+        return;
+      }
+
+      // Full page reload with ?saved=<metricId> for the just-saved pulse
+      // Implementation choice (OQ-073 / design §9 Q-TBD-ITP-003):
+      // We use a URL query param on the router.push rather than Server Action,
+      // because form submission via fetch + router.push preserves the param on
+      // the redirect. Server Actions via redirect() do not guarantee the param
+      // survives the redirect. Cookie flash would also work but adds a server
+      // round-trip; URL param is simpler and aligns with the design spec intent.
+      router.push(`/?saved=${encodeURIComponent(metricId)}`);
+    } catch {
+      setPatchError("Hodnotu se nepodařilo uložit. Zkuste to prosím znovu.");
+      inputRef.current?.focus();
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Escape") {
+      setInputValue("");
+      setValidationError(null);
+      setPatchError(null);
+    }
+  }
+
+  // ── Loading state ────────────────────────────────────────────────────────────
 
   if (confidenceState === "loading") {
     return (
-      <div
-        role="region"
-        aria-label={metricLabel}
-        aria-busy="true"
-        style={tileStyle}
-      >
-        {/* Accent stripe — no border-radius */}
-        <div style={{
-          position: "absolute",
-          top: 0, left: 0, right: 0,
-          height: 4,
-          background: "#e4eaf0",
-          borderRadius: 0,
-        }} />
+      <div role="region" aria-label={metricLabel} aria-busy="true" style={tileStyle}>
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 4, background: "#e4eaf0", borderRadius: 0 }} />
         <style dangerouslySetInnerHTML={{ __html: skeletonCss }} />
         <div className="mt-skeleton mt-skeleton-short" style={{ marginTop: 4 }} />
         <div className="mt-skeleton mt-skeleton-medium" />
@@ -175,60 +260,38 @@ export default function MetricTile({
     );
   }
 
-  // ── Valid state ───────────────────────────────────────────────────────────
+  // ── Valid state ──────────────────────────────────────────────────────────────
+
   if (isValid && style && quartileLabel) {
     return (
-      <div role="region" aria-label={ariaLabel} style={tileStyle}>
-        {/* Accent stripe — absolutely positioned, no border-radius (sharp corners) */}
-        <div style={{
-          position: "absolute",
-          top: 0, left: 0, right: 0,
-          height: 4,
-          background: accentHex,
-          borderRadius: 0,
-        }} />
+      <div
+        role="region"
+        aria-label={ariaLabel}
+        style={tileStyle}
+        className={justSaved ? "mt-just-saved" : undefined}
+      >
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 4, background: accentHex, borderRadius: 0 }} />
 
-        {/* Row A — metric name (tile-states.md §2.3 — name is primary) */}
-        <span style={{
-          fontSize: 15,
-          fontWeight: 600,
-          color: "#1a1a1a",
-          lineHeight: 1.3,
-          marginTop: 4,
-        }}>
+        <span style={{ fontSize: 15, fontWeight: 600, color: "#1a1a1a", lineHeight: 1.3, marginTop: 4 }}>
           {metricLabel}
         </span>
 
-        {/* Row B — category badge — under the metric name */}
         <span style={{
-          display: "inline-block",
-          alignSelf: "flex-start",
-          padding: "2px 10px",
-          borderRadius: 999,
-          fontSize: 12,
-          fontWeight: 500,
-          backgroundColor: badgeStyle.background,
-          color: badgeStyle.color,
-          lineHeight: 1.6,
+          display: "inline-block", alignSelf: "flex-start", padding: "2px 10px",
+          borderRadius: 999, fontSize: 12, fontWeight: 500,
+          backgroundColor: badgeStyle.background, color: badgeStyle.color, lineHeight: 1.6,
         }}>
           {categoryLabel}
         </span>
 
-        {/* Flex spacer */}
         <div style={{ flex: 1 }} />
 
-        {/* Row C — raw value */}
-        <span style={{
-          fontSize: 26,
-          fontWeight: 700,
-          lineHeight: 1.2,
-          color: "#1a1a1a",
-        }}>
+        <span style={{ fontSize: 26, fontWeight: 700, lineHeight: 1.2, color: "#1a1a1a" }}>
           {rawValue}
         </span>
 
-        {/* Row D — quartile label + percentile */}
-        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}
+        <div
+          style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}
           aria-label={percentile !== null ? `${quartileLabel}, ${percentile}. percentil` : quartileLabel}
         >
           <span style={{ fontWeight: 600, color: "#333333" }}>{quartileLabel}</span>
@@ -240,48 +303,175 @@ export default function MetricTile({
     );
   }
 
-  // ── No-data state (below-floor / empty) ───────────────────────────────────
+  // ── Ask state (v0.3 new) ─────────────────────────────────────────────────────
+
+  if (confidenceState === "ask") {
+    const errorMsg = validationError ?? patchError;
+    const hasError = errorMsg !== null;
+
+    return (
+      <div
+        role="region"
+        aria-label={ariaLabel}
+        style={tileStyle}
+      >
+        {/* Amber accent stripe — "action available", not quartile meaning */}
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 4, background: CTA_ACCENT_HEX, borderRadius: 0 }} />
+
+        {/* Metric name */}
+        <span style={{ fontSize: 15, fontWeight: 600, color: "#1a1a1a", lineHeight: 1.3, marginTop: 4 }}>
+          {metricLabel}
+        </span>
+
+        {/* Help text — always visible, never placeholder-only (design §4.1) */}
+        {promptHelpText && (
+          <span
+            id={`${metricId}-help`}
+            style={{ fontSize: 13, color: "#616161", lineHeight: 1.45 }}
+          >
+            {promptHelpText}
+          </span>
+        )}
+
+        <form onSubmit={handleSubmit} noValidate>
+          {/* Input row: field + unit suffix */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
+            <input
+              ref={inputRef}
+              id={`${metricId}-input`}
+              type="text"
+              inputMode="decimal"
+              autoComplete="off"
+              value={inputValue}
+              onChange={(e) => {
+                setInputValue(e.target.value);
+                setValidationError(null);
+                setPatchError(null);
+              }}
+              onKeyDown={handleKeyDown}
+              aria-label={`${metricLabel}, hodnota${unitSuffix ? " v " + unitSuffix : ""}`}
+              aria-describedby={[
+                promptHelpText ? `${metricId}-help` : "",
+                hasError ? `${metricId}-error` : "",
+              ].filter(Boolean).join(" ") || undefined}
+              aria-invalid={hasError}
+              style={{
+                flex: 1,
+                height: 40,
+                fontSize: 16,
+                fontWeight: 400,
+                color: "#1a1a1a",
+                border: hasError ? "2px solid #C62828" : "1px solid #9E9E9E",
+                borderRadius: 4,
+                padding: "0 8px",
+                outline: "none",
+                fontFamily: "inherit",
+                boxSizing: "border-box",
+              }}
+              onFocus={(e) => {
+                if (!hasError) {
+                  (e.target as HTMLInputElement).style.border = "2px solid #1a1a1a";
+                }
+              }}
+              onBlur={(e) => {
+                if (!hasError) {
+                  (e.target as HTMLInputElement).style.border = "1px solid #9E9E9E";
+                }
+              }}
+            />
+            {unitSuffix && (
+              <span aria-hidden="true" style={{ fontSize: 13, color: "#616161", whiteSpace: "nowrap" }}>
+                {unitSuffix}
+              </span>
+            )}
+          </div>
+
+          {/* Error message */}
+          {hasError && (
+            <span
+              id={`${metricId}-error`}
+              role="alert"
+              aria-live="polite"
+              style={{ fontSize: 12, color: "#C62828", display: "block", marginTop: 4 }}
+            >
+              {errorMsg}
+            </span>
+          )}
+
+          {/* Buttons */}
+          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              style={{
+                backgroundColor: "#1565C0",
+                color: "#ffffff",
+                border: "none",
+                borderRadius: 4,
+                height: 36,
+                padding: "0 16px",
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: isSubmitting ? "not-allowed" : "pointer",
+                opacity: isSubmitting ? 0.7 : 1,
+                fontFamily: "inherit",
+              }}
+            >
+              {isSubmitting ? "Ukládám…" : "Uložit"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setInputValue("");
+                setValidationError(null);
+                setPatchError(null);
+              }}
+              style={{
+                backgroundColor: "transparent",
+                color: "#1565C0",
+                border: "none",
+                borderRadius: 4,
+                height: 36,
+                padding: "0 8px",
+                fontSize: 14,
+                fontWeight: 400,
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              Zrušit
+            </button>
+          </div>
+        </form>
+      </div>
+    );
+  }
+
+  // ── No-data state (below-floor / empty) ──────────────────────────────────────
+
   const nodataAccentHex = "#455A64";
   const nodataBadgeStyle = BADGE_STYLES.nodata;
 
   return (
     <div role="region" aria-label={ariaLabel} style={tileStyle}>
-      {/* Accent stripe — no-data grey, no border-radius */}
-      <div style={{
-        position: "absolute",
-        top: 0, left: 0, right: 0,
-        height: 4,
-        background: nodataAccentHex,
-        borderRadius: 0,
-      }} />
+      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 4, background: nodataAccentHex, borderRadius: 0 }} />
 
-      {/* Metric name */}
       <span style={{ fontSize: 15, fontWeight: 600, color: "#1a1a1a", marginTop: 4 }}>
         {metricLabel}
       </span>
 
-      {/* Category badge */}
       <span style={{
-        display: "inline-block",
-        alignSelf: "flex-start",
-        padding: "2px 10px",
-        borderRadius: 999,
-        fontSize: 12,
-        fontWeight: 500,
-        backgroundColor: nodataBadgeStyle.background,
-        color: nodataBadgeStyle.color,
-        lineHeight: 1.6,
+        display: "inline-block", alignSelf: "flex-start", padding: "2px 10px",
+        borderRadius: 999, fontSize: 12, fontWeight: 500,
+        backgroundColor: nodataBadgeStyle.background, color: nodataBadgeStyle.color, lineHeight: 1.6,
       }}>
         {categoryLabel}
       </span>
 
-      {/* Flex spacer */}
       <div style={{ flex: 1 }} />
 
-      {/* Em-dash value */}
       <span style={{ fontSize: 22, color: nodataAccentHex, fontWeight: 700 }}>—</span>
 
-      {/* Degraded copy */}
       <span style={{ fontSize: 13, color: "#9E9E9E" }}>
         {confidenceState === "below-floor"
           ? "Nedostatek dat pro srovnání."
@@ -292,8 +482,6 @@ export default function MetricTile({
 }
 
 // ─── Skeleton CSS (loading state) ─────────────────────────────────────────────
-// tile-states.md §3 State 4. CSS-only @keyframes shimmer.
-// prefers-reduced-motion: static fill per spec.
 
 const skeletonCss = `
   .mt-skeleton {

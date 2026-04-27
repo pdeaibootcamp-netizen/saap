@@ -134,3 +134,37 @@ a[role="button"],
   white-space: nowrap;
   border-width: 0;
 }
+
+/* ─── MetricTile — just-saved pulse (v0.3 in-tile-prompts.md §4.2) ──────────
+   Applied server-side via ?saved=<metricId> query param on post-PATCH reload.
+   in-tile-prompts.md (design) §4.2: 1s ease-out box-shadow pulse.
+   Hardcoded hex — CSS vars not guaranteed to resolve in all server-rendered
+   contexts (see Visual style rules in engineer agent spec).
+   ─────────────────────────────────────────────────────────────────────────── */
+@keyframes mt-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(21, 101, 192, 0.35); }
+  50%  { box-shadow: 0 0 0 6px rgba(21, 101, 192, 0.12); }
+  100% { box-shadow: 0 0 0 0 rgba(21, 101, 192, 0.00); }
+}
+
+.mt-just-saved {
+  animation: mt-pulse 1s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mt-just-saved {
+    animation: none;
+    /* Static blue ring instead of animation per design spec */
+    box-shadow: 0 0 0 2px #1565C0;
+  }
+}
+
+/* ─── CTA accent token alias (design/in-tile-prompts.md §7.1) ───────────────
+   --color-cta-accent = #E65100 (amber, same hex as --gds-quartile-second / druhá čtvrtina).
+   Named separately so the ask-state accent carries "action available" semantics,
+   not quartile-position semantics. Do not read this var in inline styles or
+   dangerouslySetInnerHTML — use the hardcoded hex instead.
+   ─────────────────────────────────────────────────────────────────────────── */
+:root {
+  --color-cta-accent: #E65100;
+}

@@ -5,10 +5,11 @@
  * raw_value, percentile, quartile_label, confidence_state.
  *
  * Resolves the active demo owner from the sr_user_id cookie.
- * Resolves the active firm from the sr_active_ico cookie for NACE lookup.
+ * The active IČO (sr_active_ico) is read for potential future use in
+ * NACE lookup; at v0.3, naceDivision defaults to "49" (NACE 49.41)
+ * since cohort_companies lookup is a Track B concern.
  *
- * Privacy: reads from user_contributed lane only (owner_metrics table via
- * service-role key in the lib). Does not write to any other lane.
+ * Privacy: reads from user_contributed lane only. Does not write to any other lane.
  *
  * owner-metrics-api.md §2 / §5
  */
@@ -21,21 +22,14 @@ import { DEMO_OWNER_USER_ID, DEMO_ACTIVE_ICO_COOKIE, DEMO_DEFAULT_ICO } from "@/
 export async function GET(_request: NextRequest): Promise<NextResponse> {
   const cookieStore = cookies();
   const userId = cookieStore.get("sr_user_id")?.value ?? DEMO_OWNER_USER_ID;
-  const activeIco = cookieStore.get(DEMO_ACTIVE_ICO_COOKIE)?.value ?? DEMO_DEFAULT_ICO;
 
-  // Derive NACE division from cohort_companies if Track B has shipped;
-  // otherwise default to "49" (NACE 49.41 — the v0.3 demo NACE).
-  // Graceful: if cohort_companies lookup fails, "49" keeps tiles rendering.
-  let naceDivision = "49";
-  try {
-    const cohortModule = await import("@/lib/cohort-data").catch(() => null);
-    if (cohortModule && typeof cohortModule.getNaceDivisionByIco === "function") {
-      const nace = await cohortModule.getNaceDivisionByIco(activeIco);
-      if (nace) naceDivision = nace;
-    }
-  } catch {
-    // Track B not shipped yet — use default
-  }
+  // Read active IČO from cookie (set by POST /api/owner/demo/switch).
+  // At v0.3, NACE division is always "49" (NACE 49.41 Silniční nákladní doprava).
+  // When Track B ships cohort_companies, derive naceDivision from the firm row.
+  const _activeIco = cookieStore.get(DEMO_ACTIVE_ICO_COOKIE)?.value ?? DEMO_DEFAULT_ICO;
+  void _activeIco; // reserved for Track B NACE lookup
+
+  const naceDivision = "49";
 
   const metrics = await getOwnerMetrics(userId, naceDivision);
 
