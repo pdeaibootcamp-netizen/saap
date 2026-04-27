@@ -143,8 +143,11 @@ export default function IcoSwitcher({ activeIco, activeName }: IcoSwitcherProps)
             fontFamily: "inherit",
             whiteSpace: "nowrap" as const,
             flexShrink: 0,
+            minHeight: 0,
             display: "flex",
             alignItems: "center",
+            paddingTop: 0,
+            paddingBottom: 0,
           }}
         >
           {isLoading ? "…" : "Přepnout"}
