@@ -80,20 +80,37 @@ export default async function AdminDashboard() {
           }}
         >
           <h1 style={{ fontSize: "24px", fontWeight: "bold", margin: 0 }}>Přehledy</h1>
-          <Link
-            href="/admin/briefs/new"
-            style={{
-              backgroundColor: "#1a1a1a",
-              color: "#fff",
-              padding: "10px 20px",
-              borderRadius: "4px",
-              textDecoration: "none",
-              fontWeight: "500",
-              fontSize: "14px",
-            }}
-          >
-            Nový přehled
-          </Link>
+          <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+            <Link
+              href="/admin/publications/new"
+              style={{
+                backgroundColor: "transparent",
+                color: "#1a1a1a",
+                padding: "10px 20px",
+                borderRadius: "4px",
+                textDecoration: "none",
+                fontWeight: "500",
+                fontSize: "14px",
+                border: "1px solid #1a1a1a",
+              }}
+            >
+              Nahrát publikaci pro automatické generování
+            </Link>
+            <Link
+              href="/admin/briefs/new"
+              style={{
+                backgroundColor: "#1a1a1a",
+                color: "#fff",
+                padding: "10px 20px",
+                borderRadius: "4px",
+                textDecoration: "none",
+                fontWeight: "500",
+                fontSize: "14px",
+              }}
+            >
+              Nový přehled
+            </Link>
+          </div>
         </div>
 
         {loadError && (
