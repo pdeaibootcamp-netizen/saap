@@ -299,3 +299,4 @@ describe("analysis_jobs enum invariants", () => {
 ## Changelog
 
 - 2026-04-27 — initial draft — engineer. Covers Track C: webhook + callback contracts, `analysis_jobs` table, HMAC-SHA256 posture, Supabase Storage signed URL, polling endpoint, 6 failure modes, 3 new env vars, full test plan including privacy invariant and migration tests.
+- 2026-04-27 — Phase 3.2.C implementation complete — engineer. All six steps shipped: migration 0008, n8n workflow JSON, upload UI, upload API, job-status API, callback endpoint, admin wiring. Status enum aligned with data doc ('queued','running','done','failed'). zod not added (new dependency — see OQ-C-01); manual validation used in callback handler.
