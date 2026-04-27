@@ -126,21 +126,21 @@ export default function IcoSwitcher({ activeIco, activeName }: IcoSwitcherProps)
           }}
         />
 
-        {/* Přepnout button — subdued blue-gray, not primary blue (design §4.3) */}
+        {/* Přepnout button — white bg + primary blue text on blue header */}
         <button
           type="submit"
           disabled={isLoading}
           aria-label={isLoading ? "Načítám…" : "Přepnout firmu"}
           aria-disabled={isLoading}
           style={{
-            backgroundColor: "#455A64",
-            color: "#ffffff",
-            border: "none",
+            backgroundColor: "#ffffff",
+            color: "#135ee2",
+            border: "1px solid #ffffff",
             borderRadius: 4,
             height: 32,
             padding: "0 12px",
             fontSize: 13,
-            fontWeight: 500,
+            fontWeight: 600,
             cursor: isLoading ? "not-allowed" : "pointer",
             opacity: isLoading ? 0.7 : 1,
             fontFamily: "inherit",
