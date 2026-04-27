@@ -27,6 +27,8 @@ import {
   SIZE_BAND,
   CZ_REGION,
   TIME_HORIZON,
+  OWNER_METRIC_ID,
+  OWNER_METRIC_SOURCE,
 } from "../../types/data-lanes";
 
 describe("Data-lane enum invariants (ADR-0002-C / D-010)", () => {
@@ -129,5 +131,56 @@ describe("Consent model invariants (privacy-architecture.md §4)", () => {
     expect(defaultLanesCovered.sort()).toEqual(
       Object.values(DATA_LANE).sort()
     );
+  });
+});
+
+// ── 0006_owner_metrics.sql invariants ────────────────────────────────────────
+
+describe("0006 owner_metrics — metric_id domain (D-024)", () => {
+  it("OWNER_METRIC_ID contains exactly the 8 frozen v0.3 metrics", () => {
+    const values = Object.values(OWNER_METRIC_ID).sort();
+    const expected = [
+      "ebitda_margin",
+      "gross_margin",
+      "labor_cost_ratio",
+      "net_margin",
+      "pricing_power",
+      "revenue_growth",
+      "revenue_per_employee",
+      "working_capital_cycle",
+    ].sort();
+    expect(values).toEqual(expected);
+  });
+
+  it("OWNER_METRIC_ID does NOT contain 'roce' (removed per D-024)", () => {
+    const values = Object.values(OWNER_METRIC_ID);
+    expect(values).not.toContain("roce");
+  });
+
+  it("OWNER_METRIC_ID has exactly 8 entries matching the D-024 frozen set", () => {
+    expect(Object.values(OWNER_METRIC_ID)).toHaveLength(8);
+  });
+});
+
+describe("0006 owner_metrics — source enum (owner-metrics-schema.md §2)", () => {
+  it("OWNER_METRIC_SOURCE contains exactly the three allowed source values", () => {
+    const values = Object.values(OWNER_METRIC_SOURCE).sort();
+    expect(values).toEqual([
+      "demo_seed",
+      "prepopulated_excel",
+      "user_entered",
+    ]);
+  });
+
+  it("OWNER_METRIC_SOURCE has exactly 3 entries", () => {
+    expect(Object.values(OWNER_METRIC_SOURCE)).toHaveLength(3);
+  });
+});
+
+describe("0006 owner_metrics — composite PK semantics", () => {
+  it("each OWNER_METRIC_ID value is unique (no duplicates in the frozen set)", () => {
+    const values = Object.values(OWNER_METRIC_ID);
+    const unique = new Set(values);
+    expect(unique.size).toBe(values.length);
   });
 });
