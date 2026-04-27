@@ -120,8 +120,9 @@ export default async function DashboardPage() {
   let briefs: Brief[] = [];
   try {
     briefs = await listPublishedBriefsByNace(DEMO_OWNER_PROFILE.nace_sector);
-  } catch {
+  } catch (err) {
     // DB unreachable — render empty state per dashboard-v0-2.md §5.3
+    console.error("[dashboard] briefs fetch failed:", err);
     briefs = [];
   }
 
