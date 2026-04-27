@@ -177,8 +177,73 @@ Lifted from PRD §13; orchestrator monitors during build.
 
 ---
 
-## 10. Changelog
+## 10. v0.2 — Customer-testing PoC (current, branch `trial-v0-2`)
+
+*Scope below is additive to the MVP plan above. Phases 0–4 stay closed on `trial-phases-2-4` as the reference v0.1 state. v0.2 reshapes the owner-facing experience for a customer-testing demo; analyst side untouched.*
+
+### 10.1 What changes
+
+1. **Owner dashboard at `/`** — 8 benchmark tiles (one per frozen D-015 metric: name + raw value + cohort percentile + quartile colour) + a list of briefs relevant to the owner's NACE.
+2. **Brief detail page rework** — remove the "Srovnávací přehled" section, add the actual sector publication content at the top (furniture-industry analysis, .docx provided by user), restructure insights + actions so they read as connected rather than two disjoint lists.
+3. **Bypass the (non-functional-in-v0.1) consent + onboarding gates** for the PoC owner. Hardcoded dummy profile (NACE 31 furniture / S2 / Praha). `/consent`, `/onboarding`, `/settings/soukromi` stay on disk but are unreached by the demo owner.
+
+### 10.2 What does NOT change
+
+- Analyst back-office (`/admin/*`) — v0.1 state, fully functional.
+- v0.1 consent POST bug — not addressed in v0.2 scope. Specialists are *not* asked to debug or redesign consent.
+- Cohort math in `src/lib/cohort.ts` — reused as-is; per-owner raw values layer on top in a new `src/lib/owner-metrics.ts`.
+- PDF + email delivery for the reworked brief shape — web view only at v0.2.
+- George Business embedding — deferred.
+
+### 10.3 Framing discipline for delegation
+
+When briefing PM / PD / DE / EN, the bypass is described as "route the PoC owner around the currently-non-functional sign-in chain" — **not** "drop consent". v0.1's owner flow never connected end-to-end (consent POST fails with "Nepodařilo se zaznamenat váš souhlas"); v0.2 sidesteps that rather than regressing functionality. No specialist fixes consent in v0.2.
+
+### 10.4 Phase sequencing
+
+| Phase | What | Owner | Depends on |
+|---|---|---|---|
+| 2.0 | Publication hand-off — user drops `PRD/publications/furniture-2026-Q2.docx` | user → orchestrator | — |
+| 2.1 Track A | Dashboard specs (IA + tile design + per-owner dummy metrics) | PM + PD + DE, parallel | — |
+| 2.1 Track B | Brief page rework specs (publication placement, insight↔action model) | PM + PD, sequential after 2.0 | Phase 2.0 |
+| 2.1 Track C | Identity bypass ADR | EN | — |
+| 2.2.a | Identity bypass + dashboard scaffold in `src/` | EN | 2.1 Track C |
+| 2.2.b | Metric tiles component + seeded owner metrics | EN | 2.1 Track A |
+| 2.2.c | Brief list component + `listPublishedBriefsByNace()` + 2 placeholder briefs seeded | EN | 2.1 Track A |
+| 2.2.d | Brief page surgery (remove benchmarks, add publication block, pair insights↔actions) | EN | 2.1 Track B |
+| 2.2.e | Furniture brief seed populated from the .docx | EN (mechanical) + PM (content) | 2.0, 2.1 Track B |
+| 2.3 | User walks the verification checklist in the browser | user | all of 2.2 |
+
+### 10.5 Delegation map (v0.2)
+
+| Artifact | Owner | Phase |
+|---|---|---|
+| `docs/product/dashboard-v0-2.md` | PM | 2.1 Track A |
+| `docs/product/brief-page-v0-2.md` | PM | 2.1 Track B |
+| `docs/design/dashboard-v0-2/` (folder: `layout.md`, `tile-states.md`, `brief-list-item.md`) | PD | 2.1 Track A |
+| `docs/design/brief-page-v0-2.md` | PD | 2.1 Track B |
+| `docs/data/dummy-owner-metrics.md` | DE | 2.1 Track A |
+| `docs/engineering/v0-2-identity-bypass.md` | EN | 2.1 Track C |
+| `src/**` code changes | EN | 2.2.a–e |
+| Orchestrator plan updates + changelog | orchestrator | each gate |
+
+Full plan detail — files to modify/create, existing code to reuse, verification criteria — lives in the approved plan-mode artifact at `~/.claude/plans/orchestrator-create-a-build-warm-lerdorf.md`. Specialists working on v0.2 should also re-read this §10 and the v0.2 decisions in [decision-log.md](decision-log.md) as they land.
+
+---
+
+## 11. Changelog
 
 - 2026-04-17 — created by orchestrator; MVP-only scope; Phase 0 user-decided per explicit instruction.
 - 2026-04-17 — Phase 0 closed: D-003 through D-009 logged; B-001, B-002 added to backlog. Phase 1 unblocked.
 - 2026-04-17 — Phase 1 closed: eight foundation artifacts landed and reconciled. D-010 through D-014 logged. OQ-001 through OQ-021 tracked in open-questions. Phase 2 unblocked.
+- 2026-04-20 — Phase 2 PM+PD gate closed on branch `trial-phases-2-4`: 9 feature PRDs + 9 designs landed. D-015 logged. 67 specialist OQs indexed by feature artifact; OQ-045..053 promoted cross-cutting. Glossary extended with 6 terms. Phase 3 unblocked.
+- 2026-04-20 — Phase 3 closed on branch `trial-phases-2-4` (partial-ratified): scaffold + full feature implementation + bug fix. D-016 logged. EN-001 fixed; EN-002/003/004 + missing `/fake-george` mock remain as doc-drift / runtime items. Phase 4 unblocked.
+- 2026-04-20 — Phase 4 initial paper verification complete on branch `trial-phases-2-4`. D-017 logged. [phase-4-verification.md](phase-4-verification.md) covers V1–V8 checks with file+line evidence; runtime checks user-gated.
+- 2026-04-21 — v0.2 PoC scope added on branch `trial-v0-2` (§10). Phase 2.0 blocked on user handing over the furniture publication .docx; Phase 2.1 Tracks A and C can start in parallel without it.
+- 2026-04-21 — v0.2 Phase 2.1 Tracks A + C specs landed: `docs/product/dashboard-v0-2.md`, `docs/design/dashboard-v0-2/{layout,tile-states,brief-list-item}.md`, `docs/data/dummy-owner-metrics.md`, `docs/engineering/v0-2-identity-bypass.md`. OQ-054..058 logged; OQ-055/056 user-decided as D-018 (ČS · Strategy Radar header) and D-019 ("Analýzy" list heading).
+- 2026-04-21 — v0.2 Phase 2.2.a landed (identity bypass + dashboard scaffold): `src/lib/demo-owner.ts` + middleware-based cookie plant + `src/app/page.tsx` rewrite. Runtime fixes: middleware required instead of `cookies().set()` in RSC (a447d36); `<style>` hydration fix via `dangerouslySetInnerHTML` (57cd200).
+- 2026-04-21 — v0.2 Phase 2.2.b landed (metric tiles): NACE 31 cohort stub in `src/lib/cohort.ts`, `src/lib/owner-metrics.ts`, `src/components/dashboard/MetricTile.tsx`, 4-column responsive grid in `src/app/page.tsx`. All 4 DE acceptance criteria pass (8 tiles, one below-floor, Czech formatting correct).
+- 2026-04-21 — v0.2 Phase 2.2.c landed (brief list): `listPublishedBriefsByNace()` in `src/lib/briefs.ts`, `src/components/dashboard/BriefListItem.tsx`, 2 NACE 31 placeholder briefs in `src/scripts/seed.ts`, "Analýzy" section wired in `src/app/page.tsx`.
+- 2026-04-21 — v0.2 Phase 2.1 Track B specs landed: `docs/product/brief-page-v0-2.md` (D-020: hybrid publication placement, "Sektorová analýza" label, `paired_observation_index` pairing model, benchmarks removed, furniture opener ~340 Czech words, 3 paired observations + actions), `docs/design/brief-page-v0-2.md` (native `<details>` disclosure, continuous left-border pairing treatment + "Doporučený krok:" prefix).
+- 2026-04-21 — v0.2 Phase 2.2.d landed (brief page surgery): `BriefContent.publication?` + `ClosingAction.paired_observation_index?` types added to `src/lib/briefs.ts`; `src/app/brief/[id]/page.tsx` rewritten per PD spec (Sektorová analýza block, paired cards, orphan section conditional); `BenchmarkCategorySection` deleted, v0.1 briefs still load via fallback path; `docs/engineering/brief-page-v0-2.md` implementation notes added.
+- 2026-04-21 — v0.2 Phase 2.2.e landed (furniture brief seed): `PRD/publications/furniture-2026-Q2.txt` extracted from .docx, `seedFurnitureBrief()` added to `src/scripts/seed.ts` carrying PM §6.1 opener + §7 paired observations/actions verbatim. One deviation: two producer/retailer tables in the extracted .docx body were condensed to prose (engineer judgement — the raw OOXML cell-per-line extraction is unreadable as prose; narrative text preserved verbatim). User runs `npm run seed && npm run dev` to verify.

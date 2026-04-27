@@ -5,7 +5,13 @@
 ---
 
 ### Sector brief
-The atomic unit of value at MVP — a monthly, 2–3 page, sector-calibrated, plain-language document closing with 2–4 time-horizon-tagged actions. At MVP, briefs are human-authored by ČS analysts using back-end tooling. Source: [PRD §1](../../PRD/PRD.md#1-summary), [PRD §8.1](../../PRD/PRD.md#81-sector-briefing-engine--what-this-means-for-you-primary-mvp).
+The atomic unit of value at MVP — a monthly, 2–3 page, sector-calibrated, plain-language document closing with 2–4 time-horizon-tagged actions. At MVP, briefs are human-authored by ČS analysts using back-end tooling. Czech user-facing term for a single brief document: **Přehled**. See also **Analýzy (Strategy Radar)** below for the dashboard-level list heading. Source: [PRD §1](../../PRD/PRD.md#1-summary), [PRD §8.1](../../PRD/PRD.md#81-sector-briefing-engine--what-this-means-for-you-primary-mvp).
+
+### Analýzy (Strategy Radar)
+Czech user-facing heading for the list of sector briefs shown in the owner's dashboard. Každá položka v seznamu je jeden *Přehled* (viz **Sector brief** výše) — "Analýzy" pojmenovává kolekci, nikoli jednotlivý dokument. Uplatňuje se pouze jako nadpis seznamu v dashboardu; jednotlivý brief zůstává dál nazýván "Přehled". Pozor na kolizi se **Sektorová analýza** (viz níže) — "Analýzy" je *plurál, nadpis seznamu*; "Sektorová analýza" je *singulár, blok uvnitř jednoho Přehledu*; "Analýza" (singulár, sám o sobě) se jako uživatelský termín nepoužívá. Source: [D-019](../project/decision-log.md), [dashboard-v0-2.md §5.3](dashboard-v0-2.md).
+
+### Sektorová analýza
+Czech user-facing label for the sector-analysis block that opens every brief detail page at v0.2. Obsahuje (i) srozumitelný úvod v běžné češtině o 200–400 slovech, vykání, bez žargonu, určený přímo majiteli firmy; (ii) rozbalovací sekci "Číst celou analýzu" s původním textem publikace Ekonomických a strategických analýz České spořitelny. Distinct from **Analýzy (Strategy Radar)** (plural dashboard list heading) and from **Přehled** (a single brief document). Source: [brief-page-v0-2.md](brief-page-v0-2.md) §4, §6, §10.
 
 ### Exposed Owner
 Primary persona. Owner/CEO of a 10–100 employee Czech firm, sole strategic decision-maker, triggered into evaluating the product by a specific pain event (margin squeeze, competitor pricing, lost tender, etc.). Must see proof of insight within 14 days or disengages. Source: [PRD §3](../../PRD/PRD.md#3-target-users).
@@ -52,6 +58,24 @@ Source: [mvp-metric-list.md](mvp-metric-list.md), [D-003](../project/decision-lo
 ### Statistical-validity floor suppression (silent-to-user)
 When an owner's cohort cell for a given ratio is below the statistical-validity floor, the ratio is **not surfaced at all** in the owner's embedded snippet — the brief is silent on that metric for that user. The system still records the suppression event; silence is directed at the user, not at instrumentation. Source: [assumption A-017](assumption-log.md), [PRD §10](../../PRD/PRD.md#10-data-and-technical-foundation), [PRD §13.5](../../PRD/PRD.md#13-risks-and-open-questions).
 
+### Brief artifact
+The versioned, published, delivery-ready object emitted by the Monthly Briefing Generation authoring back-end — distinct from the user-facing concept **Sector brief** (above). A brief artifact has authoring state, publish state, a version counter per ADR-0002-D, and is the input to Multi-Format Delivery. Source: [monthly-briefing-generation.md](monthly-briefing-generation.md), [adr-0002-brief-storage-and-delivery.md](../engineering/adr-0002-brief-storage-and-delivery.md).
+
+### Observation (Strategy Radar)
+A templated 2–4-per-brief verdict unit pairing a cohort finding with an owner-actionable frame. Distinct from general English "observation" — in Strategy Radar, an observation has a schema (framing `sector` | `owner_relative`; anchor `ratio` | `narrative`; time-horizon tag) and is subject to the Plain-Language Translation rules. Source: [observation-generation.md](observation-generation.md), [PRD §8.1](../../PRD/PRD.md#81-sector-briefing-engine--what-this-means-for-you-primary-mvp).
+
+### Observation framing (`sector` | `owner_relative`)
+A required sub-field on every observation that determines whether it expresses a sector-level finding (always allowable) or an owner-relative positioning (hard-blocked at authoring when the owner's cohort cell is below the statistical-validity floor). Source: [observation-generation.md](observation-generation.md).
+
+### Observation anchor (`ratio` | `narrative`)
+A required sub-field on every observation that determines whether it is anchored to one of the eight MVP ratios (`ratio`) or to a sector narrative beyond the ratio set (`narrative`). Source: [observation-generation.md](observation-generation.md), [mvp-metric-list.md](mvp-metric-list.md).
+
+### Time-horizon tag
+A required sub-field on every observation and every closing action, drawn from a closed four-value enum: **Okamžitě** / **Do 3 měsíců** / **Do 12 měsíců** / **Více než rok**. Czech labels are user-facing per [D-004](../project/decision-log.md); the enum is shared across `observation-generation.md`, `action-specificity-framing.md`, and [information-architecture.md §2](../design/information-architecture.md). Source: [action-specificity-framing.md](action-specificity-framing.md), [PRD §8.1](../../PRD/PRD.md#81-sector-briefing-engine--what-this-means-for-you-primary-mvp).
+
+### Delivery record
+A per-`(brief_artifact, recipient, surface)` audit row written by the Multi-Format Delivery pipeline at publish time, capturing which version was delivered to whom in which surface (email / WebView / PDF) at what timestamp. Used for engagement measurement (PRD §6 G1) and for consent-revocation enforcement (D-012 stop-flow). Source: [multi-format-delivery.md](multi-format-delivery.md), [adr-0002-brief-storage-and-delivery.md](../engineering/adr-0002-brief-storage-and-delivery.md).
+
 ---
 
 ## How to add an entry
@@ -64,3 +88,5 @@ When an owner's cohort cell for a given ratio is below the statistical-validity 
 ## Changelog
 
 - 2026-04-17 — Phase 1 additions: **Data lane**, **Embedded benchmark snippet**, **MVP metric categories (the four)**, **Statistical-validity floor suppression (silent-to-user)** — introduced by `mvp-metric-list.md` and `assumption-log.md`. — product-manager
+- 2026-04-21 — new entry **Analýzy (Strategy Radar)** added per [D-019](../project/decision-log.md); cross-referenced from the **Sector brief** entry so lookups on either term land on both. **Přehled** (singular, = one brief document) definition unchanged. — product-manager
+- 2026-04-21 — new entry **Sektorová analýza** added per [brief-page-v0-2.md](brief-page-v0-2.md) §4, §10. Cross-reference note added to **Analýzy (Strategy Radar)** clarifying the plural-list-heading vs. singular-block-inside-one-brief distinction and stating that bare "Analýza" (singular) is not used as a user-facing term. — product-manager

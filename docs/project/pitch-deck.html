@@ -1,0 +1,1904 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Strategy Radar — Discovery &amp; Build overview</title>
+<style>
+  /* ─────────────────────────────────────────────────────────────────────────
+     Tokens
+     ───────────────────────────────────────────────────────────────────────── */
+  :root {
+    --ink-1: #0b1f33;       /* near-black, main text                          */
+    --ink-2: #2a4160;       /* secondary text                                 */
+    --ink-3: #6b7a8f;       /* muted text                                     */
+    --ink-4: #a8b3c4;       /* very muted, hairlines                          */
+    --bg-1: #ffffff;
+    --bg-2: #f7f6f1;        /* warm paper                                     */
+    --bg-3: #0b1f33;        /* deep navy invert                               */
+    --bg-4: #11304f;        /* slightly lighter navy                          */
+
+    --accent-blue: #2c6ebd;
+    --accent-teal: #2ea3a3;
+    --accent-sage: #8faf85;
+    --accent-stone: #b9a98f;
+    --accent-warn: #c97b47;
+    --accent-cs-red: #c8102e; /* ČS brand                                     */
+
+    --pad: clamp(28px, 4vw, 72px);
+    --narrow: 1120px;
+    --radius: 10px;
+    --hair: 1px solid #e4e2d9;
+    --shadow-sm: 0 1px 2px rgba(11,31,51,0.06), 0 1px 1px rgba(11,31,51,0.04);
+    --shadow-md: 0 8px 24px rgba(11,31,51,0.08), 0 2px 6px rgba(11,31,51,0.05);
+  }
+
+  /* ─────────────────────────────────────────────────────────────────────────
+     Base
+     ───────────────────────────────────────────────────────────────────────── */
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: var(--ink-1);
+    background: var(--bg-2);
+    -webkit-font-smoothing: antialiased;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.55;
+    font-size: 16px;
+  }
+  h1, h2, h3, h4 { margin: 0; letter-spacing: -0.01em; line-height: 1.2; }
+  h1 { font-size: clamp(36px, 5vw, 64px); font-weight: 700; letter-spacing: -0.02em; }
+  h2 { font-size: clamp(24px, 3vw, 40px); font-weight: 700; }
+  h3 { font-size: 18px; font-weight: 600; }
+  h4 { font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-3); }
+  p { margin: 0 0 14px 0; }
+  a { color: var(--accent-blue); text-decoration: none; }
+  code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 0.9em; background: #efede3; padding: 1px 6px; border-radius: 4px; }
+  .muted { color: var(--ink-3); }
+  .small { font-size: 13px; line-height: 1.55; }
+
+  /* ─────────────────────────────────────────────────────────────────────────
+     Slide shell
+     ───────────────────────────────────────────────────────────────────────── */
+  .deck { display: block; }
+  .slide {
+    min-height: 100vh;
+    padding: var(--pad);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    position: relative;
+    border-bottom: var(--hair);
+    scroll-snap-align: start;
+  }
+  .slide-inner { max-width: var(--narrow); width: 100%; margin: 0 auto; }
+  .slide--paper { background: var(--bg-2); }
+  .slide--white { background: var(--bg-1); }
+  .slide--ink { background: var(--bg-3); color: #eaf1fa; }
+  .slide--ink h1, .slide--ink h2, .slide--ink h3 { color: #ffffff; }
+  .slide--ink .muted { color: #a0b4cd; }
+  .slide--ink code { background: #223b58; color: #e1ecfa; }
+
+  .slide__num {
+    position: absolute;
+    right: calc(var(--pad) / 1.5);
+    bottom: calc(var(--pad) / 2.2);
+    color: var(--ink-4);
+    font-size: 12px;
+    letter-spacing: 0.1em;
+  }
+  .slide--ink .slide__num { color: #5a7191; }
+
+  .slide__eyebrow {
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent-cs-red);
+    margin-bottom: 14px;
+  }
+  .slide--ink .slide__eyebrow { color: #f2c94c; }
+
+  /* body scroll snap when enabled */
+  html.snap { scroll-snap-type: y mandatory; scroll-behavior: smooth; }
+  html.snap body { overflow-y: scroll; height: 100vh; scroll-snap-type: y mandatory; }
+
+  /* ─────────────────────────────────────────────────────────────────────────
+     Navigation rail
+     ───────────────────────────────────────────────────────────────────────── */
+  .nav {
+    position: fixed;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    z-index: 50;
+  }
+  .nav button {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(11,31,51,0.25);
+    cursor: pointer;
+    padding: 0;
+    transition: background .15s, transform .15s;
+  }
+  .nav button:hover { background: rgba(11,31,51,0.55); transform: scale(1.3); }
+  .nav button.is-active { background: var(--accent-cs-red); transform: scale(1.4); }
+  .nav-toggle {
+    position: fixed;
+    left: 18px; bottom: 18px;
+    z-index: 50;
+    font-size: 12px;
+    background: rgba(11,31,51,0.78);
+    color: #fff;
+    padding: 8px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+    border: none;
+    backdrop-filter: blur(6px);
+    letter-spacing: 0.05em;
+  }
+  .nav-toggle:hover { background: rgba(11,31,51,0.92); }
+
+  /* ─────────────────────────────────────────────────────────────────────────
+     Layout helpers
+     ───────────────────────────────────────────────────────────────────────── */
+  .grid { display: grid; gap: 24px; }
+  .grid--2 { grid-template-columns: repeat(2, 1fr); }
+  .grid--3 { grid-template-columns: repeat(3, 1fr); }
+  .grid--4 { grid-template-columns: repeat(4, 1fr); }
+  @media (max-width: 820px) {
+    .grid--2, .grid--3, .grid--4 { grid-template-columns: 1fr; }
+  }
+  .stack > * + * { margin-top: 22px; }
+  .row { display: flex; gap: 24px; align-items: stretch; flex-wrap: wrap; }
+
+  /* ─────────────────────────────────────────────────────────────────────────
+     Cards, bits
+     ───────────────────────────────────────────────────────────────────────── */
+  .card {
+    background: var(--bg-1);
+    border: var(--hair);
+    border-radius: var(--radius);
+    padding: 22px;
+    box-shadow: var(--shadow-sm);
+  }
+  .card--accent { border-top: 4px solid var(--accent-cs-red); }
+  .card h3 { margin-bottom: 8px; }
+  .slide--ink .card {
+    background: var(--bg-4);
+    border: 1px solid #25456a;
+    box-shadow: none;
+    color: #eaf1fa;
+  }
+
+  .pill {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    background: #e8ebf2;
+    color: var(--ink-2);
+    letter-spacing: 0.02em;
+  }
+  .pill--red { background: #fde0e2; color: #8a1d2d; }
+  .pill--blue { background: #dfe9f6; color: #1e4d85; }
+  .pill--teal { background: #d4edec; color: #18605f; }
+  .pill--sage { background: #e0ead8; color: #445d37; }
+  .pill--stone { background: #eee7db; color: #6a5a3f; }
+  .pill--ink { background: #12304f; color: #dce8f6; }
+
+  .big-num {
+    font-size: clamp(40px, 6vw, 76px);
+    font-weight: 700;
+    letter-spacing: -0.035em;
+    line-height: 1;
+    color: var(--ink-1);
+  }
+  .big-num--accent { color: var(--accent-cs-red); }
+  .slide--ink .big-num { color: #fff; }
+
+  .kv { display: grid; grid-template-columns: max-content 1fr; gap: 6px 22px; font-size: 14px; }
+  .kv dt { font-weight: 600; color: var(--ink-2); }
+  .kv dd { margin: 0; color: var(--ink-2); }
+
+  .list-reset { list-style: none; margin: 0; padding: 0; }
+  ul.check { list-style: none; padding: 0; margin: 0; }
+  ul.check li { position: relative; padding-left: 24px; margin-bottom: 8px; }
+  ul.check li::before {
+    content: "";
+    position: absolute; left: 0; top: 10px;
+    width: 10px; height: 10px; border-radius: 2px;
+    background: var(--accent-cs-red);
+  }
+  .slide--ink ul.check li::before { background: #f2c94c; }
+
+  /* Timeline */
+  .timeline { display: flex; gap: 0; align-items: stretch; position: relative; margin-top: 30px; }
+  .timeline__step {
+    flex: 1; padding: 14px 16px;
+    background: var(--bg-1);
+    border-top: 4px solid var(--accent-blue);
+    border-right: var(--hair);
+    position: relative;
+    font-size: 13px;
+  }
+  .timeline__step:last-child { border-right: none; }
+  .timeline__step strong { display: block; color: var(--ink-1); font-size: 14px; margin-bottom: 4px; }
+  .timeline__step--done { border-top-color: var(--accent-teal); background: #f6faf9; }
+  .timeline__step--now { border-top-color: var(--accent-cs-red); background: #fff8f7; }
+  .timeline__step--future { border-top-color: var(--ink-4); opacity: 0.7; }
+
+  .timeline__date { display: block; color: var(--ink-3); font-size: 11px; margin-top: 4px; letter-spacing: 0.05em; text-transform: uppercase; }
+
+  /* ─────────────────────────────────────────────────────────────────────────
+     Persona cards
+     ───────────────────────────────────────────────────────────────────────── */
+  .persona {
+    display: grid;
+    grid-template-columns: 72px 1fr;
+    gap: 18px;
+    padding: 18px;
+    background: var(--bg-1);
+    border: var(--hair);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+  }
+  .persona__avatar {
+    width: 72px; height: 72px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #e0ead8 0%, #b9a98f 100%);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px; font-weight: 700; color: #3a4a33;
+    font-family: serif;
+  }
+  .persona__avatar--b { background: linear-gradient(135deg, #dfe9f6 0%, #8faf85 100%); color: #1e3d58; }
+  .persona h3 { margin-bottom: 4px; }
+
+  /* ─────────────────────────────────────────────────────────────────────────
+     H-problems bar
+     ───────────────────────────────────────────────────────────────────────── */
+  .problem-row {
+    display: grid;
+    grid-template-columns: 64px 1fr 90px;
+    gap: 18px;
+    align-items: center;
+    padding: 14px 0;
+    border-bottom: var(--hair);
+  }
+  .problem-row:last-child { border-bottom: none; }
+  .problem-row__id {
+    font-weight: 700;
+    font-size: 22px;
+    color: var(--accent-cs-red);
+    letter-spacing: -0.02em;
+  }
+  .problem-row__bar {
+    height: 8px;
+    background: #e4e2d9;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-top: 6px;
+  }
+  .problem-row__bar > span {
+    display: block;
+    height: 100%;
+    border-radius: 4px;
+    background: linear-gradient(90deg, var(--accent-cs-red) 0%, #e8756e 100%);
+  }
+  .severity-tag { font-size: 12px; color: var(--ink-3); font-weight: 600; text-align: right; }
+
+  /* ─────────────────────────────────────────────────────────────────────────
+     Arkana pipeline flow
+     ───────────────────────────────────────────────────────────────────────── */
+  .flow {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+    margin-top: 30px;
+  }
+  @media (max-width: 820px) { .flow { grid-template-columns: 1fr; } }
+  .flow__step {
+    background: var(--bg-1);
+    border: var(--hair);
+    border-radius: var(--radius);
+    padding: 18px;
+    position: relative;
+    box-shadow: var(--shadow-sm);
+  }
+  .flow__step:not(:last-child)::after {
+    content: "→";
+    position: absolute;
+    right: -15px; top: 50%;
+    transform: translateY(-50%);
+    color: var(--accent-cs-red);
+    font-size: 22px;
+    font-weight: 700;
+    z-index: 2;
+  }
+  @media (max-width: 820px) {
+    .flow__step:not(:last-child)::after {
+      right: 50%; top: auto; bottom: -20px;
+      transform: translateX(50%) rotate(90deg);
+    }
+  }
+  .flow__step .step-num {
+    display: inline-block;
+    width: 24px; height: 24px; border-radius: 50%;
+    background: var(--accent-cs-red); color: #fff;
+    font-size: 12px; font-weight: 700;
+    text-align: center; line-height: 24px;
+    margin-bottom: 10px;
+  }
+  .flow__step h4 { color: var(--ink-1); text-transform: none; letter-spacing: -0.01em; font-size: 15px; margin-bottom: 6px; }
+  .flow__step p.small { margin: 0; color: var(--ink-3); }
+
+  /* ─────────────────────────────────────────────────────────────────────────
+     North Star surfaces
+     ───────────────────────────────────────────────────────────────────────── */
+  .surfaces { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; }
+  @media (max-width: 980px) { .surfaces { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 560px) { .surfaces { grid-template-columns: 1fr; } }
+  .surface {
+    padding: 20px;
+    background: var(--bg-1);
+    border: var(--hair);
+    border-radius: var(--radius);
+    border-top: 4px solid var(--accent-blue);
+    min-height: 190px;
+    display: flex; flex-direction: column; justify-content: space-between;
+  }
+  .surface--mvp { border-top-color: var(--accent-cs-red); background: #fff8f7; }
+  .surface__num { font-size: 36px; font-weight: 700; letter-spacing: -0.03em; color: var(--accent-blue); line-height: 1; }
+  .surface--mvp .surface__num { color: var(--accent-cs-red); }
+  .surface h4 { color: var(--ink-1); text-transform: none; letter-spacing: -0.005em; font-size: 14px; margin: 10px 0 6px 0; }
+  .surface p.small { color: var(--ink-3); margin: 0; }
+
+  /* ─────────────────────────────────────────────────────────────────────────
+     Roadmap staircase
+     ───────────────────────────────────────────────────────────────────────── */
+  .staircase {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 6px;
+    align-items: end;
+    margin-top: 22px;
+    margin-bottom: 6px;
+  }
+  @media (max-width: 820px) { .staircase { grid-template-columns: repeat(3, 1fr); } }
+  .step-bar {
+    background: var(--bg-1);
+    border-radius: 6px 6px 0 0;
+    padding: 16px 14px;
+    box-shadow: var(--shadow-sm);
+    border: var(--hair);
+    border-bottom: none;
+    position: relative;
+  }
+  .step-bar--mvp { background: #fff8f7; border-color: var(--accent-cs-red); }
+  .step-bar h4 { font-size: 13px; text-transform: none; letter-spacing: 0; margin-bottom: 6px; color: var(--ink-1); }
+  .step-bar .small { color: var(--ink-3); font-size: 12px; line-height: 1.45; }
+  .step-bar--0 { height: 120px; }
+  .step-bar--1 { height: 145px; }
+  .step-bar--2 { height: 175px; }
+  .step-bar--3 { height: 210px; }
+  .step-bar--4 { height: 250px; }
+  .step-bar--5 { height: 300px; background: var(--bg-3); color: #e1ebf5; border-color: #11304f; }
+  .step-bar--5 h4, .step-bar--5 .small { color: #fff; }
+  .step-bar--5 .small { color: #aac0dc; }
+
+  /* ─────────────────────────────────────────────────────────────────────────
+     Goals trio
+     ───────────────────────────────────────────────────────────────────────── */
+  .goals {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+  }
+  @media (max-width: 820px) { .goals { grid-template-columns: 1fr; } }
+  .goal {
+    padding: 24px;
+    background: var(--bg-1);
+    border: var(--hair);
+    border-radius: var(--radius);
+    text-align: center;
+    box-shadow: var(--shadow-sm);
+  }
+  .goal__emoji { font-size: 32px; margin-bottom: 10px; display: block; }
+  .goal h3 { margin-bottom: 6px; }
+  .goal p { font-size: 14px; color: var(--ink-2); margin: 0; }
+
+  /* ─────────────────────────────────────────────────────────────────────────
+     Agent org chart
+     ───────────────────────────────────────────────────────────────────────── */
+  .org { display: grid; gap: 20px; }
+  .org__orchestrator {
+    background: var(--bg-3);
+    color: #fff;
+    padding: 20px 26px;
+    border-radius: var(--radius);
+    text-align: center;
+    max-width: 320px;
+    margin: 0 auto;
+    box-shadow: var(--shadow-md);
+  }
+  .org__orchestrator small { display: block; color: #9cb3cf; letter-spacing: 0.1em; text-transform: uppercase; font-size: 11px; margin-bottom: 4px; }
+  .org__orchestrator strong { font-size: 22px; letter-spacing: -0.015em; display: block; }
+  .org__orchestrator span { font-size: 12px; color: #a3bad4; }
+  .org__line {
+    display: block;
+    width: 1px; height: 18px;
+    background: var(--ink-3);
+    margin: -4px auto 0;
+  }
+  .org__specialists { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  @media (max-width: 820px) { .org__specialists { grid-template-columns: repeat(2, 1fr); } }
+  .agent {
+    padding: 16px;
+    background: var(--bg-1);
+    border: var(--hair);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    text-align: center;
+  }
+  .agent small { display: block; color: var(--ink-3); letter-spacing: 0.1em; text-transform: uppercase; font-size: 10px; margin-bottom: 3px; }
+  .agent strong { font-size: 15px; display: block; margin-bottom: 3px; letter-spacing: -0.01em; }
+  .agent .model-tag {
+    display: inline-block;
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: #e8ebf2;
+    color: var(--ink-2);
+    margin-top: 8px;
+  }
+
+  /* ─────────────────────────────────────────────────────────────────────────
+     Mock UI (dashboard + brief)
+     ───────────────────────────────────────────────────────────────────────── */
+  .mockup {
+    background: var(--bg-1);
+    border: var(--hair);
+    border-radius: 8px;
+    padding: 16px;
+    box-shadow: var(--shadow-md);
+    font-size: 13px;
+  }
+  .mockup__chrome {
+    height: 28px;
+    background: #eae8de;
+    border-radius: 6px 6px 0 0;
+    margin: -16px -16px 16px;
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border-bottom: var(--hair);
+  }
+  .mockup__chrome span {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #c9bfae;
+    display: inline-block;
+  }
+  .mockup__chrome span:nth-child(1) { background: #e08484; }
+  .mockup__chrome span:nth-child(2) { background: #e0c084; }
+  .mockup__chrome span:nth-child(3) { background: #a5c584; }
+  .mockup__url { margin-left: 12px; font-size: 11px; color: var(--ink-3); font-family: ui-monospace, monospace; }
+  .mockup__header {
+    padding: 10px 14px;
+    background: #f7f6f1;
+    border-radius: 4px;
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--ink-1);
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--ink-4);
+  }
+  .mockup__section-h { font-size: 12px; font-weight: 700; color: var(--ink-1); text-transform: none; letter-spacing: -0.005em; margin: 14px 0 8px; }
+
+  .tile-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+  }
+  @media (max-width: 600px) { .tile-grid { grid-template-columns: repeat(2, 1fr); } }
+  .tile {
+    padding: 10px;
+    border-radius: 4px;
+    background: #f7f6f1;
+    font-size: 10px;
+  }
+  .tile__label { font-weight: 600; color: var(--ink-1); margin-bottom: 4px; line-height: 1.2; min-height: 2.4em; }
+  .tile__val { font-weight: 700; font-size: 14px; color: var(--ink-1); margin-bottom: 4px; }
+  .tile__pill {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 2px;
+    font-size: 9px;
+    font-weight: 600;
+  }
+  .tile--q4 { background: #dfe9f6; }
+  .tile--q4 .tile__pill { background: #2c6ebd; color: #fff; }
+  .tile--q3 { background: #d4edec; }
+  .tile--q3 .tile__pill { background: #2ea3a3; color: #fff; }
+  .tile--q2 { background: #e0ead8; }
+  .tile--q2 .tile__pill { background: #8faf85; color: #fff; }
+  .tile--q1 { background: #eee7db; }
+  .tile--q1 .tile__pill { background: #b9a98f; color: #fff; }
+  .tile--floor { background: #f1eee6; opacity: 0.75; }
+  .tile--floor .tile__val { color: var(--ink-3); font-style: italic; font-size: 11px; }
+  .tile--floor .tile__pill { background: #c9c0a8; color: #4c4636; font-weight: 500; }
+
+  .brief-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 8px 10px;
+    border-bottom: 1px solid #eae8de;
+    font-size: 12px;
+  }
+  .brief-list li:last-child { border-bottom: none; }
+  .brief-list li strong { font-weight: 600; color: var(--ink-1); }
+  .brief-list li small { color: var(--ink-3); font-size: 10px; }
+  .brief-list .new-pill { background: var(--accent-cs-red); color: #fff; font-size: 9px; padding: 2px 6px; border-radius: 2px; margin-right: 6px; font-weight: 600; }
+
+  .brief-mock { display: grid; grid-template-columns: 1fr; gap: 10px; }
+  .brief-mock__pub {
+    padding: 12px;
+    background: #fbf6ef;
+    border-left: 3px solid var(--accent-cs-red);
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--ink-2);
+  }
+  .brief-mock__pub strong { display: block; color: var(--ink-1); font-size: 13px; margin-bottom: 4px; }
+  .brief-mock__pair {
+    border-left: 4px solid var(--ink-1);
+    padding: 10px 14px;
+    background: #f7f6f1;
+    border-radius: 0 4px 4px 0;
+    font-size: 12px;
+  }
+  .brief-mock__pair strong { display: block; font-size: 13px; margin-bottom: 3px; }
+  .brief-mock__pair .rec {
+    display: block;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--ink-4);
+    font-size: 12px;
+  }
+  .brief-mock__pair .rec em { font-style: normal; font-weight: 600; color: var(--ink-2); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+
+  /* ─────────────────────────────────────────────────────────────────────────
+     Mini ownership table
+     ───────────────────────────────────────────────────────────────────────── */
+  .lanes {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    background: var(--bg-1);
+    border: var(--hair);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .lanes th, .lanes td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #eae8de; }
+  .lanes tr:last-child td { border-bottom: none; }
+  .lanes th { background: #eae8de; font-weight: 600; color: var(--ink-2); letter-spacing: 0.02em; font-size: 12px; text-transform: uppercase; }
+  .lanes tbody tr:hover { background: #fcfbf7; }
+  .lanes code { font-size: 12px; }
+
+  /* ─────────────────────────────────────────────────────────────────────────
+     Stats
+     ───────────────────────────────────────────────────────────────────────── */
+  .stat { text-align: center; padding: 20px; }
+  .stat__num { font-size: clamp(32px, 4.5vw, 56px); font-weight: 700; color: var(--ink-1); letter-spacing: -0.03em; line-height: 1; }
+  .stat__label { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); margin-top: 8px; }
+  .slide--ink .stat__num { color: #fff; }
+  .slide--ink .stat__label { color: #a0b4cd; }
+
+  /* ─────────────────────────────────────────────────────────────────────────
+     Decorations
+     ───────────────────────────────────────────────────────────────────────── */
+  .hero-mark {
+    position: absolute;
+    top: var(--pad); left: var(--pad);
+    font-size: 13px;
+    letter-spacing: 0.2em;
+    color: var(--ink-3);
+    text-transform: uppercase;
+  }
+  .slide--ink .hero-mark { color: #8aa0bd; }
+
+  .quote {
+    padding: 22px 26px;
+    border-left: 4px solid var(--accent-cs-red);
+    background: var(--bg-1);
+    font-size: 16px;
+    color: var(--ink-2);
+    line-height: 1.6;
+    border-radius: 4px;
+  }
+  .slide--ink .quote { background: var(--bg-4); color: #dde8f6; border-left-color: #f2c94c; }
+  .quote cite { display: block; margin-top: 10px; font-size: 12px; color: var(--ink-3); font-style: normal; letter-spacing: 0.04em; }
+  .slide--ink .quote cite { color: #a0b4cd; }
+
+  /* cover-specific */
+  .cover-wordmark {
+    font-size: 13px; letter-spacing: 0.25em; text-transform: uppercase; color: var(--accent-cs-red); font-weight: 600;
+  }
+  .cover-title { font-size: clamp(48px, 8vw, 112px); letter-spacing: -0.04em; font-weight: 700; line-height: 1.02; margin: 24px 0 16px; }
+  .cover-sub { font-size: clamp(18px, 2.2vw, 26px); color: var(--ink-2); max-width: 620px; line-height: 1.35; font-weight: 400; }
+  .cover-meta { margin-top: 40px; display: flex; gap: 40px; flex-wrap: wrap; font-size: 13px; color: var(--ink-3); }
+  .cover-meta strong { display: block; color: var(--ink-1); font-size: 14px; font-weight: 600; margin-top: 4px; }
+
+  /* Roles / goals emoji replacements (inline SVG circles) */
+  .icon-circle {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 44px; height: 44px; border-radius: 50%;
+    background: #f7f6f1; font-size: 20px;
+    border: 1px solid #e4e2d9;
+    color: var(--ink-1);
+  }
+
+  /* Print */
+  @media print {
+    html.snap { scroll-snap-type: none; }
+    html.snap body { overflow: auto; height: auto; scroll-snap-type: none; }
+    .slide { page-break-after: always; min-height: auto; border-bottom: none; }
+    .nav, .nav-toggle { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ╔════════════════════════════════════════════════════════════════════════╗
+     ║ DECK                                                                   ║
+     ╚════════════════════════════════════════════════════════════════════════╝ -->
+<main class="deck">
+
+  <!-- ─────────────────── 01 COVER ─────────────────── -->
+  <section class="slide slide--paper" data-title="Cover">
+    <span class="hero-mark">Česká Spořitelna · Strategy Radar</span>
+    <div class="slide-inner">
+      <div class="cover-wordmark">Interní přehled · 2026-04-21</div>
+      <h1 class="cover-title">Strategy&nbsp;Radar</h1>
+      <p class="cover-sub">
+        How we went from a discovery brief to a working prototype in one week —
+        using AI-native product discovery, a team of specialist AI agents,
+        and a single orchestrator.
+      </p>
+      <div class="cover-meta">
+        <div><small>AUDIENCE</small><strong>ČS colleagues</strong></div>
+        <div><small>SOURCE DOCS</small><strong>PRD &amp; Arkana artefacts</strong></div>
+        <div><small>BUILD STATE</small><strong>v0.1 + v0.2 PoC running locally</strong></div>
+      </div>
+    </div>
+    <span class="slide__num">01</span>
+  </section>
+
+  <!-- ─────────────────── 02 WHAT'S IN THIS DECK ─────────────────── -->
+  <section class="slide slide--white" data-title="What's inside">
+    <div class="slide-inner">
+      <div class="slide__eyebrow">What's inside</div>
+      <h2>Two halves, one story</h2>
+      <p class="muted" style="max-width: 720px; margin-top: 10px;">
+        Traditional product work separates "discovery" and "build". In this project, both halves
+        were run AI-natively — but with humans deciding at every consequential fork.
+      </p>
+      <div class="grid grid--2" style="margin-top: 30px;">
+        <div class="card card--accent">
+          <span class="pill pill--red">Part I</span>
+          <h3 style="margin-top: 14px;">Discovery — with Arkana</h3>
+          <p class="muted small" style="margin-top: 8px;">
+            How the product concept was developed: ideation, synthetic research,
+            solution-area synthesis, north-star definition, roadmap — all produced by
+            an AI discovery platform, grounded in the real Czech SME market.
+          </p>
+          <ul class="check small" style="margin-top: 14px;">
+            <li>5 staged artefacts, ~560 KB of structured output</li>
+            <li>2 synthetic personas with 8-question interview depth</li>
+            <li>15+ competitors analysed for structural gaps</li>
+            <li>MVP + 4 post-MVP increments scoped</li>
+          </ul>
+        </div>
+        <div class="card card--accent">
+          <span class="pill pill--red">Part II</span>
+          <h3 style="margin-top: 14px;">Build — with a small AI team</h3>
+          <p class="muted small" style="margin-top: 8px;">
+            How the prototype was built: one human (you), one orchestrator, four specialist
+            AI agents (PM, Designer, Engineer, Data Engineer), enforced documentation lanes,
+            and a sequenced phase plan from scope-lock to running code.
+          </p>
+          <ul class="check small" style="margin-top: 14px;">
+            <li>v0.1 MVP — complete owner + analyst flows</li>
+            <li>v0.2 PoC — dashboard &amp; reworked brief for customer testing</li>
+            <li>20 logged decisions, traceable to user or orchestrator</li>
+            <li>Running locally at <code>localhost:3000</code></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <span class="slide__num">02</span>
+  </section>
+
+  <!-- ─────────────────── 03 THE PRODUCT (one-pager) ─────────────────── -->
+  <section class="slide slide--paper" data-title="The product">
+    <div class="slide-inner">
+      <div class="slide__eyebrow">The product · one paragraph</div>
+      <h2 style="max-width: 860px;">A monthly sector brief for Czech SME owners — plain-language, verdict-first, delivered by their bank.</h2>
+      <p class="muted" style="max-width: 780px; margin-top: 20px; font-size: 17px; line-height: 1.6;">
+        <strong>Strategy Radar</strong> is a web app for owners of 10–100 employee Czech firms.
+        Once a month they receive a short written briefing — two to three pages — about what is happening
+        in their sector and how their business compares to similar Czech firms. The briefing ends with
+        <strong>2–4 concrete actions</strong>, each labelled with a time horizon. It is delivered as an
+        email, a page inside the application, and a downloadable PDF.
+      </p>
+      <div class="grid grid--3" style="margin-top: 36px;">
+        <div>
+          <h4>Primary persona</h4>
+          <p class="small muted" style="margin-top: 6px;">
+            The Exposed Owner — sole strategic decision-maker, triggered by a pain event,
+            evaluates fast and skeptically, must see proof of insight within 14 days.
+          </p>
+        </div>
+        <div>
+          <h4>Primary channel</h4>
+          <p class="small muted" style="margin-top: 6px;">
+            ČS relationship managers introducing the product to existing SME clients inside
+            George Business. Direct sign-up is secondary.
+          </p>
+        </div>
+        <div>
+          <h4>What's free, what's free-ish</h4>
+          <p class="small muted" style="margin-top: 6px;">
+            Free during validation. Monetisation deliberately deferred — v1 validates engagement,
+            data acquisition, and lead flow first.
+          </p>
+        </div>
+      </div>
+    </div>
+    <span class="slide__num">03</span>
+  </section>
+
+  <!-- ╔════════════════════════════════════════════════════════════════════════╗
+       ║ PART I — DISCOVERY WITH ARKANA                                         ║
+       ╚════════════════════════════════════════════════════════════════════════╝ -->
+
+  <!-- ─────────────────── 04 PART I COVER ─────────────────── -->
+  <section class="slide slide--ink" data-title="Part I · Discovery">
+    <div class="slide-inner">
+      <div class="slide__eyebrow" style="color: #f2c94c;">Part I</div>
+      <h1 style="color: #fff; margin-top: 10px;">Discovery</h1>
+      <p class="muted" style="margin-top: 20px; max-width: 680px; font-size: 20px; color: #aac0dc;">
+        The product concept wasn't authored by hand. It was developed by <strong>Arkana</strong>,
+        an AI-native product-discovery platform, in five staged artefacts.
+      </p>
+      <div class="grid grid--3" style="margin-top: 60px;">
+        <div class="stat"><div class="stat__num">5</div><div class="stat__label">Discovery stages</div></div>
+        <div class="stat"><div class="stat__num">2</div><div class="stat__label">Synthetic personas</div></div>
+        <div class="stat"><div class="stat__num">15+</div><div class="stat__label">Competitors analysed</div></div>
+      </div>
+    </div>
+    <span class="slide__num">04</span>
+  </section>
+
+  <!-- ─────────────────── 05 ARKANA PIPELINE ─────────────────── -->
+  <section class="slide slide--paper" data-title="Arkana flow">
+    <div class="slide-inner">
+      <div class="slide__eyebrow">The five-stage Arkana pipeline</div>
+      <h2>Every stage consumes the last one's output</h2>
+      <p class="muted" style="max-width: 760px; margin-top: 14px;">
+        Each artefact is structured, typed, and self-contained — the next stage is not a free-form rewrite,
+        it's a deliberate transform. Every downstream conclusion can be traced back to an upstream claim.
+      </p>
+
+      <div class="flow">
+        <div class="flow__step">
+          <div class="step-num">1</div>
+          <h4>Idea Brainstorming</h4>
+          <p class="small">Multiple candidate solutions scored against ranked problems. One beachhead picked — the Strategic Position Dashboard (score 80/100).</p>
+        </div>
+        <div class="flow__step">
+          <div class="step-num">2</div>
+          <h4>Synthetic Research</h4>
+          <p class="small">AI-generated personas (Pavel, Karel) with 8-question deep-dive interviews. Competitor scan. Hypotheses ranked.</p>
+        </div>
+        <div class="flow__step">
+          <div class="step-num">3</div>
+          <h4>Solution Area</h4>
+          <p class="small">Research crystallised into confirmed problems, persona taxonomy, market standards, structural gaps, trend synthesis.</p>
+        </div>
+        <div class="flow__step">
+          <div class="step-num">4</div>
+          <h4>North Star</h4>
+          <p class="small">Beachhead expanded into five integrated capability surfaces with MVP-to-vision progression per surface.</p>
+        </div>
+        <div class="flow__step">
+          <div class="step-num">5</div>
+          <h4>Roadmap</h4>
+          <p class="small">North Star decomposed into MVP + 4 post-MVP increments. Theme arc: Static → Continuous → Personalised → Predictive → Autonomous.</p>
+        </div>
+      </div>
+
+      <p class="small muted" style="margin-top: 36px; max-width: 720px;">
+        <strong>Why "AI-native":</strong> synthetic personas compress the persona-research loop from weeks of recruiting + interviews
+        to hours of structured generation. AI-summarised competitive scans replace manual market-landscape analysis.
+        What Arkana does <em>not</em> replace is the human call — the orchestrator and user still picked which
+        hypotheses were load-bearing, which risks to take, and which scope to ship.
+      </p>
+    </div>
+    <span class="slide__num">05</span>
+  </section>
+
+  <!-- ─────────────────── 06 PROBLEMS RANKED ─────────────────── -->
+  <section class="slide slide--white" data-title="Problems ranked">
+    <div class="slide-inner">
+      <div class="slide__eyebrow">Validated pains</div>
+      <h2>Three hypotheses carry the product</h2>
+      <p class="muted" style="max-width: 720px; margin-top: 14px;">
+        From the ranked hypothesis framework (H1–H13), three rose to the top with the most severity
+        and the most cohesive story. All three are unaddressed by any incumbent serving SME operators.
+      </p>
+
+      <div style="margin-top: 30px;">
+        <div class="problem-row">
+          <div class="problem-row__id">H3</div>
+          <div>
+            <strong>"I have no idea whether my numbers are good, bad, or average."</strong>
+            <div class="small muted" style="margin-top: 2px;">Inability to validate whether internal financial performance represents success or failure.</div>
+            <div class="problem-row__bar"><span style="width: 100%;"></span></div>
+          </div>
+          <div class="severity-tag">Highest severity</div>
+        </div>
+        <div class="problem-row">
+          <div class="problem-row__id">H2</div>
+          <div>
+            <strong>"I negotiate prices from fear, not from market knowledge."</strong>
+            <div class="small muted" style="margin-top: 2px;">Pricing conversations without external reference cost owners real money.</div>
+            <div class="problem-row__bar"><span style="width: 82%;"></span></div>
+          </div>
+          <div class="severity-tag">High severity</div>
+        </div>
+        <div class="problem-row">
+          <div class="problem-row__id">H1</div>
+          <div>
+            <strong>"Big strategic calls are made on unvalidated assumptions."</strong>
+            <div class="small muted" style="margin-top: 2px;">Absence of peer operational benchmarks leaves the owner flying blind on hiring, pricing, capex.</div>
+            <div class="problem-row__bar"><span style="width: 74%;"></span></div>
+          </div>
+          <div class="severity-tag">High severity</div>
+        </div>
+        <div class="problem-row">
+          <div class="problem-row__id">H13</div>
+          <div>
+            <strong>"Market shifts land in my P&amp;L before I see them coming."</strong>
+            <div class="small muted" style="margin-top: 2px;">Reactive firefighting instead of strategic response — because market context is missing.</div>
+            <div class="problem-row__bar"><span style="width: 58%;"></span></div>
+          </div>
+          <div class="severity-tag">Moderate severity</div>
+        </div>
+      </div>
+
+      <p class="small muted" style="margin-top: 30px;">
+        <strong>Competitive gap:</strong> <strong>0 of 15+</strong> incumbents (Statista, D&amp;B, CB Insights, AlphaSense, Stripe benchmarks, …)
+        address H3 for SME owner-operators. They all target analysts, investors, or lenders. The SME operator is structural whitespace.
+      </p>
+    </div>
+    <span class="slide__num">06</span>
+  </section>
+
+  <!-- ─────────────────── 07 PERSONAS ─────────────────── -->
+  <section class="slide slide--paper" data-title="Personas">
+    <div class="slide-inner">
+      <div class="slide__eyebrow">The two owners we're designing for</div>
+      <h2>Synthetic personas, grounded in real Czech SME reality</h2>
+      <p class="muted" style="max-width: 720px; margin-top: 14px;">
+        Arkana's personas are AI-generated but structurally disciplined: industry, geography, size,
+        emotional pain narrative, and decision triggers all concrete. Traditional discovery would
+        spend 4–6 weeks here; the synthetic pass took a day and produced comparable depth.
+      </p>
+
+      <div class="grid grid--2" style="margin-top: 30px;">
+        <div class="persona">
+          <div class="persona__avatar">PH</div>
+          <div>
+            <h3>Pavel Hruška</h3>
+            <div class="small muted">Owner · Plastics manufacturer · 85 employees · Zlín</div>
+            <p class="small" style="margin-top: 10px; color: var(--ink-2);">
+              Margin erosion from 26% to 22% over three years. Walked away from a 4.5M Kč
+              equipment investment because he couldn't benchmark the ROI claim. Estimates ~900k Kč
+              of unrealised savings as a result.
+            </p>
+            <span class="pill pill--red" style="margin-top: 8px;">Exposed Owner</span>
+          </div>
+        </div>
+        <div class="persona">
+          <div class="persona__avatar persona__avatar--b">KN</div>
+          <div>
+            <h3>Karel Novák</h3>
+            <div class="small muted">Owner · Custom machinery · 60 employees · Praha</div>
+            <p class="small" style="margin-top: 10px; color: var(--ink-2);">
+              Lost a €340k annual contract because he priced defensively without market data.
+              Pays a higher interest rate on his credit line because he can't benchmark his
+              working-capital cycle — an estimated €8k/year of avoidable cost.
+            </p>
+            <span class="pill pill--red" style="margin-top: 8px;">Exposed Owner</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top: 24px;">
+        <h4 style="color: var(--ink-1);">Secondary segment — The Bank-Referred Passive Adopter</h4>
+        <p class="small muted" style="margin-top: 8px;">
+          Owner or senior manager of a 15–100 employee ČS client. Not actively seeking strategic
+          tooling — the RM's introduction surfaces the need. Converts in 1–3 weeks if shown a
+          relevant concrete brief. Churns fast without a monthly habit anchor.
+        </p>
+      </div>
+    </div>
+    <span class="slide__num">07</span>
+  </section>
+
+  <!-- ─────────────────── 08 NORTH STAR SURFACES ─────────────────── -->
+  <section class="slide slide--white" data-title="North Star">
+    <div class="slide-inner">
+      <div class="slide__eyebrow">The full vision</div>
+      <h2>Five capability surfaces — one integrated product</h2>
+      <p class="muted" style="max-width: 720px; margin-top: 14px;">
+        Arkana's North Star is structurally explicit: five surfaces, each with MVP → advanced →
+        north-star maturity progression per feature. One surface is the MVP anchor; the rest
+        accrue over subsequent increments.
+      </p>
+
+      <div class="surfaces" style="margin-top: 30px;">
+        <div class="surface surface--mvp">
+          <div>
+            <div class="surface__num">01</div>
+            <h4>Sector Briefing Engine</h4>
+          </div>
+          <p class="small">Monthly 2–3 page brief calibrated to the owner's sector, closing with 2–4 time-horizon-tagged actions. <strong>MVP anchor.</strong></p>
+        </div>
+        <div class="surface">
+          <div>
+            <div class="surface__num">02</div>
+            <h4>Peer Position Engine</h4>
+          </div>
+          <p class="small">Percentile position against segmented cohort (NACE × size × region). Embedded in briefs at MVP; standalone later.</p>
+        </div>
+        <div class="surface">
+          <div>
+            <div class="surface__num">03</div>
+            <h4>Shift Detection &amp; Alerts</h4>
+          </div>
+          <p class="small">Plain-language alerts when the owner's relative position drifts; cause attribution distinguishes owner-driven from cohort-wide.</p>
+        </div>
+        <div class="surface">
+          <div>
+            <div class="surface__num">04</div>
+            <h4>Pre-Loaded Benchmark Report</h4>
+          </div>
+          <p class="small">Day-one insight at first login — bank-data pre-processing or manual input fast-track. Post-MVP.</p>
+        </div>
+        <div class="surface">
+          <div>
+            <div class="surface__num">05</div>
+            <h4>Configurable Dashboard</h4>
+          </div>
+          <p class="small">Owner-prioritised view across four metric categories. Dashboard work begins in v0.2 PoC (Part II). Post-MVP in full.</p>
+        </div>
+      </div>
+    </div>
+    <span class="slide__num">08</span>
+  </section>
+
+  <!-- ─────────────────── 09 ROADMAP STAIRCASE ─────────────────── -->
+  <section class="slide slide--paper" data-title="Roadmap">
+    <div class="slide-inner">
+      <div class="slide__eyebrow">Staged delivery</div>
+      <h2>MVP + four increments + the North Star</h2>
+      <p class="muted" style="max-width: 780px; margin-top: 14px;">
+        Theme arc: Static → Continuous → Personalised → Predictive → Autonomous. Feature count
+        expands roughly 4×: from <strong>7 at MVP</strong> to <strong>40+ at the North Star</strong>,
+        all within the same five-surface frame.
+      </p>
+
+      <div class="staircase">
+        <div class="step-bar step-bar--mvp step-bar--0">
+          <h4>MVP</h4>
+          <span class="pill pill--red" style="margin-bottom: 6px;">Now</span>
+          <p class="small">First brief. Static, human-authored, 7 features.</p>
+        </div>
+        <div class="step-bar step-bar--1">
+          <h4>Inc 2</h4>
+          <p class="small">Continuous monitoring. Alerts, cohort stats, history.</p>
+        </div>
+        <div class="step-bar step-bar--2">
+          <h4>Inc 3</h4>
+          <p class="small">Sector intelligence depth. Evidence, cause attribution, data pre-processing.</p>
+        </div>
+        <div class="step-bar step-bar--3">
+          <h4>Inc 4</h4>
+          <p class="small">Deep personalisation. LLM-generated narratives, multi-metric correlations.</p>
+        </div>
+        <div class="step-bar step-bar--4">
+          <h4>Inc 5</h4>
+          <p class="small">Predictive maturity. Forward-look projection, multi-year view, EN support.</p>
+        </div>
+        <div class="step-bar step-bar--5">
+          <h4>North Star</h4>
+          <p class="small">Real-time recalculation. Full causal decomposition. Predictive percentile projection.</p>
+        </div>
+      </div>
+      <p class="small muted" style="margin-top: 36px;">
+        MVP is deliberately thin: the brief alone, the minimum-viable cohort math, and the three delivery surfaces.
+        No automation. No alerts. No dashboards. Just enough to answer "would an owner open it?"
+      </p>
+    </div>
+    <span class="slide__num">09</span>
+  </section>
+
+  <!-- ─────────────────── 10 WHY AI-NATIVE MATTERS ─────────────────── -->
+  <section class="slide slide--ink" data-title="AI-native compression">
+    <div class="slide-inner">
+      <div class="slide__eyebrow" style="color: #f2c94c;">The compression</div>
+      <h2 style="color: #fff; max-width: 760px;">Traditional discovery is 4–12 weeks. Arkana-style discovery is 1–3 days.</h2>
+      <p style="max-width: 720px; margin-top: 20px; color: #cde1f6;">
+        The AI shift isn't "the AI decides what to build". It's "the AI collapses the cost of producing
+        every intermediate artefact so the human can focus on the judgement calls".
+      </p>
+
+      <div class="grid grid--3" style="margin-top: 50px;">
+        <div class="card">
+          <h4 style="color: #f2c94c;">What the AI does</h4>
+          <ul class="check small" style="margin-top: 10px;">
+            <li>Persona generation from structured problem briefs</li>
+            <li>Competitor landscape scanning + pattern extraction</li>
+            <li>Trend synthesis from public sources</li>
+            <li>Solution scoring against ranked hypotheses</li>
+            <li>Roadmap decomposition with maturity tagging</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4 style="color: #f2c94c;">What the human does</h4>
+          <ul class="check small" style="margin-top: 10px;">
+            <li>Picks which hypotheses to bet the product on</li>
+            <li>Decides MVP scope vs. vision scope</li>
+            <li>Owns every product principle ("verdicts, not datasets")</li>
+            <li>Makes every privacy &amp; trust call</li>
+            <li>Signs off on what ships to real customers</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4 style="color: #f2c94c;">What gets better</h4>
+          <ul class="check small" style="margin-top: 10px;">
+            <li>Breadth — more competitors, more personas</li>
+            <li>Rigor — typed artefacts, traceable deltas</li>
+            <li>Consistency — one voice across all documents</li>
+            <li>Iteration speed — re-run with new inputs in minutes</li>
+            <li>Document discipline — living specs, not lost decks</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <span class="slide__num">10</span>
+  </section>
+
+  <!-- ╔════════════════════════════════════════════════════════════════════════╗
+       ║ PART II — BUILD                                                        ║
+       ╚════════════════════════════════════════════════════════════════════════╝ -->
+
+  <!-- ─────────────────── 11 PART II COVER ─────────────────── -->
+  <section class="slide slide--ink" data-title="Part II · Build">
+    <div class="slide-inner">
+      <div class="slide__eyebrow" style="color: #f2c94c;">Part II</div>
+      <h1 style="color: #fff; margin-top: 10px;">Build</h1>
+      <p class="muted" style="margin-top: 20px; max-width: 680px; font-size: 20px; color: #aac0dc;">
+        From the Arkana discovery to a working prototype in ~6 days. One human,
+        one orchestrator, four specialist agents, and strict documentation lanes.
+      </p>
+
+      <div class="grid grid--4" style="margin-top: 60px;">
+        <div class="stat"><div class="stat__num">1</div><div class="stat__label">Human operator</div></div>
+        <div class="stat"><div class="stat__num">5</div><div class="stat__label">AI roles</div></div>
+        <div class="stat"><div class="stat__num">20</div><div class="stat__label">Logged decisions</div></div>
+        <div class="stat"><div class="stat__num">2</div><div class="stat__label">Versions shipped</div></div>
+      </div>
+    </div>
+    <span class="slide__num">11</span>
+  </section>
+
+  <!-- ─────────────────── 12 AGENT ORG ─────────────────── -->
+  <section class="slide slide--paper" data-title="The team">
+    <div class="slide-inner">
+      <div class="slide__eyebrow">The working setup</div>
+      <h2>One orchestrator, four specialists, each with a lane</h2>
+      <p class="muted" style="max-width: 780px; margin-top: 14px;">
+        The orchestrator decomposes the user's request, delegates in parallel when work is independent, merges outputs,
+        surfaces conflicts to the human. Specialists never edit outside their lane — a pre-commit hook enforces this.
+      </p>
+
+      <div class="org" style="margin-top: 30px;">
+        <div class="org__orchestrator">
+          <small>Main session</small>
+          <strong>Orchestrator</strong>
+          <span>Opus · decomposition, delegation, synthesis, conflict resolution</span>
+        </div>
+        <div class="org__line"></div>
+        <div class="org__specialists">
+          <div class="agent">
+            <div class="icon-circle" style="margin: 0 auto 12px;">📋</div>
+            <small>Product</small>
+            <strong>Product Manager</strong>
+            <div class="small muted">Feature PRDs, acceptance criteria, glossary, assumption log.</div>
+            <div class="model-tag">Opus</div>
+          </div>
+          <div class="agent">
+            <div class="icon-circle" style="margin: 0 auto 12px;">🎨</div>
+            <small>Design</small>
+            <strong>Designer</strong>
+            <div class="small muted">Flows, screen states, component specs, accessibility, copy.</div>
+            <div class="model-tag">Sonnet</div>
+          </div>
+          <div class="agent">
+            <div class="icon-circle" style="margin: 0 auto 12px;">⚙️</div>
+            <small>Code</small>
+            <strong>Engineer</strong>
+            <div class="small muted">Architecture, ADRs, implementation, tests, all of <code>src/</code>.</div>
+            <div class="model-tag">Sonnet</div>
+          </div>
+          <div class="agent">
+            <div class="icon-circle" style="margin: 0 auto 12px;">🔐</div>
+            <small>Data</small>
+            <strong>Data Engineer</strong>
+            <div class="small muted">Privacy architecture, cohort math, pipelines. Load-bearing.</div>
+            <div class="model-tag">Opus</div>
+          </div>
+        </div>
+      </div>
+
+      <p class="small muted" style="margin-top: 30px;">
+        <strong>Opus</strong> for roles where a bad decision compounds (product scope, privacy architecture).
+        <strong>Sonnet</strong> where the volume of coherent output matters more (design, code).
+      </p>
+    </div>
+    <span class="slide__num">12</span>
+  </section>
+
+  <!-- ─────────────────── 13 OWNERSHIP LANES ─────────────────── -->
+  <section class="slide slide--white" data-title="Documentation lanes">
+    <div class="slide-inner">
+      <div class="slide__eyebrow">The discipline that makes async work</div>
+      <h2>One owner per directory — enforced, not encouraged</h2>
+      <p class="muted" style="max-width: 760px; margin-top: 14px;">
+        Every doc has exactly one owner. Specialists cannot edit outside their lane — a pre-commit hook
+        rejects the write. Conflicts surface at the orchestrator layer where a human can see them.
+      </p>
+      <table class="lanes" style="margin-top: 30px;">
+        <thead>
+          <tr>
+            <th>Directory</th>
+            <th>Owner</th>
+            <th>What lives there</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>docs/product/</code></td>
+            <td>Product Manager</td>
+            <td>Feature PRDs, user stories, PDRs, glossary, assumption log</td>
+          </tr>
+          <tr>
+            <td><code>docs/design/</code></td>
+            <td>Designer</td>
+            <td>Flows, screen states, component specs, accessibility checklists, copy</td>
+          </tr>
+          <tr>
+            <td><code>docs/engineering/</code></td>
+            <td>Engineer</td>
+            <td>Architecture notes, ADRs, tech decisions, test plans</td>
+          </tr>
+          <tr>
+            <td><code>docs/data/</code></td>
+            <td>Data Engineer</td>
+            <td>Data model, pipelines, cohort math, privacy &amp; compliance</td>
+          </tr>
+          <tr>
+            <td><code>docs/project/</code></td>
+            <td>Orchestrator</td>
+            <td>Plan, decision log, open questions, backlog, changelog, this deck</td>
+          </tr>
+          <tr>
+            <td><code>src/</code></td>
+            <td>Engineer</td>
+            <td>All application code &amp; tests</td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="small muted" style="margin-top: 22px;">
+        Every decision is either in <code>decision-log.md</code> (logged, dated, cited) or in
+        <code>open-questions.md</code> (unresolved, owned). Nothing lives only in a transient
+        conversation.
+      </p>
+    </div>
+    <span class="slide__num">13</span>
+  </section>
+
+  <!-- ─────────────────── 14 V0.1 TIMELINE ─────────────────── -->
+  <section class="slide slide--paper" data-title="v0.1 MVP journey">
+    <div class="slide-inner">
+      <div class="slide__eyebrow">v0.1 — what actually happened</div>
+      <h2>From scope-lock to running code in five phases</h2>
+      <p class="muted" style="max-width: 800px; margin-top: 14px;">
+        Every phase closed with a gate: orchestrator reads all outputs, reconciles conflicts,
+        logs cross-cutting decisions, the user ratifies, the next phase unblocks.
+      </p>
+
+      <div class="timeline">
+        <div class="timeline__step timeline__step--done">
+          <strong>Phase 0 — Scope Lock</strong>
+          <span class="timeline__date">2026-04-17</span>
+          7 open questions → 7 decisions + 2 backlog items. User-decided.
+        </div>
+        <div class="timeline__step timeline__step--done">
+          <strong>Phase 1 — Foundation</strong>
+          <span class="timeline__date">2026-04-17</span>
+          8 artefacts in parallel: privacy architecture, cohort math, 2 ADRs, metric list, assumption log, IA, trust patterns.
+        </div>
+        <div class="timeline__step timeline__step--done">
+          <strong>Phase 2 — Feature specs</strong>
+          <span class="timeline__date">2026-04-20</span>
+          9 feature PRDs + 9 designs across 3 tracks. Frozen Czech vocabulary, frozen time-horizons.
+        </div>
+        <div class="timeline__step timeline__step--done">
+          <strong>Phase 3 — Implementation</strong>
+          <span class="timeline__date">2026-04-20</span>
+          Next.js 14 + Supabase + RLS. Analyst authoring, consent, onboarding, owner brief, revocation, publish pipeline.
+        </div>
+        <div class="timeline__step timeline__step--done">
+          <strong>Phase 4 — Verification</strong>
+          <span class="timeline__date">2026-04-20</span>
+          V1–V8 checks: action count bounds, validity floor, no-raw-number rule, privacy separation, delivery fidelity.
+        </div>
+      </div>
+      <p class="small muted" style="margin-top: 30px;">
+        The branch <code>trial-phases-2-4</code> is frozen at the end of Phase 4 as a reference v0.1 state.
+      </p>
+    </div>
+    <span class="slide__num">14</span>
+  </section>
+
+  <!-- ─────────────────── 15 V0.2 POC CHANGES ─────────────────── -->
+  <section class="slide slide--white" data-title="v0.2 PoC">
+    <div class="slide-inner">
+      <div class="slide__eyebrow">v0.2 PoC — branch <code>trial-v0-2</code></div>
+      <h2>Reshape the owner experience for customer testing</h2>
+      <p class="muted" style="max-width: 760px; margin-top: 14px;">
+        v0.1 had a brief-first owner flow. v0.2 adds a dashboard landing page, reworks the brief itself,
+        and sidesteps the half-finished consent chain so a moderator can click through without auth friction.
+      </p>
+
+      <div class="grid grid--3" style="margin-top: 30px;">
+        <div class="card">
+          <span class="pill pill--red">In scope</span>
+          <h3 style="margin-top: 10px;">Owner dashboard at <code>/</code></h3>
+          <p class="small muted" style="margin-top: 8px;">
+            8-tile benchmark grid (one per frozen metric) + list of briefs relevant to the owner's NACE.
+          </p>
+        </div>
+        <div class="card">
+          <span class="pill pill--red">In scope</span>
+          <h3 style="margin-top: 10px;">Brief page rework</h3>
+          <p class="small muted" style="margin-top: 8px;">
+            Real ČS furniture publication at the top, benchmarks removed, insights paired visually with their actions.
+          </p>
+        </div>
+        <div class="card">
+          <span class="pill pill--red">In scope</span>
+          <h3 style="margin-top: 10px;">Hardcoded demo owner</h3>
+          <p class="small muted" style="margin-top: 8px;">
+            One furniture SME profile (NACE 31 / S2 / Praha). No login, no onboarding, no consent friction.
+          </p>
+        </div>
+      </div>
+
+      <div class="grid grid--2" style="margin-top: 22px;">
+        <div class="card" style="background: #faf8f2;">
+          <h4 style="color: var(--ink-1);">Out of scope (deliberate)</h4>
+          <ul class="check small" style="margin-top: 8px;">
+            <li>Fixing the v0.1 consent POST chain</li>
+            <li>Analyst back-office changes</li>
+            <li>Email / PDF polish for the new brief shape</li>
+            <li>George Business embedding</li>
+          </ul>
+        </div>
+        <div class="card" style="background: #faf8f2;">
+          <h4 style="color: var(--ink-1);">Why bypass, not fix</h4>
+          <p class="small muted" style="margin-top: 8px;">
+            The customer-testing moderator needs a clean walkthrough, not an auth demo.
+            Fixing the consent chain pulls in legal-blocked copy and an identity-stub decision.
+            Both are real v0.3 work — they don't belong in a PoC.
+          </p>
+        </div>
+      </div>
+    </div>
+    <span class="slide__num">15</span>
+  </section>
+
+  <!-- ─────────────────── 16 DASHBOARD MOCKUP ─────────────────── -->
+  <section class="slide slide--paper" data-title="Dashboard mockup">
+    <div class="slide-inner">
+      <div class="slide__eyebrow">Screen 1 — dashboard at <code>localhost:3000/</code></div>
+      <h2>Benchmark tiles above, relevant briefs below</h2>
+
+      <div class="grid grid--2" style="margin-top: 30px; align-items: start;">
+        <div class="mockup">
+          <div class="mockup__chrome">
+            <span></span><span></span><span></span>
+            <span class="mockup__url">localhost:3000/</span>
+          </div>
+          <div class="mockup__header">Česká Spořitelna · Strategy Radar</div>
+
+          <div class="mockup__section-h">Vaše pozice v kohortě</div>
+          <div class="tile-grid">
+            <div class="tile tile--q3">
+              <div class="tile__label">Hrubá marže</div>
+              <div class="tile__val">23,4 %</div>
+              <span class="tile__pill">třetí čtvrtina · 68. p.</span>
+            </div>
+            <div class="tile tile--q2">
+              <div class="tile__label">EBITDA marže</div>
+              <div class="tile__val">8,5 %</div>
+              <span class="tile__pill">druhá čtvrtina · 44. p.</span>
+            </div>
+            <div class="tile tile--floor">
+              <div class="tile__label">Podíl mzdových nákladů</div>
+              <div class="tile__val">Zatím nedostatek dat pro srovnání</div>
+              <span class="tile__pill">čeká se</span>
+            </div>
+            <div class="tile tile--q3">
+              <div class="tile__label">Tržby na zaměstnance</div>
+              <div class="tile__val">2 450 000 Kč</div>
+              <span class="tile__pill">třetí čtvrtina · 57. p.</span>
+            </div>
+            <div class="tile tile--floor">
+              <div class="tile__label">Obratový cyklus</div>
+              <div class="tile__val">62 dní — data nestačí</div>
+              <span class="tile__pill">čeká se</span>
+            </div>
+            <div class="tile tile--q2">
+              <div class="tile__label">ROCE</div>
+              <div class="tile__val">11,2 %</div>
+              <span class="tile__pill">druhá čtvrtina · 48. p.</span>
+            </div>
+            <div class="tile tile--q4">
+              <div class="tile__label">Růst tržeb</div>
+              <div class="tile__val">+3,1 %</div>
+              <span class="tile__pill">horní čtvrtina · 78. p.</span>
+            </div>
+            <div class="tile tile--q2">
+              <div class="tile__label">Cenová síla</div>
+              <div class="tile__val">+0,8 p. b.</div>
+              <span class="tile__pill">druhá čtvrtina · 52. p.</span>
+            </div>
+          </div>
+
+          <div class="mockup__section-h" style="margin-top: 18px;">Analýzy</div>
+          <ul class="list-reset brief-list" style="background: #fcfbf7; border-radius: 4px;">
+            <li>
+              <span><span class="new-pill">Nový</span><strong>Nábytkářský sektor — duben 2026</strong></span>
+              <small>NACE 31 · dnes</small>
+            </li>
+            <li>
+              <strong>Vývoz českého nábytku do Německa — Q1 2026</strong>
+              <small>NACE 31 · před 10 dny</small>
+            </li>
+            <li>
+              <strong>Tlak dovozců z jihovýchodní Asie na cenotvorbu</strong>
+              <small>NACE 31 · před 35 dny</small>
+            </li>
+          </ul>
+        </div>
+
+        <div class="stack">
+          <div>
+            <h4>Tile palette</h4>
+            <p class="small muted" style="margin-top: 8px;">
+              Blue → teal → sage → stone, top to bottom. Deliberately not red-at-the-bottom —
+              a red tile on a bank dashboard reads as a credit-risk flag, which kills the #1 trust barrier.
+              Redundant non-colour signal: the Czech quartile label in every pill.
+            </p>
+          </div>
+          <div>
+            <h4>Below-floor state</h4>
+            <p class="small muted" style="margin-top: 8px;">
+              When the cohort is too small for reliable comparison, the tile says so openly —
+              the number and percentile both disappear behind a gentle "Zatím nedostatek dat
+              pro srovnání" message. No silent low-confidence percentiles.
+            </p>
+          </div>
+          <div>
+            <h4>Brief list relevance</h4>
+            <p class="small muted" style="margin-top: 8px;">
+              Briefs filtered to the owner's NACE, ordered newest first.
+              A "Nový" pill marks items published in the last 30 days.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <span class="slide__num">16</span>
+  </section>
+
+  <!-- ─────────────────── 17 BRIEF MOCKUP ─────────────────── -->
+  <section class="slide slide--white" data-title="Brief mockup">
+    <div class="slide-inner">
+      <div class="slide__eyebrow">Screen 2 — brief detail page</div>
+      <h2>Publication at the top, insight → action pairs below</h2>
+
+      <div class="grid grid--2" style="margin-top: 30px; align-items: start;">
+        <div class="mockup">
+          <div class="mockup__chrome">
+            <span></span><span></span><span></span>
+            <span class="mockup__url">localhost:3000/brief/&lt;uuid&gt;</span>
+          </div>
+          <div class="mockup__header">Nábytkářský sektor — duben 2026</div>
+
+          <div class="brief-mock">
+            <div class="brief-mock__pub">
+              <strong>Sektorová analýza</strong>
+              Výroba nábytku v Česku (NACE 31) meziročně mírně poklesla, ale vývozní pozice zůstává silná.
+              Firmy s diverzifikovanou dodavatelskou základnou si drží marže nad průměrem…
+              <div style="margin-top: 8px; font-size: 11px; color: var(--ink-3);">▸ Číst celou analýzu</div>
+            </div>
+
+            <div class="brief-mock__pair">
+              <span class="pill pill--red" style="margin-bottom: 6px; font-size: 10px;">Do 3 měsíců</span>
+              <strong>Marže pod tlakem napříč sektorem</strong>
+              <span class="small" style="color: var(--ink-2);">Průměrná hrubá marže klesla o 1,4 p. b. za 12 měsíců. Firmy s diverzifikovanými dodavateli si marže udržely.</span>
+              <span class="rec">
+                <em>Doporučený krok — Okamžitě</em>
+                Zkontrolujte smlouvy s klíčovými dodavateli a zmapujte, kde lze sjednat množstevní slevy nebo delší platební lhůty.
+              </span>
+            </div>
+
+            <div class="brief-mock__pair">
+              <span class="pill pill--blue" style="margin-bottom: 6px; font-size: 10px;">Do 12 měsíců</span>
+              <strong>Digitalizace objednávek šetří náklady</strong>
+              <span class="small" style="color: var(--ink-2);">Plně digitální objednávkový proces = o 7 % nižší provozní náklady na objednávku. Adopce EDI se meziročně zdvojnásobila.</span>
+              <span class="rec">
+                <em>Doporučený krok — Do 3 měsíců</em>
+                Zvažte pilotní nasazení e-faktury pro top 5 odběratelů. Ušetří 2–3 hodiny administrativy týdně.
+              </span>
+            </div>
+
+            <div class="brief-mock__pair">
+              <span class="pill pill--teal" style="margin-bottom: 6px; font-size: 10px;">Okamžitě</span>
+              <strong>Vaše pozice v kohortě</strong>
+              <span class="small" style="color: var(--ink-2);">Hrubá marže: třetí čtvrtina (68. p.). Tržby na zaměstnance nadprůměrné. Prostor pro zlepšení existuje.</span>
+              <span class="rec">
+                <em>Doporučený krok — Do 12 měsíců</em>
+                Diverzifikujte dodavatele v kategoriích s nejvyšší závislostí na jediném zdroji.
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="stack">
+          <div>
+            <h4>Publication block</h4>
+            <p class="small muted" style="margin-top: 8px;">
+              Opens with a 200–400 word plain-Czech, owner-voice distillation.
+              The full ČS publication (20k+ words, bank-authored) is behind a
+              <em>Číst celou analýzu</em> disclosure. Bank-native trust
+              signal without drowning the reader.
+            </p>
+          </div>
+          <div>
+            <h4>Insight↔action pairing</h4>
+            <p class="small muted" style="margin-top: 8px;">
+              Each observation carries an optional paired action. They render as one grouped
+              card with a continuous left border and a <em>Doporučený krok:</em> label — the
+              connection is unambiguous, colour-independent.
+            </p>
+          </div>
+          <div>
+            <h4>No benchmark section here</h4>
+            <p class="small muted" style="margin-top: 8px;">
+              Benchmarks migrated to the dashboard at v0.2. The brief itself is pure editorial:
+              an observation, a judgement, a specific next step — nothing raw.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <span class="slide__num">17</span>
+  </section>
+
+  <!-- ─────────────────── 18 PRODUCT PRINCIPLES ─────────────────── -->
+  <section class="slide slide--paper" data-title="Product principles">
+    <div class="slide-inner">
+      <div class="slide__eyebrow">Non-negotiables</div>
+      <h2>Eight product principles — guardrails on every feature</h2>
+      <p class="muted" style="max-width: 720px; margin-top: 14px;">
+        Every feature either respects these or it gets pulled. Each specialist reads them at the top
+        of every task. Violations are escalated, never silently accepted.
+      </p>
+
+      <div class="grid grid--2" style="margin-top: 30px;">
+        <div class="card">
+          <h3>1. Briefs are the atomic unit of value</h3>
+          <p class="small muted" style="margin-top: 6px;">Every feature produces, enriches, or distributes a brief — or it is out of scope.</p>
+        </div>
+        <div class="card">
+          <h3>2. Verdicts, not datasets</h3>
+          <p class="small muted" style="margin-top: 6px;">Every output is a conclusion. No raw numbers without a comparison. Ever.</p>
+        </div>
+        <div class="card">
+          <h3>3. Plain language, no jargon</h3>
+          <p class="small muted" style="margin-top: 6px;">No statistical notation. Reads like a well-informed accountant speaking.</p>
+        </div>
+        <div class="card">
+          <h3>4. Proof of value before anything else</h3>
+          <p class="small muted" style="margin-top: 6px;">First session produces a verdict in under 60 s for bank-referred users. No config walls.</p>
+        </div>
+        <div class="card">
+          <h3>5. Privacy is a product feature</h3>
+          <p class="small muted" style="margin-top: 6px;">Client data never enters base-model training. Brief / user / RM / credit data stay architecturally separate.</p>
+        </div>
+        <div class="card">
+          <h3>6. Lead signals are opportunity-flavoured</h3>
+          <p class="small muted" style="margin-top: 6px;">Nothing ever reads to the owner as "the bank is watching me for credit risk". That collapses trust.</p>
+        </div>
+        <div class="card">
+          <h3>7. Bank-native distribution</h3>
+          <p class="small muted" style="margin-top: 6px;">George Business embedding is the primary channel. Direct sign-up is the backup.</p>
+        </div>
+        <div class="card">
+          <h3>8. Every interaction is data acquisition</h3>
+          <p class="small muted" style="margin-top: 6px;">Every touchpoint considers what data we could learn for a richer future output.</p>
+        </div>
+      </div>
+    </div>
+    <span class="slide__num">18</span>
+  </section>
+
+  <!-- ─────────────────── 19 THE 3 ČS GOALS ─────────────────── -->
+  <section class="slide slide--white" data-title="Three business goals">
+    <div class="slide-inner">
+      <div class="slide__eyebrow">Why this product, from ČS's perspective</div>
+      <h2>Three business goals, each traceable in every artefact</h2>
+      <p class="muted" style="max-width: 780px; margin-top: 14px;">
+        Every workstream maps back to at least one goal. The build plan checks this explicitly.
+        Features that don't thread to a goal are out of scope or deferred.
+      </p>
+
+      <div class="goals" style="margin-top: 36px;">
+        <div class="goal">
+          <span class="goal__emoji">🎯</span>
+          <h3>G1 · Engagement</h3>
+          <p>Recurring engagement of SME clients with ČS, with the product as a reason to return.</p>
+        </div>
+        <div class="goal">
+          <span class="goal__emoji">📊</span>
+          <h3>G2 · Data depth &amp; cadence</h3>
+          <p>More client data, in more detail, more often. The primary instrument for sustained SME data contribution.</p>
+        </div>
+        <div class="goal">
+          <span class="goal__emoji">🤝</span>
+          <h3>G3 · RM lead generation</h3>
+          <p>Opportunity-flavoured signals RMs can act on. Deferred past MVP (not risk-framed).</p>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top: 30px; background: #fbf6ef;">
+        <h4 style="color: var(--ink-1);">The moat — why this is defensible</h4>
+        <p class="small muted" style="margin-top: 10px;">
+          <strong>20&nbsp;000+</strong> anonymised Czech SME financial records already live at ČS — structurally unreplicable.
+          <strong>70–90%</strong> CAC reduction vs. direct B2B SaaS through the RM channel.
+          <strong>Trust transfer</strong> from ČS: owners share data with their bank in ways they would not with an outside vendor.
+          All three fuel the give-to-get flywheel: each participant widens the gap.
+        </p>
+      </div>
+    </div>
+    <span class="slide__num">19</span>
+  </section>
+
+  <!-- ─────────────────── 20 WHAT'S RUNNING NOW ─────────────────── -->
+  <section class="slide slide--paper" data-title="What's running now">
+    <div class="slide-inner">
+      <div class="slide__eyebrow">Live on <code>trial-v0-2</code></div>
+      <h2>What a tester can actually click through right now</h2>
+
+      <div class="grid grid--2" style="margin-top: 30px;">
+        <div class="card">
+          <h3>Dashboard at <code>/</code></h3>
+          <ul class="check small" style="margin-top: 10px;">
+            <li><strong>8 tiles</strong> rendered for the dummy furniture owner — real Czech-formatted values</li>
+            <li>Quartile palette with Czech label pills; below-floor tile in muted stone</li>
+            <li><strong>3 briefs</strong> in the "Analýzy" list — 1 real furniture brief + 2 placeholders</li>
+            <li>No login, no consent screen, no onboarding step</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Brief detail at <code>/brief/&lt;uuid&gt;</code></h3>
+          <ul class="check small" style="margin-top: 10px;">
+            <li>Real ČS furniture-sector publication rendered as a <strong>Sektorová analýza</strong> block</li>
+            <li>Layperson opener (~340 Czech words) + full publication behind a disclosure</li>
+            <li>3 paired observation+action cards with visible connection</li>
+            <li>Old Srovnávací přehled section removed</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Analyst back-office at <code>/admin</code></h3>
+          <ul class="check small" style="margin-top: 10px;">
+            <li>Password: <code>test</code> (trial only)</li>
+            <li>Create, edit, publish brief flow — unchanged from v0.1, fully working</li>
+            <li>Publish checklist with affirmation metadata</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Under the hood</h3>
+          <ul class="check small" style="margin-top: 10px;">
+            <li>Next.js 14 App Router · TypeScript strict mode</li>
+            <li>Supabase Postgres with Row-Level Security per data lane</li>
+            <li>Four separated data lanes: brief / user / RM-visible / credit-risk</li>
+            <li>Every decision traceable in <code>docs/project/decision-log.md</code></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <span class="slide__num">20</span>
+  </section>
+
+  <!-- ─────────────────── 21 STATS DUMP ─────────────────── -->
+  <section class="slide slide--ink" data-title="By the numbers">
+    <div class="slide-inner">
+      <div class="slide__eyebrow" style="color: #f2c94c;">By the numbers</div>
+      <h2 style="color: #fff;">What the last six days produced</h2>
+      <div class="grid grid--4" style="margin-top: 50px;">
+        <div class="stat">
+          <div class="stat__num">70+</div>
+          <div class="stat__label">Source files in <code>src/</code></div>
+        </div>
+        <div class="stat">
+          <div class="stat__num">20</div>
+          <div class="stat__label">Logged decisions</div>
+        </div>
+        <div class="stat">
+          <div class="stat__num">9</div>
+          <div class="stat__label">Feature PRDs (MVP)</div>
+        </div>
+        <div class="stat">
+          <div class="stat__num">9</div>
+          <div class="stat__label">Design artefacts (MVP)</div>
+        </div>
+        <div class="stat">
+          <div class="stat__num">5</div>
+          <div class="stat__label">SQL migrations, all RLS</div>
+        </div>
+        <div class="stat">
+          <div class="stat__num">8</div>
+          <div class="stat__label">Frozen metrics</div>
+        </div>
+        <div class="stat">
+          <div class="stat__num">4</div>
+          <div class="stat__label">Separated data lanes</div>
+        </div>
+        <div class="stat">
+          <div class="stat__num">2</div>
+          <div class="stat__label">Branches: v0.1 &amp; v0.2</div>
+        </div>
+      </div>
+      <p class="small" style="margin-top: 40px; max-width: 760px; color: #a0b4cd;">
+        Every number is traceable to a commit, a specialist, and a decision. The
+        architecture is not "a working demo" — it is a full production-shaped
+        skeleton with RLS, a publish pipeline, seed data, and a verifiable
+        decision log.
+      </p>
+    </div>
+    <span class="slide__num">21</span>
+  </section>
+
+  <!-- ─────────────────── 22 CUSTOMER TESTING ─────────────────── -->
+  <section class="slide slide--paper" data-title="Customer testing">
+    <div class="slide-inner">
+      <div class="slide__eyebrow">What the PoC is for</div>
+      <h2>Customer testing is the point</h2>
+      <p class="muted" style="max-width: 780px; margin-top: 14px;">
+        v0.2 exists so a moderator can put a Czech SME owner in front of this, hand them a session,
+        and see what lands. We're testing <em>concept</em> — not pixel polish, not pricing.
+      </p>
+
+      <div class="grid grid--2" style="margin-top: 30px;">
+        <div class="card">
+          <h4>What we want to surface</h4>
+          <ul class="check small" style="margin-top: 8px;">
+            <li><strong>First-minute reaction</strong> — does it feel like <em>their</em> sector, or like generic content?</li>
+            <li><strong>Plain-language test</strong> — any sentence a participant re-reads is a failure</li>
+            <li><strong>Action concreteness</strong> — "could I actually do that?" beats "interesting idea"</li>
+            <li><strong>Comparison realism</strong> — "that matches what I thought" vs. "that's surprising-but-plausible"</li>
+            <li><strong>Trust reactions</strong> — does the bank-sourced analysis reassure or raise new concerns?</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>What we explicitly won't drill on</h4>
+          <ul class="check small" style="margin-top: 8px;">
+            <li>UI polish and visual design — PoC, not launch</li>
+            <li>Pricing / subscription — free during validation</li>
+            <li>English version — Czech only for now</li>
+            <li>Real-time alerts or dashboards — Increment 2+</li>
+            <li>Features not visible in this PoC</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="quote" style="margin-top: 26px;">
+        "It's a monthly briefing from Česká Spořitelna about how my business is doing compared to
+        similar Czech firms, with a few concrete things I could do — written for me, not for an analyst."
+        <cite>— what a participant should be able to repeat after the session.
+        From the customer-testing brief at <code>docs/project/customer-testing-brief.md</code>.</cite>
+      </div>
+    </div>
+    <span class="slide__num">22</span>
+  </section>
+
+  <!-- ─────────────────── 23 WHAT'S NEXT ─────────────────── -->
+  <section class="slide slide--white" data-title="What's next">
+    <div class="slide-inner">
+      <div class="slide__eyebrow">Next moves</div>
+      <h2>Customer testing → v0.3 depending on what we hear</h2>
+
+      <div class="grid grid--3" style="margin-top: 30px;">
+        <div class="card card--accent">
+          <span class="pill pill--red">Near term</span>
+          <h3 style="margin-top: 12px;">Run the tests</h3>
+          <p class="small muted" style="margin-top: 8px;">
+            Moderator-led walkthroughs with Czech furniture SME owners using the
+            running PoC. Customer-testing brief already prepared for any Claude
+            session supporting the moderator.
+          </p>
+        </div>
+        <div class="card card--accent">
+          <span class="pill pill--red">Near term</span>
+          <h3 style="margin-top: 12px;">Synthesise signals</h3>
+          <p class="small muted" style="margin-top: 8px;">
+            Which observations landed? Did the brief feel like <em>their</em> sector?
+            Trust reactions to the privacy framing? Action concreteness hits vs. misses?
+          </p>
+        </div>
+        <div class="card card--accent">
+          <span class="pill pill--red">Medium term</span>
+          <h3 style="margin-top: 12px;">Inform v0.3</h3>
+          <p class="small muted" style="margin-top: 8px;">
+            Fix consent for real. Add real onboarding. Pull in George Business embedding.
+            Decide Increment 2 features based on what customers actually asked for.
+          </p>
+        </div>
+      </div>
+
+      <div class="grid grid--2" style="margin-top: 30px;">
+        <div class="card" style="background: #fbf6ef;">
+          <h4 style="color: var(--ink-1);">Biggest open questions</h4>
+          <ul class="check small" style="margin-top: 8px;">
+            <li>Does a real SME owner recognise themselves in the furniture brief?</li>
+            <li>Is the monthly rhythm right — or do they want alerts?</li>
+            <li>Would they forward the PDF to their accountant? (strong engagement signal)</li>
+            <li>How do they react to the bank-as-source framing on a privacy-sensitive topic?</li>
+          </ul>
+        </div>
+        <div class="card" style="background: #fbf6ef;">
+          <h4 style="color: var(--ink-1);">What we're not going to decide on this deck</h4>
+          <ul class="check small" style="margin-top: 8px;">
+            <li>Monetisation — not until we see validated engagement</li>
+            <li>RM lead signal surface — needs the opportunity-framing work, post-MVP</li>
+            <li>English support — Increment 5, if at all</li>
+            <li>A standalone benchmark dashboard as a product — explicitly out of scope</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <span class="slide__num">23</span>
+  </section>
+
+  <!-- ─────────────────── 24 CLOSING ─────────────────── -->
+  <section class="slide slide--ink" data-title="Close">
+    <div class="slide-inner">
+      <h1 style="color: #fff; max-width: 900px;">One human, one orchestrator, four specialists, six days.</h1>
+      <p style="margin-top: 30px; max-width: 720px; font-size: 22px; color: #cde1f6;">
+        The discovery is Arkana's. The build is ours. The judgement calls are still yours —
+        and that's the whole point.
+      </p>
+      <div style="margin-top: 60px;">
+        <div class="cover-wordmark" style="color: #f2c94c;">Strategy Radar · Česká Spořitelna</div>
+        <p class="small" style="margin-top: 14px; color: #8aa0bd;">
+          All artefacts live in <code>docs/</code>, all code in <code>src/</code>, all decisions in <code>decision-log.md</code>.
+          The running PoC is at <code>localhost:3000</code> on branch <code>trial-v0-2</code>.
+        </p>
+      </div>
+    </div>
+    <span class="slide__num">24</span>
+  </section>
+
+</main>
+
+<!-- ─────────────────── Navigation ─────────────────── -->
+<div class="nav" id="nav" aria-label="Slide navigation"></div>
+<button class="nav-toggle" id="navToggle" title="Toggle snap-scroll">Press S for slide mode · ← → to navigate</button>
+
+<script>
+  (function () {
+    const slides = Array.from(document.querySelectorAll('.slide'));
+    const nav = document.getElementById('nav');
+
+    // Build nav dots
+    slides.forEach((s, i) => {
+      const btn = document.createElement('button');
+      btn.title = s.getAttribute('data-title') || ('Slide ' + (i + 1));
+      btn.addEventListener('click', () => {
+        s.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+      nav.appendChild(btn);
+    });
+
+    const dots = Array.from(nav.querySelectorAll('button'));
+
+    // Snap-scroll toggle
+    const toggle = document.getElementById('navToggle');
+    function setSnap(on) {
+      document.documentElement.classList.toggle('snap', on);
+      toggle.textContent = on
+        ? 'Slide mode ON · ← → to navigate · press S to turn off'
+        : 'Press S for slide mode · ← → to navigate';
+    }
+    toggle.addEventListener('click', () => setSnap(!document.documentElement.classList.contains('snap')));
+
+    // Highlight active slide dot on scroll
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((e) => {
+        if (e.isIntersecting) {
+          const i = slides.indexOf(e.target);
+          dots.forEach((d, j) => d.classList.toggle('is-active', j === i));
+        }
+      });
+    }, { threshold: 0.5 });
+    slides.forEach((s) => io.observe(s));
+
+    // Keyboard: arrows navigate slide-by-slide, S toggles snap
+    function currentIndex() {
+      const mid = window.scrollY + window.innerHeight / 2;
+      for (let i = 0; i < slides.length; i++) {
+        const r = slides[i].getBoundingClientRect();
+        const top = r.top + window.scrollY;
+        if (mid >= top && mid < top + r.height) return i;
+      }
+      return 0;
+    }
+    function goto(i) {
+      i = Math.max(0, Math.min(slides.length - 1, i));
+      slides[i].scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') {
+        e.preventDefault(); goto(currentIndex() + 1);
+      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        e.preventDefault(); goto(currentIndex() - 1);
+      } else if (e.key === 'Home') {
+        e.preventDefault(); goto(0);
+      } else if (e.key === 'End') {
+        e.preventDefault(); goto(slides.length - 1);
+      } else if (e.key === 's' || e.key === 'S') {
+        setSnap(!document.documentElement.classList.contains('snap'));
+      }
+    });
+  })();
+</script>
+
+</body>
+</html>

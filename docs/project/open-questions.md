@@ -77,6 +77,40 @@ Not a blocker for MVP; tracked so the items don't get forgotten.
 
 ---
 
+## Phase 2 specialist OQs — indexed by feature artifact
+
+Phase 2 (2026-04-20) produced 67 new specialist-level open questions across 9 PM PRDs and 9 designer files. Rather than transcribe each here, this section indexes them by source; full text + context lives in each artifact's own Open Questions section. Cross-cutting items that need orchestrator or user action are promoted to the **Phase 2 cross-cutting OQs** table below; the remainder are specialist-internal follow-ups that will resolve during Phase 3 implementation or remain non-blocking.
+
+| Feature | PM OQs (`docs/product/<slug>.md`) | Designer OQs (`docs/design/<slug>.md`) |
+|---|---|---|
+| monthly-briefing-generation | Q-MBG-001..005 | Q-PD-MBG-001..007 |
+| observation-generation | OG-Q-01..05 | Q-PD-OG-001..005 |
+| plain-language-translation | — | Q-PD-PLT-001..002 |
+| action-specificity-framing | Q-ASF-001..005 | Q-PD-ASF-001..005 |
+| percentile-position-calculation | — (references OQ-018/019/020) | Q-PD-PPC-001..003 |
+| quartile-position-display | OQ-QPD-001..004 | Q-PD-QPD-001..005 |
+| category-based-layout | — | Q-PD-CBL-001..002 |
+| sector-profile-configuration | — (references OQ-003/013/018/021) | Q-PD-SPC-001..010 |
+| multi-format-delivery | Q-MFD-001..005 | Q-PD-MFD-001..004 |
+
+### Phase 2 cross-cutting OQs — promoted for orchestrator tracking
+
+| ID | Question | Source | Blocking |
+|---|---|---|---|
+| OQ-045 | PRD §8.6 and §8.7 referenced in original orchestrator briefs do not exist — PRD §8 is §8.1..§8.5. Agents correctly re-anchored to §8.1 + §9. No content gap; flag for PRD index/header cleanup in a future PRD revision. | Q-MBG-001, Q-MFD-001 note, quartile-position PRD note | cosmetic / traceability |
+| OQ-046 | **PDF confidentiality notice**: system-wide constant or per-brief analyst-editable? Affects `monthly-briefing-generation` authoring UI and `multi-format-delivery` PDF footer. PM + legal cross-feature. | Q-MBG-005, Q-PD-MBG-005 | Phase 3 authoring UI completeness |
+| OQ-047 | **Priority-NACE cohort list** (referenced by cohort-math §2.4 as "~10 priority NACE divisions" but not frozen). Needed to render FloorStatusIndicator (Q-PD-OG-002) and to populate the below-floor-hard-block on authoring. Needs PM + analyst + data-engineer alignment. | OG-Q-01, Q-PD-OG-002 | Phase 3 authoring UI + cohort compute completeness |
+| OQ-048 | **Email unsubscribe-vs-revocation semantics**. D-007 locks single opt-in; email unsubscribe link would create a second revocation primitive. Two designer-drafted email footer variants are both blocked pending this decision. Legal + PM cross-feature; likely routes to existing OQ-004. | Q-MFD-002, Q-PD-MFD-001 | Phase 3 email footer copy |
+| OQ-049 | **Fail-closed consent-status check on network error** in Multi-Format Delivery — when the consent lookup fails transiently, do we fail-closed (block delivery) or fail-open (deliver)? Load-bearing trust constraint; engineer detail with PM + data-engineer implications. | Q-PD-MFD-004 | Phase 3 delivery pipeline |
+| OQ-050 | **Direct-sign-up auth hand-off** (secondary per A-014). ADR-0001-E covered only bank-referred (JWT redirect stub); direct-sign-up identity + consent entry path is unspecified. Blocks engineer ADR. | Q-PD-SPC-001 | Phase 3 engineer ADR addendum |
+| OQ-051 | **"Kohorta" in owner-facing copy** — term used in category-based-layout empty-state and quartile-position below-floor fallback; may not be owner-legible. Candidate substitution: "ve vašem oboru a velikostní kategorii." Requires PLT frozen-terms-list review. | Q-PD-CBL-001 | Phase 3 copy review |
+| OQ-052 | **`confidenceState` enum alias**: designer uses `below-floor` for precision; IA originally uses `low-confidence`. Engineer to treat as an alias/rename during implementation. Not a product decision. | Q-PD-QPD-004 | Phase 3 engineer implementation (naming detail) |
+| OQ-053 | **Action click-through telemetry on non-interactive ActionItem** — owner-side ActionItems are read-only at MVP ("no mark as done" = Inc 2+). KPI in PRD §6 G1 needs a non-click telemetry approach (e.g., scroll-into-view, time-on-section). Engineer telemetry scope. | Q-PD-ASF-001 | Phase 3 engineering; KPI measurability |
+
+Remaining specialist-internal items (design-system confirmations chained on OQ-006, icon-library choices, validation-error-copy nuances, etc.) are left in their feature artifacts and resolve naturally during Phase 3 implementation. Any that block Phase 3 will surface to the orchestrator at that gate.
+
+---
+
 ## Resolved at Phase 1 gate (2026-04-17)
 
 | ID | Resolution |
@@ -98,6 +132,24 @@ Not a blocker for MVP; tracked so the items don't get forgotten.
 2. Either (a) resolve directly and add a row to [decision-log.md](decision-log.md) with the matching `D-NNN`, or (b) escalate to the human via `AskUserQuestion`.
 3. Update the `Status` column in this file. Never delete rows — resolved questions stay as an audit trail.
 
+## v0.2 Track A spec gate (2026-04-21)
+
+All raised on branch `trial-v0-2` during Phase 2.1 Track A + Track C spec-writing. Minor accessibility / implementation nits that the engineer + designer can reconcile during Phase 2.2.b–c stay inside the artifact files themselves; only items needing user or cross-lane decision are promoted here.
+
+| Date | ID | Question | Raised by | Blocking | Status |
+|---|---|---|---|---|---|
+| 2026-04-21 | OQ-054 | **`pricing_power` metric floor violation for the demo owner.** DE's NACE 31 / S2 / Praha cohort stub uses n_firms=34, which clears the global N≥30 floor but violates the stricter N≥50 floor declared for `pricing_power` in the Phase 1 cohort math. Shipping the tile as `valid` contradicts the stricter policy; marking it `below-floor` reduces the demo's readout count. Recommendation: accept the looser floor for the PoC only; harden in v0.3. | data-engineer | `docs/data/dummy-owner-metrics.md` §4.1, any v0.3 tightening of per-metric floors. | open — PoC-accept, harden at v0.3 |
+| 2026-04-21 | OQ-055 | **"Přehled" naming collision on the dashboard page.** Glossary defines "Přehled" = a single brief document; PM spec reuses "Přehledy" as the plural list header on the dashboard. Three resolutions offered in `dashboard-v0-2.md` §12 OQ-DV02-01. PM preference: keep-as-specced. | product-manager | Dashboard copy production (affects PD copy pickup + EN implementation). | resolved — [D-019](decision-log.md) (list renamed "Analýzy") |
+| 2026-04-21 | OQ-056 | **ČS wordmark on the dashboard header band.** Brief page renders "Česká Spořitelna · Strategy Radar"; dashboard PD spec omits ČS wordmark (just "Strategy Radar"). Consistency preference vs. PoC minimalism. | designer | `src/app/page.tsx` header implementation in Phase 2.2.a. | resolved — [D-018](decision-log.md) (ČS · Strategy Radar kept) |
+| 2026-04-21 | OQ-057 | **Desktop max-width container strategy.** PD proposes 960 px for the dashboard (fits 4 tile columns). Brief page uses 680 px (single column). If a shared layout container is introduced, one of the two page widths loses. | designer → engineer | Phase 2.2.a scaffold. | open — engineer to decide container strategy during 2.2.a |
+| 2026-04-21 | OQ-058 | **Below-floor tile copy — short vs. full form.** PD proposes short "Zatím nedostatek dat pro srovnání" to fit a tile; the frozen full string lives in `quartile-position-display.md` §5.5. PM to confirm short form is acceptable for the tile context. | designer → product-manager | Tile below-floor state rendering. | resolved — PM confirmed short form in `brief-page-v0-2.md` §9; full form remains the reference string for wider contexts. |
+
+Non-promoted: 6 further specialist-internal items flagged in the PD spec files (tile interactivity, category-badge placement, badge contrast nudge 3.54 → 5.74 at #666, `aria-label` double-announce on quartile pill and "Nový" badge, NACE code display-name resolution, brief-list pagination at v0.3+). These stay inside the PD spec where they were raised and are resolved during Phase 2.2 implementation with engineer + PD in thread. Do not re-promote unless a blocker surfaces.
+
+---
+
 ## Changelog
 - 2026-04-17 — initial population after Phase 1 gate. 20 open questions transcribed from engineer, data-engineer, designer artifacts; 2 resolved at gate (D-010, D-011).
 - 2026-04-17 — user decisions on OQ-001 and OQ-002 resolved to D-012 and D-013. OQ-009 moot under D-012. OQ-021 added (retention window) post-reconciliation from data-engineer.
+- 2026-04-20 — Phase 2 PM + PD gate: 67 specialist OQs indexed by feature-artifact (not individually transcribed to keep register readable); 9 cross-cutting items promoted as OQ-045..053.
+- 2026-04-21 — v0.2 Track A + Track C spec gate on branch `trial-v0-2`: OQ-054..058 transcribed (1 DE, 1 PM, 3 PD). 6 specialist-internal items left in-artifact per triage. OQ-055, OQ-056 are user-gated; OQ-054 is PoC-accepted; OQ-057 is engineer-gated; OQ-058 is PM-gated and will close when `brief-page-v0-2.md` is written.

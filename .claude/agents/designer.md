@@ -89,6 +89,28 @@ flowchart TD
 - YYYY-MM-DD — initial draft — designer
 ```
 
+## Visual style — GDS (George Design System)
+
+All screens on this project target the George Design System visual language. Design with these constraints:
+
+**Color tokens** (source: `/Users/lexislav/Projekty/GDS prototyping toolikt/lib/sass/_variables.scss`):
+- **Primary blue** (~#1565C0): header bg, primary actions, "Nový" pills, "Zobrazit" links
+- **Page bg**: light gray (~#F0F2F5)
+- **Cards**: white bg, 8 px radius, 1 px #E8E8E8 border
+- **Quartile accent** (top border + category badge bg/text on metric tiles):
+  - horní čtvrtina (top 25 %): primary blue
+  - třetí čtvrtina (50–75 %): green (~#2E7D32)
+  - druhá čtvrtina (25–50 %): amber (~#E65100)
+  - dolní čtvrtina (bottom 25 %): red
+  - Nedostatek dat: dark blue-gray (~#455A64)
+- **Headings**: dark navy (~#0D2D3D), bold
+- **Body text**: #1A1A1A (primary), #616161 (secondary), #9E9E9E (metadata)
+- **Font**: Inter (available in GDS toolkit at `GDS prototyping toolikt/dist/treasury/fonts/`)
+
+**AI disclaimer — mandatory on every page** (company policy for AI-generated prototypes):
+> "Tento prototyp byl vygenerován pomocí AI."
+Centered, gray (#9E9E9E), 13 px, 24 px vertical padding, at the very bottom of every screen. Spec it in every screen inventory's footer row.
+
 ## When to stop and escalate
 
 Log in `docs/project/open-questions.md` and end your turn when:
