@@ -15,8 +15,10 @@
  * Run AFTER applying migration 0007_cohort_data.sql.
  * Then run seed:synth-quintiles to fill coverage gaps with DE-authored synth rows.
  *
- * Privacy: no firm names are written to the DB. IČO is anonymised industry data
- * ingested under existing data agreements (OQ-003).
+ * Privacy: firm names ARE written to the DB as of migration 0009 (2026-04-27).
+ * The source data is the Czech public business registry, where firm names are
+ * already public information. The user_contributed lane (owner-volunteered
+ * financials) is unaffected.
  */
 
 import * as fs from "fs";
@@ -231,6 +233,7 @@ async function main() {
   // Build the rows to upsert in memory first; then batch-upsert to Supabase.
   type RowToUpsert = {
     ico: string;
+    name: string | null;
     year: number;
     nace_class: string;
     nace_division: string;
@@ -333,8 +336,18 @@ async function main() {
 
     sizeBandCounts[sizeBand]++;
 
+    // ── Firm name ────────────────────────────────────────────────────────
+    // From "Název subjektu" column. Public registry attribute; falls back to
+    // null if missing. Migration 0009 added the column.
+    const nameRaw = row["Název subjektu"];
+    const name =
+      nameRaw != null && String(nameRaw).trim() !== ""
+        ? String(nameRaw).trim()
+        : null;
+
     rowsToUpsert.push({
       ico: icoRaw,
+      name,
       year,
       nace_class: nace.naceClass,
       nace_division: nace.naceDivision,

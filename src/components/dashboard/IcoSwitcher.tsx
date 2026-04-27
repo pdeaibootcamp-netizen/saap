@@ -25,9 +25,11 @@ import React, { useState } from "react";
 interface IcoSwitcherProps {
   /** Current active IČO (from cookie, shown as input value). */
   activeIco?: string;
+  /** Current active firm name (from cohort_companies via switch route). */
+  activeName?: string;
 }
 
-export default function IcoSwitcher({ activeIco }: IcoSwitcherProps) {
+export default function IcoSwitcher({ activeIco, activeName }: IcoSwitcherProps) {
   const [inputValue, setInputValue] = useState(activeIco ?? "");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -169,6 +171,28 @@ export default function IcoSwitcher({ activeIco }: IcoSwitcherProps) {
           {isLoading ? "…" : "Přepnout"}
         </button>
       </div>
+
+      {/* Active firm name — below the switcher row when present.
+          Helps the moderator see at a glance which firm is loaded without
+          having to remember the IčO. */}
+      {activeName && !error && (
+        <span
+          style={{
+            fontSize: 12,
+            color: "#455A64",
+            marginTop: 4,
+            fontWeight: 500,
+            maxWidth: 260,
+            textAlign: "right" as const,
+            whiteSpace: "nowrap" as const,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+          title={activeName}
+        >
+          {activeName}
+        </span>
+      )}
 
       {/* Inline error — below the switcher row */}
       {error && (

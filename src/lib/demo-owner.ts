@@ -45,28 +45,44 @@ export const DEMO_ACTIVE_ICO_COOKIE = "sr_active_ico";
 
 /**
  * Pre-seeded demo IČOs for NACE 49.41 (Silniční nákladní doprava).
- * These are plausible 8-digit Czech IČOs; reconciled with actual ingested
- * IČOs from the NACE 49.41 Excel once Track B's ingest runs.
  *
- * Selection criteria (in-tile-prompts.md §9.2):
- *   DEMO_ICO_MISSING_DATA  — large firm; employee count AND profit missing → 6 ask tiles
- *   DEMO_ICO_NO_EMPLOYEES  — mid firm; employee count missing → Tržby/zaměstnance ask
- *   DEMO_ICO_NO_PROFIT     — mid firm; profit missing → Čistá marže ask
- *   DEMO_ICO_FULL_DATA     — small firm; all available data populated → happy path
+ * Reconciled 2026-04-27 with the actual cohort_companies rows after Track B
+ * ingest of `nace-4941-silnicni-nakladni-doprava-2026-02.xlsx` (3,579 firms).
+ * Each constant points to a real Czech firm whose ingested data shape matches
+ * the demo category's missing-field profile (in-tile-prompts.md §9.2).
+ *
+ * Selection criteria:
+ *   DEMO_ICO_MISSING_DATA  — large firm; employee count AND profit missing → ~6 ask tiles
+ *   DEMO_ICO_NO_EMPLOYEES  — employee count missing → Tržby/zaměstnance ask
+ *   DEMO_ICO_NO_PROFIT     — profit missing → Čistá marže ask
+ *   DEMO_ICO_FULL_DATA     — all available data populated → happy path
  *
  * Default (cookie-default) = DEMO_ICO_MISSING_DATA — the PoC's central probe
  * is the in-tile prompt UX. A happy-path first impression undersells the give-to-get
  * mechanic the test is designed to surface (in-tile-prompts.md §9.2, last para).
  *
- * IČO reconciliation: these constants will be updated to real IČOs from the
- * NACE 49.41 Excel once Track B's ingestion script has run and committed the
- * cohort_companies rows. Current values are placeholder stubs that satisfy the
- * 8-digit Czech IČO format.
+ * The firm name shown in the switcher comes from cohort_companies.name (added
+ * in migration 0009); these labels are kept here only as a documentation aid
+ * and a fallback if the DB lookup fails.
  */
-export const DEMO_ICO_MISSING_DATA  = "27195855"; // Large NACE 49.41 firm; most data missing
-export const DEMO_ICO_NO_EMPLOYEES  = "45786553"; // Mid-size; employee count missing
-export const DEMO_ICO_NO_PROFIT     = "25514697"; // Mid-size; hospodářský výsledek missing
-export const DEMO_ICO_FULL_DATA     = "63999498"; // Small; all available data present (happy path)
+export const DEMO_ICO_MISSING_DATA  = "03846415"; // Nuoro Truck s.r.o.       — S3, no employees, no profit
+export const DEMO_ICO_NO_EMPLOYEES  = "29133513"; // Gargitrans s.r.o.        — S3 (bucketed), employee_count null, profit present
+export const DEMO_ICO_NO_PROFIT     = "27567711"; // Bera Transport s.r.o.    — S2, 30 employees, profit_czk null
+export const DEMO_ICO_FULL_DATA     = "26393913"; // TOP TRANS LINE s.r.o.    — S1, 14 employees, all derived metrics present
+
+/**
+ * Static IčO → firm name map. Used as a fallback for the IčO switcher when
+ * the cohort_companies lookup is unavailable. Keep in sync with the constants
+ * above. Once migration 0009 is in production, the runtime path reads
+ * cohort_companies.name and this map only matters for offline / first-render
+ * display before the switch endpoint has answered.
+ */
+export const DEMO_ICO_NAMES: Record<string, string> = {
+  [DEMO_ICO_MISSING_DATA]: "Nuoro Truck s.r.o.",
+  [DEMO_ICO_NO_EMPLOYEES]: "Gargitrans s.r.o.",
+  [DEMO_ICO_NO_PROFIT]:    "Bera Transport s.r.o.",
+  [DEMO_ICO_FULL_DATA]:    "TOP TRANS LINE s.r.o.",
+};
 
 /** Ordered list for seed enumeration. First entry = cookie-default on cold load. */
 export const DEMO_ICOS_ORDERED = [

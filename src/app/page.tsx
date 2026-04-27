@@ -38,6 +38,7 @@ import {
   DEMO_OWNER_PROFILE,
   DEMO_ACTIVE_ICO_COOKIE,
   DEMO_DEFAULT_ICO,
+  DEMO_ICO_NAMES,
 } from "@/lib/demo-owner";
 import { getOwnerMetrics } from "@/lib/owner-metrics";
 import MetricTile from "@/components/dashboard/MetricTile";
@@ -112,6 +113,14 @@ export default async function DashboardPage({
     cookieStore.get("sr_active_size")?.value || DEMO_OWNER_PROFILE.size_band;
   const activeRegion =
     cookieStore.get("sr_active_region")?.value || DEMO_OWNER_PROFILE.region;
+
+  // Active firm name — set by /api/owner/demo/switch (URL-encoded so non-ASCII
+  // chars survive cookie transport). Falls back to the static DEMO_ICO_NAMES
+  // map if the switcher hasn't run yet (cold-load before re-ingest with
+  // migration 0009 has populated cohort_companies.name).
+  const rawNameCookie = cookieStore.get("sr_active_name")?.value;
+  const cookieName = rawNameCookie ? decodeURIComponent(rawNameCookie) : "";
+  const activeName = cookieName || DEMO_ICO_NAMES[activeIco] || "";
 
   // ── just-saved metric ID (from ?saved=<metricId> post-PATCH redirect) ────
   // Used to apply the mt-just-saved CSS pulse class to the matching tile.
@@ -351,7 +360,7 @@ export default async function DashboardPage({
               moderator UX. The /api/owner/demo/{switch,reset} routes remain
               gated by DEMO_MODE per ADR-OM-03. */}
           <div className="db-ico-switcher-wrap">
-            <IcoSwitcher activeIco={activeIco} />
+            <IcoSwitcher activeIco={activeIco} activeName={activeName} />
           </div>
         </header>
 

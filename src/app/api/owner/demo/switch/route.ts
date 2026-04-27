@@ -86,14 +86,30 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     cz_region: string | null;
     revenue_per_employee: number | null;
     net_margin: number | null;
+    name: string | null;
   } | null = null;
 
   try {
-    const { data, error } = await supabase
+    // `name` was added in migration 0009; tolerate its absence in older DBs
+    // by retrying without it on a "column does not exist" error.
+    let queryRes = await supabase
       .from("cohort_companies")
-      .select("ico, nace_division, size_band, cz_region, revenue_per_employee, net_margin")
+      .select("ico, nace_division, size_band, cz_region, revenue_per_employee, net_margin, name")
       .eq("ico", ico)
       .maybeSingle();
+    if (
+      queryRes.error &&
+      (queryRes.error.code === "42703" ||
+        queryRes.error.message?.includes("column") ||
+        queryRes.error.message?.includes("does not exist"))
+    ) {
+      queryRes = await supabase
+        .from("cohort_companies")
+        .select("ico, nace_division, size_band, cz_region, revenue_per_employee, net_margin")
+        .eq("ico", ico)
+        .maybeSingle();
+    }
+    const { data, error } = queryRes;
 
     if (error) {
       if (
@@ -113,8 +129,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     } else if (!data) {
       firmFound = false;
     } else {
-      firmRow = data;
-      naceDivision = data.nace_division ?? "49";
+      firmRow = {
+        nace_division: data.nace_division ?? "49",
+        size_band: data.size_band ?? null,
+        cz_region: data.cz_region ?? null,
+        revenue_per_employee: data.revenue_per_employee ?? null,
+        net_margin: data.net_margin ?? null,
+        name: ("name" in data ? (data.name as string | null) : null) ?? null,
+      };
+      naceDivision = firmRow.nace_division;
     }
   } catch (err) {
     console.error("[demo/switch] unexpected error:", err);
@@ -159,7 +182,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const formatPercent = (n: number) =>
         new Intl.NumberFormat("cs-CZ", { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(n) + " %";
       const formatThousandsCzk = (n: number) =>
-        new Intl.NumberFormat("cs-CZ", { maximumFractionDigits: 0 }).format(Math.round(n / 1000)) + " tis. Kč";
+        new Intl.NumberFormat("cs-CZ", { maximumFractionDigits: 0 }).format(Math.round(n)) + " tis. Kč";
 
       const rev_per_emp = firmRow?.revenue_per_employee != null
         ? Number(firmRow.revenue_per_employee)
@@ -211,7 +234,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // so the dashboard can read the firm's cohort cell without a second DB lookup.
   const sizeBand = firmRow?.size_band ?? "";
   const region = firmRow?.cz_region ?? "";
-  const response = NextResponse.json({ ico, naceDivision, sizeBand, region });
+  const name = firmRow?.name ?? "";
+  const response = NextResponse.json({ ico, naceDivision, sizeBand, region, name });
   const cookieOpts = {
     path: "/",
     sameSite: "lax" as const,
@@ -222,6 +246,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   response.cookies.set("sr_active_size", sizeBand, cookieOpts);
   response.cookies.set("sr_active_region", region, cookieOpts);
   response.cookies.set("sr_active_nace", naceDivision, cookieOpts);
+  // Encode the firm name so non-ASCII chars survive cookie transport.
+  response.cookies.set("sr_active_name", encodeURIComponent(name), cookieOpts);
 
   return response;
 }
