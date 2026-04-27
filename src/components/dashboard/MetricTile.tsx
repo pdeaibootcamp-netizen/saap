@@ -84,15 +84,20 @@ const QUARTILE_SEGMENTS: Record<QuartileLabel, number> = {
 
 function QuartileBar({ quartile, accentHex }: { quartile: QuartileLabel; accentHex: string }) {
   const filled = QUARTILE_SEGMENTS[quartile];
+  const radius = (i: number): string => {
+    if (i === 1) return "3px 0 0 3px";
+    if (i === 4) return "0 3px 3px 0";
+    return "0";
+  };
   return (
-    <div style={{ display: "flex", gap: 3, width: "100%" }}>
+    <div style={{ display: "flex", gap: 2, width: "100%", marginTop: 8 }}>
       {[1, 2, 3, 4].map((i) => (
         <div
           key={i}
           style={{
             flex: 1,
             height: 6,
-            borderRadius: 3,
+            borderRadius: radius(i),
             backgroundColor: i <= filled ? accentHex : "#e4eaf0",
           }}
         />
