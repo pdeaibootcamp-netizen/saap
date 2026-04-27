@@ -108,14 +108,61 @@ function employeeCountToSizeBand(count: number | null): "S1" | "S2" | "S3" | nul
   return "S3";
 }
 
-function bucketToSizeBand(bucket: string | null): "S1" | "S2" | "S3" | null {
+/**
+ * Normalise the Czech employee-bucket string from "Kategorie počtu zaměstnanců CZ".
+ * Source values look like "20 - 24 zaměstnanců", "100 a více zaměstnanců", etc.
+ * Strips the " zaměstnanců" / " zam." suffix and collapses spaces around "-".
+ */
+function normaliseBucket(bucket: string | null): string | null {
   if (!bucket) return null;
-  const b = bucket.trim();
+  let b = bucket.trim();
+  // Strip Czech suffix (case-insensitive). Regex catches "zaměstnanců",
+  // "zaměstnanci", "zam." and any trailing whitespace.
+  b = b.replace(/\s*zam[ěí]?[a-zÀ-ſ]*\.?\s*$/i, "");
+  b = b.replace(/\s*zam\.\s*$/i, "");
+  // Collapse spaces around "-" so "20 - 24" → "20-24"
+  b = b.replace(/\s*-\s*/g, "-").trim();
+  return b || null;
+}
+
+function bucketToSizeBand(rawBucket: string | null): "S1" | "S2" | "S3" | null {
+  const b = normaliseBucket(rawBucket);
+  if (!b) return null;
   if (["1-5", "6-9", "10-19", "20-24"].includes(b)) return "S1";
   if (b === "25-49") return "S2";
-  if (["50-99", "100+"].includes(b)) return "S3";
-  // Some sources use "50 a více"
-  if (b.startsWith("50") || b.startsWith("100")) return "S3";
+  if (["50-99", "100-199", "200-249", "250-499", "500-999", "1000+", "100+"].includes(b)) return "S3";
+  // Open-ended forms ("100 a více", "1000 a více", "50+", etc.) → S3.
+  if (/v[í]ce|\+$/i.test(b)) return "S3";
+  if (b.startsWith("50") || b.startsWith("100") || b.startsWith("200") ||
+      b.startsWith("250") || b.startsWith("500") || b.startsWith("1000")) return "S3";
+  return null;
+}
+
+/**
+ * Midpoint of a bucket — used as a fallback for the per-employee derived
+ * metric when the exact "Počet zaměstnanců" is missing or implausible
+ * (the well-known stale ARES self-report issue: some firms with hundreds
+ * of employees report 0 or 1).
+ */
+function bucketMidpoint(rawBucket: string | null): number | null {
+  const b = normaliseBucket(rawBucket);
+  if (!b) return null;
+  const map: Record<string, number> = {
+    "1-5":     3,
+    "6-9":     7.5,
+    "10-19":   14.5,
+    "20-24":   22,
+    "25-49":   37,
+    "50-99":   74.5,
+    "100-199": 149.5,
+    "200-249": 224.5,
+    "250-499": 374.5,
+    "500-999": 749.5,
+  };
+  if (map[b]) return map[b];
+  // Open-ended: "100 a více" → 150, "1000 a více" → 1500, etc.
+  const startMatch = b.match(/^(\d+)/);
+  if (startMatch && /v[í]ce|\+$/i.test(b)) return Number(startMatch[1]) * 1.5;
   return null;
 }
 
@@ -159,7 +206,12 @@ function normaliseNace(raw: string | null): { naceClass: string; naceDivision: s
 
 // ── Plausibility envelopes (cohort-ingestion.md §4.4) ────────────────────────
 
-function derivedMetrics(revenueCzk: number | null, profitCzk: number | null, employeeCount: number | null) {
+function derivedMetrics(
+  revenueCzk: number | null,
+  profitCzk: number | null,
+  primaryCount: number | null,
+  fallbackCount: number | null,
+) {
   let netMargin: number | null = null;
   let revenuePerEmployee: number | null = null;
 
@@ -168,9 +220,20 @@ function derivedMetrics(revenueCzk: number | null, profitCzk: number | null, emp
     if (nm >= -50 && nm <= 60) netMargin = Math.round(nm * 10000) / 10000;
   }
 
-  if (revenueCzk !== null && employeeCount !== null && employeeCount > 0) {
-    const rpe = revenueCzk / employeeCount / 1000; // thousands CZK per FTE
-    if (rpe >= 100 && rpe <= 100_000) revenuePerEmployee = Math.round(rpe * 100) / 100;
+  // Try the exact (primary) count first; if it falls outside the plausibility
+  // envelope, retry with the bucket midpoint (fallbackCount). This recovers
+  // firms where the registry's "Počet zaměstnanců" is a stale self-report
+  // (e.g., 0 or 1 for a firm with 800M CZK revenue and a "20-24" bucket —
+  // see ALDA Foods s.r.o. / IČO 24811491, the canonical example).
+  function compute(count: number | null): number | null {
+    if (revenueCzk === null || count === null || count <= 0) return null;
+    const rpe = revenueCzk / count / 1000; // thousands CZK per FTE
+    if (rpe >= 100 && rpe <= 100_000) return Math.round(rpe * 100) / 100;
+    return null;
+  }
+  revenuePerEmployee = compute(primaryCount);
+  if (revenuePerEmployee === null) {
+    revenuePerEmployee = compute(fallbackCount);
   }
 
   return { netMargin, revenuePerEmployee };
@@ -298,22 +361,33 @@ async function main() {
     const profitCzk = profitRaw != null && profitRaw !== "" ? Number(profitRaw) : null;
 
     // ── Employee count → size band ────────────────────────────────────────
+    // Two source columns:
+    //   exactCount: "Počet zaměstnanců" — sometimes a stale ARES self-report
+    //               (e.g., 0 or 1 for a firm with 800M CZK revenue).
+    //   bucket:    "Kategorie počtu zaměstnanců CZ" — authoritative range.
+    //
+    // Strategy:
+    //   - Use exactCount for the raw employee_count column when present.
+    //   - Use the bucket for size_band when present (more reliable);
+    //     fall back to exactCount-derived band when bucket is missing
+    //     or unparseable.
+    //   - Pass the bucket midpoint as a fallback to derivedMetrics so
+    //     revenue_per_employee survives the stale-self-report case.
     const exactCount = exactCountRaw != null && exactCountRaw !== "" ? Number(exactCountRaw) : null;
     const bucket = bucketRaw != null && bucketRaw !== "" ? String(bucketRaw) : null;
 
-    let employeeCount: number | null = null;
-    let sizeBand: "S1" | "S2" | "S3" | null = null;
+    const employeeCount: number | null =
+      exactCount !== null && !isNaN(exactCount) ? Math.round(exactCount) : null;
 
-    if (exactCount !== null && !isNaN(exactCount)) {
-      employeeCount = Math.round(exactCount);
-      sizeBand = employeeCountToSizeBand(employeeCount);
-    } else {
-      sizeBand = bucketToSizeBand(bucket);
-    }
+    const bucketBand = bucketToSizeBand(bucket);
+    const exactBand = employeeCountToSizeBand(employeeCount);
+    const sizeBand: "S1" | "S2" | "S3" | null = bucketBand ?? exactBand;
 
     if (sizeBand === null) {
       skippedNoEmployee++;
-      errorLog.push(`Missing employee data: IČO=${icoRaw}`);
+      errorLog.push(
+        `Missing employee data: IČO=${icoRaw} (exact=${exactCount} bucket=${JSON.stringify(bucket)})`
+      );
       continue;
     }
 
@@ -330,7 +404,12 @@ async function main() {
     }
 
     // ── Derived metrics ───────────────────────────────────────────────────
-    const { netMargin, revenuePerEmployee } = derivedMetrics(revenueCzk, profitCzk, employeeCount);
+    const { netMargin, revenuePerEmployee } = derivedMetrics(
+      revenueCzk,
+      profitCzk,
+      employeeCount,
+      bucketMidpoint(bucket),
+    );
     if (netMargin !== null) netMarginCount++;
     if (revenuePerEmployee !== null) revenuePerEmployeeCount++;
 
