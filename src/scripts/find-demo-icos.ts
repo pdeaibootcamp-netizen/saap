@@ -6,7 +6,8 @@
  *   - DEMO_ICO_NO_PROFIT     — mid firm,   profit_czk null only
  *   - DEMO_ICO_FULL_DATA     — small firm, all fields present
  *
- * Run: npx tsx src/scripts/find-demo-icos.ts
+ * Run: npx tsx src/scripts/find-demo-icos.ts [naceDivision]
+ *   default naceDivision = "49"
  */
 
 import { createClient } from "@supabase/supabase-js";
@@ -28,11 +29,14 @@ const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const sb = createClient(url, key, { auth: { persistSession: false } });
 
+const NACE_DIVISION = process.argv[2] ?? "49";
+console.log(`[find-demo-icos] NACE division = ${NACE_DIVISION}`);
+
 async function pick(filter: (q: any) => any, label: string, sizeBand: string) {
   let q = sb
     .from("cohort_companies")
-    .select("ico, size_band, employee_count, profit_czk, revenue_czk, net_margin, revenue_per_employee, cz_region")
-    .eq("nace_division", "49")
+    .select("ico, name, size_band, employee_count, profit_czk, revenue_czk, net_margin, revenue_per_employee, cz_region")
+    .eq("nace_division", NACE_DIVISION)
     .eq("size_band", sizeBand)
     .limit(5);
   q = filter(q);

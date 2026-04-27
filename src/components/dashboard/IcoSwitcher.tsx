@@ -174,15 +174,18 @@ export default function IcoSwitcher({ activeIco, activeName }: IcoSwitcherProps)
 
       {/* Active firm name — below the switcher row when present.
           Helps the moderator see at a glance which firm is loaded without
-          having to remember the IčO. */}
+          having to remember the IčO. White text on the GDS blue header band
+          (#135ee2) for high contrast; bumped to 15px / weight 600 so it
+          reads at a glance, not just on close inspection. */}
       {activeName && !error && (
         <span
           style={{
-            fontSize: 12,
-            color: "#455A64",
-            marginTop: 4,
-            fontWeight: 500,
-            maxWidth: 260,
+            fontSize: 15,
+            color: "#ffffff",
+            marginTop: 6,
+            fontWeight: 600,
+            letterSpacing: "0.005em",
+            maxWidth: 320,
             textAlign: "right" as const,
             whiteSpace: "nowrap" as const,
             overflow: "hidden",
