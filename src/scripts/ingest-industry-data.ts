@@ -277,15 +277,26 @@ async function main() {
       continue;
     }
 
-    // ── Revenue / profit ─────────────────────────────────────────────────
-    const revenueCzk = row["Obrat"] != null ? Number(row["Obrat"]) : null;
-    const profitCzk = row["Hospodářský výsledek"] != null ? Number(row["Hospodářský výsledek"]) : null;
+    // ── Revenue / profit / employees ─────────────────────────────────────
+    // Column headers in the source Excel are verbose ("Obrat, Výnosy (Kč, …)",
+    // "Hospodářský výsledek za účetní období (Kč)", etc.). Look up by substring
+    // match against the row's keys so we don't break on minor header variations
+    // between different industry-data exports.
+    const findCol = (substr: string): unknown => {
+      const key = Object.keys(row).find((k) => k.toLowerCase().includes(substr.toLowerCase()));
+      return key !== undefined ? row[key] : null;
+    };
+    const revenueRaw = findCol("Obrat");
+    const profitRaw = findCol("Hospodářský výsledek");
+    const exactCountRaw = findCol("Počet zaměstnanců");
+    const bucketRaw = findCol("Kategorie počtu zaměstnanců");
+
+    const revenueCzk = revenueRaw != null && revenueRaw !== "" ? Number(revenueRaw) : null;
+    const profitCzk = profitRaw != null && profitRaw !== "" ? Number(profitRaw) : null;
 
     // ── Employee count → size band ────────────────────────────────────────
-    const exactCount = row["Počet zaměstnanců"] != null ? Number(row["Počet zaměstnanců"]) : null;
-    const bucket = row["Kategorie počtu zaměstnanců CZ"] != null
-      ? String(row["Kategorie počtu zaměstnanců CZ"])
-      : null;
+    const exactCount = exactCountRaw != null && exactCountRaw !== "" ? Number(exactCountRaw) : null;
+    const bucket = bucketRaw != null && bucketRaw !== "" ? String(bucketRaw) : null;
 
     let employeeCount: number | null = null;
     let sizeBand: "S1" | "S2" | "S3" | null = null;
