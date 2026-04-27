@@ -41,8 +41,48 @@ interface BadgeStyle {
   color: string;
 }
 
-// Exact badge colours per spec (screenshot-matched).
-// Separate from QUARTILE_STYLES — accent stripe keeps accentHex unchanged.
+// ─── Quintile colour system ───────────────────────────────────────────────────
+// Approved by orchestrator 2026-04-27.
+// Accent stripe and badge colours are derived from percentile (quintile band),
+// not from the quartile label text.
+
+interface QuintileStyle {
+  accentHex: string;
+  badgeStyle: BadgeStyle;
+}
+
+const QUINTILE_STYLES: Record<1 | 2 | 3 | 4 | 5, QuintileStyle> = {
+  5: { accentHex: "#1565C0", badgeStyle: { background: "#E3F2FD", color: "#1565C0" } }, // 80–100. p
+  4: { accentHex: "#2E7D32", badgeStyle: { background: "#E8F5E9", color: "#2E7D32" } }, // 60–79. p
+  3: { accentHex: "#E65100", badgeStyle: { background: "#FFF3E0", color: "#E65100" } }, // 40–59. p
+  2: { accentHex: "#BF360C", badgeStyle: { background: "#FBE9E7", color: "#BF360C" } }, // 20–39. p
+  1: { accentHex: "#C62828", badgeStyle: { background: "#FFEBEE", color: "#C62828" } }, // 0–19. p
+};
+
+const NODATA_STYLE: QuintileStyle = {
+  accentHex: "#455A64",
+  badgeStyle: { background: "#F5F5F5", color: "#757575" },
+};
+
+/**
+ * Returns the quintile-based accent hex and badge style.
+ * When `percentile` is available it drives the quintile band directly;
+ * otherwise falls back to `quartileLabel` via QUARTILE_TO_QUINTILE.
+ */
+function getQuintileStyle(
+  percentile: number | null,
+  quartileLabel: QuartileLabel
+): QuintileStyle {
+  const q: number =
+    percentile !== null
+      ? percentileToQuintile(percentile)
+      : QUARTILE_TO_QUINTILE[quartileLabel];
+  return QUINTILE_STYLES[q as 1 | 2 | 3 | 4 | 5] ?? NODATA_STYLE;
+}
+
+// ─── Legacy maps (kept for fallback logic and type safety) ────────────────────
+
+// Exact badge colours — retained as nodata reference only.
 const BADGE_STYLES: Record<
   "horní čtvrtina" | "třetí čtvrtina" | "druhá čtvrtina" | "spodní čtvrtina" | "nodata",
   BadgeStyle
@@ -55,7 +95,6 @@ const BADGE_STYLES: Record<
 };
 
 // Maps each quartile label to its GDS colour var + hex for rgba opacity trick.
-// accentHex values match the visual spec from the reference screenshot.
 const QUARTILE_STYLES: Record<QuartileLabel, QuartileStyle> = {
   "horní čtvrtina": {
     accentVar: "var(--gds-quartile-top)",
@@ -158,13 +197,18 @@ export default function MetricTile({
   const style =
     isValid && quartileLabel ? QUARTILE_STYLES[quartileLabel] : null;
 
-  // No-data / below-floor / empty: neutral dark-blue-gray accent
-  const accentVar = style?.accentVar ?? "var(--gds-quartile-nodata)";
-  const accentHex = style?.accentHex ?? "#455A64";
+  // Quintile-derived colours (accent stripe + badge) — approved 2026-04-27.
+  // When percentile is available the quintile band drives colour; otherwise
+  // falls back via QUARTILE_TO_QUINTILE map inside getQuintileStyle().
+  const quintileStyle: QuintileStyle =
+    isValid && quartileLabel
+      ? getQuintileStyle(percentile, quartileLabel)
+      : NODATA_STYLE;
+  const accentHex = quintileStyle.accentHex;
+  const badgeStyle: BadgeStyle = quintileStyle.badgeStyle;
 
-  // Badge style: flat colours from BADGE_STYLES (not derived from accent hex)
-  const badgeStyle: BadgeStyle =
-    isValid && quartileLabel ? BADGE_STYLES[quartileLabel] : BADGE_STYLES.nodata;
+  // No-data / below-floor / empty: neutral dark-blue-gray accent (CSS var kept for ref only)
+  const accentVar = style?.accentVar ?? "var(--gds-quartile-nodata)";
 
   // ── Accessible name for the tile region ───────────────────────────────────
   // tile-states.md §6.4
