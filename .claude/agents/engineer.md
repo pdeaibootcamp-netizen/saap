@@ -113,6 +113,10 @@ CSS vars in `globals.css` are fine for documentation/reference; never rely on th
 | spodní čtvrtina | `#cf2a1e` | `#FFEBEE` | `#C62828` |
 | no-data | `#537090` | `#F5F5F5` | `#757575` |
 
+### Všechny badge/pill elementy: border-radius: 999px (fully rounded)
+Platí pro DEMO badge, kategoriové badge v MetricTile, "Nový" pill v BriefListItem —
+**každý** badge v UI má `borderRadius: 999` nebo `border-radius: 999px`. Nikdy 3px, 4px ani jiná hodnota.
+
 ### Card border-radius: 12px (not 8px)
 MetricTile and any future card containers use `borderRadius: "12px"`. Token: `--gds-radius-card: 12px` in globals.css —
 but use hardcoded `borderRadius: "12px"` in inline styles (CSS vars unreliable in Next.js dev mode).

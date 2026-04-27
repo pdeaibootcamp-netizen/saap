@@ -253,7 +253,7 @@ export default async function DashboardPage({
           font-weight: 700;
           color: #E65100;
           background-color: #FFF3E0;
-          border-radius: 3px;
+          border-radius: 999px;
           padding: 2px 6px;
           letter-spacing: 0.05em;
           text-transform: uppercase;
