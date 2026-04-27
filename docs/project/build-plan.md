@@ -231,7 +231,70 @@ Full plan detail — files to modify/create, existing code to reuse, verificatio
 
 ---
 
-## 11. Changelog
+## 11. v0.3 — Architecture, benchmarking backend, n8n analysis automation (current, branch `trial-v0-3`)
+
+*Scope below is additive to §10. Phases 0–4 (v0.1) stay closed on `trial-phases-2-4`; v0.2 stays closed on `trial-v0-2` (frozen via GitHub ruleset 15590034); v0.3 reshapes the data architecture so client values, computed percentiles, and analyst-uploaded publications are real flows rather than hand-typed fixtures.*
+
+### 11.1 What changes
+
+1. **Per-client metric storage** — new `owner_metrics` table in `user_db` (user_contributed lane) holding the 8 frozen metrics' raw values + units + source + timestamps per user. Demo owner gets a real DB row with some values seeded and some left null for the "ask when missing" demo.
+2. **Real percentile computation** — replace `getBenchmarkSnapshot()` fixtures with a computation against an ingested industry-data Excel. Floor + degradation rungs from `cohort-math.md` §3 coded explicitly. Feature-flagged so the fixture path remains as fallback.
+3. **In-tile "ask when missing" UX** — tiles with null values render a CTA → inline form → PATCH → page-refresh updates the tile. PM/PD/EN co-author the spec.
+4. **n8n analysis automation** — analyst uploads a PDF/DOCX → n8n workflow generates a layperson Sektorová analýza opener + 3 paired observations + 3 actions → writes back into Supabase as a draft brief → analyst reviews and publishes via the existing edit page.
+
+### 11.2 What does NOT change
+
+- Owner-side auth — demo-owner bypass stays. Multi-tenant signed-in flow is a v0.4 concern.
+- Existing analyst edit + publish flow — receives drafts in the same shape it already loads.
+- Owner brief detail page (`src/app/brief/[id]/page.tsx`) — reads briefs that are now generated rather than hand-typed; no JSX changes.
+- Frozen vocabulary — the 8 metrics, 4 D-011 categories, 4 quartile labels, 4 time-horizon values remain unchanged.
+- v0.1 / v0.2 reference branches — both remain frozen via GitHub ruleset 15590034.
+
+### 11.3 Phase sequencing
+
+| Phase | What | Owner | Depends on |
+|---|---|---|---|
+| 3.0 | Industry-data Excel hand-off + n8n hosting decision + demo-owner null/value mix decision | user → orchestrator | — |
+| 3.1 Track A | Owner-metrics schema + in-tile prompt UX + read/write API specs | DE + PM + PD + EN, parallel | 3.0 |
+| 3.1 Track B | Cohort ingestion + percentile compute spec | DE + EN, parallel | 3.0 (Excel inspected) |
+| 3.1 Track C | n8n integration + analyst upload UX + analysis-pipeline data spec | PM + EN + DE, parallel | 3.0 (n8n hosting picked) |
+| 3.2.A | Owner-metrics implementation: migration, read/write API, tile UI, verification | EN | 3.1 Track A |
+| 3.2.B | Cohort backend implementation: ingestion script, compute lib, snapshot wiring, verification | EN | 3.1 Track B |
+| 3.2.C | n8n implementation: env, workflow, upload UI, upload API, draft-write API, verification | EN | 3.1 Track C |
+| 3.3 | Cross-track integration + full demo verification | user | all of 3.2 |
+
+### 11.4 Delegation map (v0.3)
+
+| Artifact | Owner | Track | Phase |
+|---|---|---|---|
+| `docs/data/owner-metrics-schema.md` | DE | A | 3.1 |
+| `docs/product/in-tile-prompts.md` | PM | A | 3.1 |
+| `docs/design/in-tile-prompts.md` | PD | A | 3.1 |
+| `docs/engineering/owner-metrics-api.md` | EN | A | 3.1 |
+| `docs/data/cohort-ingestion.md` | DE | B | 3.1 |
+| `docs/data/percentile-compute.md` | DE | B | 3.1 |
+| `docs/engineering/cohort-runtime.md` | EN | B | 3.1 |
+| `docs/product/analysis-automation.md` | PM | C | 3.1 |
+| `docs/engineering/n8n-integration.md` | EN | C | 3.1 |
+| `docs/data/analysis-pipeline-data.md` | DE | C | 3.1 |
+| `src/**` v0.3 code | EN | A / B / C | 3.2.A / 3.2.B / 3.2.C |
+| Decision log + open-questions + build-plan changelog | orchestrator | — | per gate |
+
+### 11.5 Out of scope for v0.3 (deferred)
+
+- Real onboarding / consent / multi-tenant auth (still demo owner only).
+- IČO API for auto-downloading registry / bank data.
+- George Business embedding.
+- Email + PDF polish for the new generated brief shape.
+- Real-time benchmark recompute (page-refresh refresh is fine).
+- ML-based transaction categorisation (Increment 3+).
+- Multi-NACE concurrent rollout — furniture (NACE 31) stays the demo focus.
+
+Full plan detail — files to modify/create, existing code to reuse, risks, verification criteria — lives in the approved plan-mode artefact at `~/.claude/plans/orchestrator-create-a-build-warm-lerdorf.md`.
+
+---
+
+## 12. Changelog
 
 - 2026-04-17 — created by orchestrator; MVP-only scope; Phase 0 user-decided per explicit instruction.
 - 2026-04-17 — Phase 0 closed: D-003 through D-009 logged; B-001, B-002 added to backlog. Phase 1 unblocked.
@@ -247,3 +310,7 @@ Full plan detail — files to modify/create, existing code to reuse, verificatio
 - 2026-04-21 — v0.2 Phase 2.1 Track B specs landed: `docs/product/brief-page-v0-2.md` (D-020: hybrid publication placement, "Sektorová analýza" label, `paired_observation_index` pairing model, benchmarks removed, furniture opener ~340 Czech words, 3 paired observations + actions), `docs/design/brief-page-v0-2.md` (native `<details>` disclosure, continuous left-border pairing treatment + "Doporučený krok:" prefix).
 - 2026-04-21 — v0.2 Phase 2.2.d landed (brief page surgery): `BriefContent.publication?` + `ClosingAction.paired_observation_index?` types added to `src/lib/briefs.ts`; `src/app/brief/[id]/page.tsx` rewritten per PD spec (Sektorová analýza block, paired cards, orphan section conditional); `BenchmarkCategorySection` deleted, v0.1 briefs still load via fallback path; `docs/engineering/brief-page-v0-2.md` implementation notes added.
 - 2026-04-21 — v0.2 Phase 2.2.e landed (furniture brief seed): `PRD/publications/furniture-2026-Q2.txt` extracted from .docx, `seedFurnitureBrief()` added to `src/scripts/seed.ts` carrying PM §6.1 opener + §7 paired observations/actions verbatim. One deviation: two producer/retailer tables in the extracted .docx body were condensed to prose (engineer judgement — the raw OOXML cell-per-line extraction is unreadable as prose; narrative text preserved verbatim). User runs `npm run seed && npm run dev` to verify.
+- 2026-04-21 — Pitch deck `docs/project/pitch-deck.html` added: 24-slide single-file HTML deck for colleague walkthrough covering Arkana discovery + multi-agent build narrative, with CSS-rendered dashboard and brief mockups.
+- 2026-04-24..2026-04-27 — GDS visual migration landed via branches `trial-v0-2-GDS` → `trial-v0-2`. ČS blue header, Inter variable-font bundling under `public/fonts/`, GDS design tokens applied to dashboard + tiles + brief list. Token migration documented at `docs/engineering/gds-token-migration.md`.
+- 2026-04-27 — `trial-v0-2` merged into `main` (commit `0888ab7`, no-ff). Both trial branches (`trial-v0-2`, `trial-v0-2-GDS`) frozen via GitHub branch ruleset 15590034 — see [D-021](decision-log.md). `trial-phases-2-4` left unprotected so it can be ruleset-extended later if needed.
+- 2026-04-27 — v0.3 plan drafted on branch `trial-v0-3` (created off `main`, §11 added). Phase 3.0 user-gated on industry-data Excel + n8n hosting decision + demo-owner null/value mix.
