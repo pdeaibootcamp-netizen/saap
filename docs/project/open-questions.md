@@ -148,8 +148,27 @@ Non-promoted: 6 further specialist-internal items flagged in the PD spec files (
 
 ---
 
+## v0.3 Phase 3.1 spec gate (2026-04-27)
+
+11 specs landed across PM (2), PD (1), DE (5), EN (3) on branch `trial-v0-3`. Specialists raised ~50 spec-internal items in their own artifact §-Open-questions sections. Promoted here only the items that need cross-track or cross-lane resolution before Phase 3.2 implementation lands.
+
+| Date | ID | Question | Raised by | Blocking | Status |
+|---|---|---|---|---|---|
+| 2026-04-27 | OQ-067 | **Cenová síla measurement simplification.** PM `in-tile-prompts.md` proposes asking owners for year-over-year margin point change as the input. DE's `percentile-compute.md` must reconstruct trajectory-vs-cohort-trajectory from this simpler input. Either reconciles or surfaces a load-bearing change to D-015 metric definitions. | product-manager → data-engineer | Track A engineering (3.2.A) wiring the input field to compute. | open — DE to confirm reconciliation in Phase 3.1.B |
+| 2026-04-27 | OQ-068 | **Source-attribution default string for n8n-generated drafts.** PM proposes `Ekonomické a strategické analýzy České spořitelny — {title}, {month year}`. EN must confirm the n8n callback payload includes a `title` field that maps cleanly; otherwise fallback to filename-stem. | product-manager → engineer | Phase 3.2.C5 (draft-write callback). | open — EN to confirm during 3.2.C2 prompt design |
+| 2026-04-27 | OQ-069 | **Hyndman & Fan type 4 vs. average-rank percentile algorithm.** DE `percentile-compute.md` specifies Type 4. `cohort-math.md` §6.2 (Phase 1) cited average-rank. Discrepancy is documentation-level — Type 4 is correct for the intended interpretation; cohort-math.md should be updated to match. Not a behaviour change. | data-engineer | Documentation consistency only. | open — DE to update cohort-math.md before 3.2.B compute lands |
+| 2026-04-27 | OQ-070 | **Privacy-architecture allow-list addition for `analyse_publication_n8n`.** First external-processor pipeline (n8n Cloud `kappa3`). DE `analysis-pipeline-data.md` §8 flags `privacy-architecture.md` should be extended with a new pipeline entry before any v0.4 customer-real-data work. PoC-acceptable as is; pre-launch must close. | data-engineer | v0.4 launch gate. | open — DE to extend `privacy-architecture.md` before v0.4 |
+| 2026-04-27 | OQ-071 | **n8n Cloud data-residency posture vs. ČS policy.** Workspace `kappa3` runs in EU but underlying compute placement is provider-controlled. Acceptable for PoC; ČS legal review required before any real-customer payload. | data-engineer → user (eventually ČS legal) | v0.4 launch gate. | open — escalate to ČS legal pre-v0.4 |
+| 2026-04-27 | OQ-072 | **DEMO-badge contrast at 10 px bold.** PD `in-tile-prompts.md` flags borderline AA at the small bold size. Trivially fixed by darkening to `#BF360C`. Engineer to apply during Phase 3.2.A4. | designer → engineer | Tile UI implementation. | open — EN to apply in 3.2.A4 |
+| 2026-04-27 | OQ-073 | **`?saved=<metricId>` pulse mechanism vs. Server Actions.** PD-proposed feedback uses a query param to trigger a one-shot tile pulse after save. Engineer needs to confirm this works with Next.js Server Actions which may not change the URL. Alternate: short-lived cookie or in-memory client-side flag on the redirect. | designer → engineer | Tile UI feedback in 3.2.A4. | open — EN call during 3.2.A4 |
+
+Self-monitoring (kept in artifacts, not promoted): the remaining ~40 spec-internal questions across the 11 files. Mostly minor copy / styling / parameter calibration items resolvable in-thread during Phase 3.2 engineering.
+
+---
+
 ## Changelog
 - 2026-04-17 — initial population after Phase 1 gate. 20 open questions transcribed from engineer, data-engineer, designer artifacts; 2 resolved at gate (D-010, D-011).
 - 2026-04-17 — user decisions on OQ-001 and OQ-002 resolved to D-012 and D-013. OQ-009 moot under D-012. OQ-021 added (retention window) post-reconciliation from data-engineer.
 - 2026-04-20 — Phase 2 PM + PD gate: 67 specialist OQs indexed by feature-artifact (not individually transcribed to keep register readable); 9 cross-cutting items promoted as OQ-045..053.
 - 2026-04-21 — v0.2 Track A + Track C spec gate on branch `trial-v0-2`: OQ-054..058 transcribed (1 DE, 1 PM, 3 PD). 6 specialist-internal items left in-artifact per triage. OQ-055, OQ-056 are user-gated; OQ-054 is PoC-accepted; OQ-057 is engineer-gated; OQ-058 is PM-gated and will close when `brief-page-v0-2.md` is written.
+- 2026-04-27 — v0.3 Phase 3.1 spec gate on branch `trial-v0-3`: 11 specs landed (2 PM + 1 PD + 5 DE + 3 EN). OQ-067..073 transcribed (3 cross-track; 4 v0.4-or-later forward-pointers). Two PM/DE files written by orchestrator on agents' behalf because of a filename heuristic guard — no content change, attribution noted in those files' changelogs.
