@@ -1,0 +1,166 @@
+{
+  "meta": {
+    "instanceId": "strategy-radar-mcp-draft-writer",
+    "templateCredsSetupCompleted": false,
+    "description": "Strategy Radar v0.3 — MCP Draft Writer\n\nExposes a single MCP tool 'write_draft_brief' that the analyst's Claude Code (using their Claude Max subscription, NO Anthropic API key) can call to write a generated draft sector brief to the Strategy Radar app.\n\nDifference from the 18-node analysis-automation workflow: the LLM analysis (PDF extraction, opener generation, observations + actions) happens entirely in Claude Code on the analyst's machine. n8n is just the persistence hop: receive structured fields via MCP → HMAC-sign → POST /api/admin/briefs/from-n8n.\n\nSETUP:\n1. Workflow → Settings → Static Data, add:\n   - N8N_CALLBACK_SECRET: same HMAC value as N8N_CALLBACK_SECRET in src/.env.local\n   - APP_CALLBACK_URL: full URL to your app's endpoint, e.g.\n       https://<ngrok-id>.ngrok.app/api/admin/briefs/from-n8n\n     (n8n Cloud cannot reach localhost — use ngrok or a deployed app URL.)\n2. Activate the workflow.\n3. Click the MCP Server Trigger node → copy the MCP server URL + auth token.\n4. In your terminal:\n     claude mcp add strategy-radar <mcp-url> --header \"Authorization: Bearer <token>\"\n5. Verify:  claude mcp list   → 'strategy-radar' should be listed.\n6. Test by attaching a publication PDF in a Claude Code session and asking for a draft brief.\n\nIF THE MCP SERVER TRIGGER NODE DOES NOT IMPORT CLEANLY:\nDelete the imported trigger and drag a fresh 'MCP Server Trigger' (under AI / LangChain category) onto the canvas. Configure the tool 'write_draft_brief' with the JSON schema documented below. Connect its main output to 'Compose Draft' and the rest of the chain stays intact.\n\nINPUT SCHEMA FOR write_draft_brief (Claude Code passes these):\n  - naceDivision         (string)  e.g., '31' or '49'\n  - openerMarkdown       (string)  200–400 word Czech opener\n  - publicationBodyMarkdown (string, optional)  full Markdown of the analysed text\n  - observations         (array)   3 items: {title, body}\n  - closingActions       (array)   3 items: {title, body, time_horizon: '1m'|'3m'|'6-12m'}\n  - jobId                (string, optional)  generated if absent\n\nPRIVACY: this workflow does not persist any payload. Configure n8n Cloud retention policy to match."
+  },
+  "name": "Strategy Radar — MCP Draft Writer",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "strategy-radar-draft",
+        "tools": [
+          {
+            "name": "write_draft_brief",
+            "description": "Write a draft sector brief to the Strategy Radar admin DB. Use this AFTER you have read the publication, generated a Czech-language opener (200–400 words), 3 paired observations, and 3 paired actions with time-horizon tags. The draft will land at /admin in the app for analyst review and publish.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "naceDivision": {
+                  "type": "string",
+                  "description": "Two-digit NACE division code, e.g. '31' (furniture) or '49' (freight)."
+                },
+                "openerMarkdown": {
+                  "type": "string",
+                  "description": "Lay-person sector summary in Czech, 200–400 words. Goes into the brief's 'Sektorová analýza' opener block."
+                },
+                "publicationBodyMarkdown": {
+                  "type": "string",
+                  "description": "Full Markdown of the source publication (optional). Stored as the brief's full_text_markdown."
+                },
+                "observations": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 6,
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "title": { "type": "string" },
+                      "body": { "type": "string" }
+                    },
+                    "required": ["title", "body"]
+                  }
+                },
+                "closingActions": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 6,
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "title": { "type": "string" },
+                      "body": { "type": "string" },
+                      "time_horizon": {
+                        "type": "string",
+                        "enum": ["1m", "3m", "6-12m"]
+                      }
+                    },
+                    "required": ["title", "body", "time_horizon"]
+                  }
+                },
+                "jobId": {
+                  "type": "string",
+                  "description": "Optional correlation ID. If omitted, the workflow generates one."
+                }
+              },
+              "required": ["naceDivision", "openerMarkdown", "observations", "closingActions"]
+            }
+          }
+        ]
+      },
+      "id": "node-mcp-trigger",
+      "name": "MCP Server Trigger",
+      "type": "@n8n/n8n-nodes-langchain.mcpTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Compose the final draft payload per the n8n callback contract.\n// Same callback schema as the 18-node analysis-automation workflow's Compose Draft.\n// Difference: input fields come directly from the MCP tool call (Claude Code)\n// instead of being assembled from upstream HTTP/Code nodes.\n\nconst data = $input.first().json;\n\n// Generate a job_id if Claude Code didn't supply one.\nconst jobId = data.jobId || `mcp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;\n\n// Czech month-year string for title + publication.heading metadata\nconst now = new Date();\nconst czechMonths = ['Leden','Únor','Březen','Duben','Květen','Červen','Červenec','Srpen','Září','Říjen','Listopad','Prosinec'];\nconst publicationMonth = `${czechMonths[now.getMonth()]} ${now.getFullYear()}`;\nconst isoMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;\n\nconst draft = {\n  title: `Sektorová analýza — NACE ${data.naceDivision} — ${publicationMonth}`,\n  publication_month: isoMonth,\n  publication: {\n    heading: 'Sektorová analýza',\n    opener_markdown: data.openerMarkdown,\n    full_text_markdown: data.publicationBodyMarkdown || '',\n    source: `Ekonomické a strategické analýzy České spořitelny — ${publicationMonth}`,\n  },\n  observations: data.observations,\n  closing_actions: data.closingActions,\n};\n\nconst callbackPayload = {\n  jobId,\n  status: 'done',\n  draft,\n};\n\n// Read callback URL from Static Data so Claude Code doesn't need to know it.\nconst workflowData = $getWorkflowStaticData('global');\nconst callbackUrl = workflowData.APP_CALLBACK_URL || '';\nif (!callbackUrl) {\n  throw new Error('APP_CALLBACK_URL is not configured. Set it in workflow Static Data.');\n}\n\nreturn [{\n  json: { callbackUrl, callbackPayload, jobId }\n}];"
+      },
+      "id": "node-compose-draft",
+      "name": "Compose Draft",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Sign the callback payload with HMAC-SHA256 using N8N_CALLBACK_SECRET.\n// Same logic as the 18-node workflow's Sign Callback node — produces the\n// X-Signature-256 header value the app's /api/admin/briefs/from-n8n route\n// validates before accepting the draft.\nconst crypto = require('crypto');\n\nconst workflowData = $getWorkflowStaticData('global');\nconst secret = workflowData.N8N_CALLBACK_SECRET || process.env.N8N_CALLBACK_SECRET || '';\n\nif (!secret) {\n  throw new Error('N8N_CALLBACK_SECRET is not configured. Set it in workflow Static Data.');\n}\n\nconst data = $input.first().json;\nconst bodyStr = JSON.stringify(data.callbackPayload);\nconst sig = crypto.createHmac('sha256', secret).update(bodyStr, 'utf8').digest('hex');\n\nreturn [{\n  json: {\n    callbackUrl: data.callbackUrl,\n    callbackBody: bodyStr,\n    signatureHeader: `sha256=${sig}`,\n    jobId: data.jobId,\n  }\n}];"
+      },
+      "id": "node-sign-callback",
+      "name": "Sign Callback",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.callbackUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "X-Signature-256", "value": "={{ $json.signatureHeader }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "={{ $json.callbackBody }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "node-send-callback",
+      "name": "Send Callback",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format the MCP tool's return value for Claude Code.\n// Inspect the HTTP response from /api/admin/briefs/from-n8n and convert\n// to a structured success/failure payload that Claude Code can interpret.\n\nconst input = $input.first();\nconst data = input.json;\nconst statusCode = data.statusCode ?? data.statusCode2 ?? 200;\nconst jobId = $('Sign Callback').first().json.jobId;\n\nconst body = data.body || data;\n\nif (statusCode >= 200 && statusCode < 300) {\n  return [{\n    json: {\n      success: true,\n      jobId,\n      message: `Draft brief written. Job ID: ${jobId}. Open /admin in the browser to review and publish.`,\n      appResponse: body,\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    success: false,\n    jobId,\n    statusCode,\n    error: `Callback POST failed with status ${statusCode}.`,\n    appResponse: body,\n  }\n}];"
+      },
+      "id": "node-format-response",
+      "name": "Format Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 300]
+    }
+  ],
+  "connections": {
+    "MCP Server Trigger": {
+      "main": [
+        [{ "node": "Compose Draft", "type": "main", "index": 0 }]
+      ]
+    },
+    "Compose Draft": {
+      "main": [
+        [{ "node": "Sign Callback", "type": "main", "index": 0 }]
+      ]
+    },
+    "Sign Callback": {
+      "main": [
+        [{ "node": "Send Callback", "type": "main", "index": 0 }]
+      ]
+    },
+    "Send Callback": {
+      "main": [
+        [{ "node": "Format Response", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "versionId": "1",
+  "id": "strategy-radar-mcp-draft-writer"
+}
