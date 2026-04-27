@@ -10,7 +10,17 @@
  */
 
 import { sql } from "./db";
+import { createClient } from "@supabase/supabase-js";
 import type { PublishState, DeliveryFormat } from "../types/data-lanes";
+
+// Service-role client for read queries — bypasses RLS (direct postgres blocked
+// in some network environments; HTTPS/PostgREST always reachable).
+function getSupabaseAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error("Supabase env vars missing");
+  return createClient(url, key, { auth: { persistSession: false } });
+}
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -148,44 +158,28 @@ export async function listBriefs(): Promise<Brief[]> {
 
 /** Get a single brief by ID. Returns null if not found. */
 export async function getBriefById(id: string): Promise<Brief | null> {
-  const rows = await sql<Brief[]>`
-    SELECT
-      id,
-      nace_sector,
-      publish_state,
-      version,
-      author_id,
-      created_at,
-      published_at,
-      content_sections,
-      benchmark_snippet
-    FROM briefs
-    WHERE id = ${id}
-    LIMIT 1
-  `;
-  return rows[0] ?? null;
+  const { data, error } = await getSupabaseAdmin()
+    .from("briefs")
+    .select("id,nace_sector,publish_state,version,author_id,created_at,published_at,content_sections,benchmark_snippet")
+    .eq("id", id)
+    .limit(1)
+    .single();
+  if (error) return null;
+  return data as Brief;
 }
 
 /** Get the most recently published brief for a given NACE sector. */
 export async function getPublishedBriefByNace(naceSector: string): Promise<Brief | null> {
-  const rows = await sql<Brief[]>`
-    SELECT
-      id,
-      nace_sector,
-      publish_state,
-      version,
-      author_id,
-      created_at,
-      published_at,
-      content_sections,
-      benchmark_snippet
-    FROM briefs
-    WHERE nace_sector = ${naceSector}
-      AND publish_state = 'published'
-    ORDER BY published_at DESC
-    LIMIT 1
-  `;
-  return rows[0] ?? null;
+  const { data, error } = await getSupabaseAdmin()
+    .from("briefs")
+    .select("id,nace_sector,publish_state,version,author_id,created_at,published_at,content_sections,benchmark_snippet")
+    .eq("nace_sector", naceSector)
+    .eq("publish_state", "published")
+    .order("published_at", { ascending: false })
+    .limit(1)
+    .single();
+  if (error) return null;
+  return data as Brief;
 }
 
 /**
@@ -194,24 +188,17 @@ export async function getPublishedBriefByNace(naceSector: string): Promise<Brief
  * Used by the v0.2 dashboard briefs list (dashboard-v0-2.md §7).
  */
 export async function listPublishedBriefsByNace(naceSector: string): Promise<Brief[]> {
-  const rows = await sql<Brief[]>`
-    SELECT
-      id,
-      nace_sector,
-      publish_state,
-      version,
-      author_id,
-      created_at,
-      published_at,
-      content_sections,
-      benchmark_snippet
-    FROM briefs
-    WHERE nace_sector = ${naceSector}
-      AND publish_state = 'published'
-    ORDER BY published_at DESC, created_at DESC, id DESC
-    LIMIT 20
-  `;
-  return rows;
+  const { data, error } = await getSupabaseAdmin()
+    .from("briefs")
+    .select("id,nace_sector,publish_state,version,author_id,created_at,published_at,content_sections,benchmark_snippet")
+    .eq("nace_sector", naceSector)
+    .eq("publish_state", "published")
+    .order("published_at", { ascending: false })
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(20);
+  if (error) return [];
+  return (data ?? []) as Brief[];
 }
 
 /** Create a new brief draft. Returns the new brief. */

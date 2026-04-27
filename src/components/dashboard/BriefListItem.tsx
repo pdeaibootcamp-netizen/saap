@@ -79,12 +79,20 @@ export function BriefListItem({
   const ariaLabel = `Přehled: ${title}, ${publicationMonth}`;
 
   return (
-    <li style={{ listStyle: "none", borderBottom: "1px solid #e4eaf0" }}>
+    <li style={{
+      listStyle: "none",
+      border: "1px solid #e4eaf0",
+      borderRadius: "12px",
+      overflow: "hidden",
+      marginBottom: "8px",
+    }}>
       <Link
         href={`/brief/${briefId}`}
         aria-label={ariaLabel}
         style={{
-          display: "block",
+          display: "flex",
+          flexDirection: "row",
+          alignItems: "center",
           padding: "14px 16px",
           textDecoration: "none",
           color: "inherit",
@@ -93,97 +101,70 @@ export function BriefListItem({
           transition: "background-color 120ms ease",
           cursor: "pointer",
           boxSizing: "border-box",
+          gap: "12px",
         }}
         className="bli-row"
       >
-        {/* Row A — metadata: NACE badge + "Nový" pill */}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "row",
-            alignItems: "center",
-            gap: "8px",
-            marginBottom: "6px",
-          }}
-        >
-          {/* NACE badge — aria-hidden: text is included in row aria-label */}
-          {/* bg: --gds-surface-secondary (#eef0f4), text: --gds-text-secondary (#537090) */}
-          <span
-            aria-hidden="true"
-            style={{
-              display: "inline-block",
-              fontSize: "12px",
-              fontWeight: 500,
-              color: "#537090",
-              backgroundColor: "#eef0f4",
-              border: "1px solid #e4eaf0",
-              borderRadius: "4px",
-              padding: "2px 6px",
-              lineHeight: "1.4",
-            }}
-          >
-            {naceBadgeText}
-          </span>
-
-          {/* "Nový" pill — brief-list-item.md §6.2 */}
-          {/* bg: --gds-color-primary, text: white, fully-rounded (border-radius: 999px) */}
-          {isNew && (
+        {/* Left — metadata + title + date */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {/* Row A — NACE badge + "Nový" pill */}
+          <div style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
             <span
-              aria-label="Nový přehled"
+              aria-hidden="true"
               style={{
                 display: "inline-block",
                 fontSize: "12px",
-                fontWeight: 700,
-                color: "#ffffff",
-                backgroundColor: "#135ee2",
+                fontWeight: 500,
+                color: "#537090",
+                backgroundColor: "#eef0f4",
+                border: "1px solid #e4eaf0",
                 borderRadius: "999px",
                 padding: "2px 8px",
                 lineHeight: "1.4",
               }}
             >
-              Nový
+              {naceBadgeText}
             </span>
-          )}
+            {isNew && (
+              <span
+                aria-label="Nový přehled"
+                style={{
+                  display: "inline-block",
+                  fontSize: "12px",
+                  fontWeight: 700,
+                  color: "#ffffff",
+                  backgroundColor: "#135ee2",
+                  borderRadius: "999px",
+                  padding: "2px 8px",
+                  lineHeight: "1.4",
+                }}
+              >
+                Nový
+              </span>
+            )}
+          </div>
+
+          {/* Row B — title */}
+          <div style={{ fontSize: "16px", fontWeight: 700, color: "#1a1a1a", lineHeight: "1.4", marginBottom: "4px" }}>
+            {title}
+          </div>
+
+          {/* Row C — publication month */}
+          <span style={{ fontSize: "12px", color: "#9e9e9e" }}>{publicationMonth}</span>
         </div>
 
-        {/* Row B — title — brief-list-item.md §2.2, bold ~16px */}
-        <div
+        {/* Right — "Zobrazit" vertically centered */}
+        <span
+          aria-hidden="true"
           style={{
-            fontSize: "16px",
-            fontWeight: 700,
-            color: "#1a1a1a",
-            lineHeight: "1.4",
-            marginBottom: "6px",
+            flexShrink: 0,
+            fontSize: "13px",
+            fontWeight: 600,
+            color: "#135ee2",
           }}
         >
-          {title}
-        </div>
-
-        {/* Row C — publication month + "Zobrazit" link */}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-            fontSize: "12px",
-            fontWeight: 400,
-            lineHeight: "1.4",
-          }}
-        >
-          <span style={{ color: "#9e9e9e" }}>{publicationMonth}</span>
-          {/* "Zobrazit" — decorative link text, primary blue per screenshot */}
-          <span
-            aria-hidden="true"
-            style={{
-              fontSize: "13px",
-              fontWeight: 600,
-              color: "#135ee2",
-            }}
-          >
-            Zobrazit
-          </span>
-        </div>
+          Zobrazit
+        </span>
       </Link>
     </li>
   );

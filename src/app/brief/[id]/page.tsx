@@ -619,23 +619,70 @@ export default async function BriefPage({
     <main
       style={{
         minHeight: "100vh",
-        backgroundColor: "var(--gds-surface-card)",
+        backgroundColor: "var(--gds-page-bg)",
         fontFamily: "'Inter var', Inter, system-ui, sans-serif",
-        maxWidth: "680px",
-        margin: "0 auto",
-        padding: "0 20px 80px",
       }}
     >
-      {/* Brief header */}
-      <div style={{ padding: "24px 0 20px", borderBottom: "1px solid var(--gds-border-default)", marginBottom: "24px" }}>
-        <p style={{ fontSize: "12px", color: "var(--gds-text-muted)", marginBottom: "4px" }}>
-          Česká Spořitelna · Strategy Radar
-        </p>
-        <h1 style={{ fontSize: "22px", fontWeight: "bold", marginBottom: "4px", color: "var(--gds-heading-color)" }}>
-          {content.title || `Sektorový přehled — ${sectorName}`}
-        </h1>
-        <p style={{ fontSize: "14px", color: "var(--gds-text-secondary)" }}>{publicationMonth}</p>
-      </div>
+      {/* Header CSS — identical breakpoints as dashboard .db-header */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        .bp-header {
+          height: 48px;
+          background: #135ee2;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          position: relative;
+          padding: 0 16px;
+        }
+        @media (min-width: 601px) {
+          .bp-header { height: 56px; padding: 0 24px; }
+        }
+      `}} />
+
+      {/* Blue header stripe — matches dashboard header */}
+      <header className="bp-header">
+        <a
+          href="/"
+          style={{
+            position: "absolute",
+            left: "16px",
+            color: "#ffffff",
+            fontSize: "15px",
+            fontWeight: 600,
+            textDecoration: "none",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "4px",
+          }}
+          aria-label="Zpět na dashboard"
+        >
+          ← Zpět
+        </a>
+        <span style={{ fontSize: "17px", fontWeight: 700, color: "#ffffff" }}>
+          Strategy Radar
+        </span>
+      </header>
+
+      {/* Content card */}
+      <div style={{ maxWidth: "680px", margin: "0 auto", padding: "16px 16px 80px" }}>
+        <div
+          style={{
+            backgroundColor: "#ffffff",
+            borderRadius: "12px",
+            padding: "24px 20px",
+            border: "1px solid #e4eaf0",
+          }}
+        >
+          {/* Brief header */}
+          <div style={{ paddingBottom: "20px", borderBottom: "1px solid var(--gds-border-default)", marginBottom: "24px" }}>
+            <p style={{ fontSize: "12px", color: "var(--gds-text-muted)", marginBottom: "4px" }}>
+              Česká Spořitelna · Strategy Radar
+            </p>
+            <h1 style={{ fontSize: "22px", fontWeight: "bold", marginBottom: "4px", color: "var(--gds-heading-color)" }}>
+              {content.title || `Sektorový přehled — ${sectorName}`}
+            </h1>
+            <p style={{ fontSize: "14px", color: "var(--gds-text-secondary)" }}>{publicationMonth}</p>
+          </div>
 
       {/* Sektorová analýza block (v0.2) */}
       {content.publication ? (
@@ -747,6 +794,8 @@ export default async function BriefPage({
         >
           Zpět do George
         </a>
+      </div>
+        </div>
       </div>
     </main>
   );
