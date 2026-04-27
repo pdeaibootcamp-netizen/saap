@@ -89,8 +89,16 @@ export default function IcoSwitcher({ activeIco, activeName }: IcoSwitcherProps)
       style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 0 }}
       aria-label="Přepnutí demo firmy"
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        {/* IČO input field */}
+      {/* Input group — pill shape, input + button merged into one unit */}
+      <div style={{
+        display: "flex",
+        alignItems: "stretch",
+        borderRadius: 999,
+        overflow: "hidden",
+        border: error ? "2px solid #C62828" : "1.5px solid rgba(255,255,255,0.7)",
+        backgroundColor: "#ffffff",
+        height: 34,
+      }}>
         <input
           type="text"
           inputMode="numeric"
@@ -106,45 +114,35 @@ export default function IcoSwitcher({ activeIco, activeName }: IcoSwitcherProps)
           aria-describedby={error ? "ico-switcher-error" : undefined}
           aria-invalid={error !== null}
           style={{
-            width: 100,
-            height: 32,
+            width: 90,
             fontSize: 13,
             color: "#1a1a1a",
-            border: error ? "2px solid #C62828" : "1px solid #9E9E9E",
-            borderRadius: 4,
-            padding: "0 8px",
+            border: "none",
+            borderRight: "1px solid #e4eaf0",
+            padding: "0 12px",
             outline: "none",
             fontFamily: "inherit",
+            backgroundColor: "transparent",
             boxSizing: "border-box" as const,
-            backgroundColor: "#ffffff",
-          }}
-          onFocus={(e) => {
-            if (!error) (e.target as HTMLInputElement).style.border = "2px solid #1a1a1a";
-          }}
-          onBlur={(e) => {
-            if (!error) (e.target as HTMLInputElement).style.border = "1px solid #9E9E9E";
           }}
         />
-
-        {/* Přepnout button — white bg + primary blue text on blue header */}
         <button
           type="submit"
           disabled={isLoading}
           aria-label={isLoading ? "Načítám…" : "Přepnout firmu"}
           aria-disabled={isLoading}
           style={{
-            backgroundColor: "#ffffff",
+            backgroundColor: "transparent",
             color: "#135ee2",
-            border: "1px solid #ffffff",
-            borderRadius: 4,
-            height: 32,
-            padding: "0 12px",
+            border: "none",
+            padding: "0 14px",
             fontSize: 13,
             fontWeight: 600,
             cursor: isLoading ? "not-allowed" : "pointer",
             opacity: isLoading ? 0.7 : 1,
             fontFamily: "inherit",
             whiteSpace: "nowrap" as const,
+            flexShrink: 0,
           }}
         >
           {isLoading ? "…" : "Přepnout"}
