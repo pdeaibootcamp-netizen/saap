@@ -17,3 +17,7 @@ PRD/industry-data/*.csv
 
 # Local data folder (raw imports, exports, scratch files — never commit)
 /data/
+
+# Ingest run artefacts (regenerated each run — never commit)
+src/cz-city-region-map.unmapped.log
+src/ingest.errors.log
