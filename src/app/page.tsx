@@ -258,9 +258,9 @@ export default async function DashboardPage() {
           text-align: center;
         }
 
-        /* Brief list rows — brief-list-item.md §3 hover/focus/pressed states */
+        /* Brief list rows — hover/focus/pressed states */
         .bli-row:hover {
-          background-color: #eef0f4 !important;
+          background-color: #e8f0fd !important;
         }
         @media (prefers-reduced-motion: reduce) {
           .bli-row { transition: none !important; }
@@ -270,12 +270,7 @@ export default async function DashboardPage() {
           outline-offset: -3px;
         }
         .bli-row:active {
-          background-color: #e4eaf0 !important;
-        }
-
-        /* Brief list last-row: no bottom divider — brief-list-item.md §4.1 */
-        .db-brief-list li:last-child {
-          border-bottom: none;
+          background-color: #d6e4fb !important;
         }
 
         /* Empty state — brief-list-item.md §4.3 */
