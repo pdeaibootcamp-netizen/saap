@@ -119,12 +119,40 @@ function bucketToSizeBand(bucket: string | null): "S1" | "S2" | "S3" | null {
 
 // ── NACE normalisation ────────────────────────────────────────────────────────
 
+// Czech NACE labels seen in industry-data Excels → 4-digit class.
+// Extend as new NACEs are ingested. Lower-cased on lookup so variant casing works.
+const NACE_LABEL_TO_CLASS: Record<string, string> = {
+  "silniční nákladní doprava": "4941",
+  "výroba nábytku": "3100",
+  // future entries land here as Excels arrive
+};
+
+/**
+ * Three input shapes are supported:
+ *   1. Pure digit string ("4941" or "49") — parsed as before.
+ *   2. Czech text label ("Silniční nákladní doprava") — looked up in NACE_LABEL_TO_CLASS.
+ *   3. Mixed ("4941 - Silniční nákladní doprava") — digits extracted first.
+ *
+ * If neither digits nor label match, returns null and the caller treats it as a NACE mismatch.
+ */
 function normaliseNace(raw: string | null): { naceClass: string; naceDivision: string } | null {
   if (!raw) return null;
-  const stripped = raw.replace(/\D/g, "").replace(/^0+/, "");
-  if (stripped.length < 2) return null;
-  const padded = stripped.padStart(4, "0").slice(0, 4);
-  return { naceClass: padded, naceDivision: padded.slice(0, 2) };
+
+  // Try digit extraction first (handles "4941" and "4941 - …" forms).
+  const digits = raw.replace(/\D/g, "").replace(/^0+/, "");
+  if (digits.length >= 2) {
+    const padded = digits.padStart(4, "0").slice(0, 4);
+    return { naceClass: padded, naceDivision: padded.slice(0, 2) };
+  }
+
+  // Fall back to label lookup (handles plain "Silniční nákladní doprava").
+  const labelKey = raw.trim().toLowerCase();
+  const cls = NACE_LABEL_TO_CLASS[labelKey];
+  if (cls) {
+    return { naceClass: cls, naceDivision: cls.slice(0, 2) };
+  }
+
+  return null;
 }
 
 // ── Plausibility envelopes (cohort-ingestion.md §4.4) ────────────────────────
