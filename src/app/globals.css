@@ -85,6 +85,9 @@
   --gds-quartile-bottom: #cf2a1e;
   /* no data                      — $color-gray-400 (closest GDS blue-gray to #455A64) */
   --gds-quartile-nodata: #537090;
+
+  /* Card border-radius — GDS design decision: 12px (not 8px) */
+  --gds-radius-card: 12px;
 }
 
 *,
