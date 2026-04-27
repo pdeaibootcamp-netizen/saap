@@ -75,13 +75,15 @@ const QUARTILE_STYLES: Record<QuartileLabel, QuartileStyle> = {
   },
 };
 
-// Fallback: quartile → quintile fill when percentile unavailable
+// Fallback fill when percentile unavailable
 const QUARTILE_TO_QUINTILE: Record<QuartileLabel, number> = {
   "spodní čtvrtina": 1,
   "druhá čtvrtina":  2,
   "třetí čtvrtina":  4,
   "horní čtvrtina":  5,
 };
+
+const QUINTILE_LABELS = ["spodní pětina", "druhá pětina", "třetí pětina", "čtvrtá pětina", "horní pětina"];
 
 function percentileToQuintile(p: number): number {
   if (p <= 20) return 1;
@@ -91,17 +93,21 @@ function percentileToQuintile(p: number): number {
   return 5;
 }
 
-function QuartileBar({ quartile, percentile, accentHex }: { quartile: QuartileLabel; percentile: number | null; accentHex: string }) {
-  const filled = percentile !== null
-    ? percentileToQuintile(percentile)
-    : QUARTILE_TO_QUINTILE[quartile];
+function getQuintileLabel(percentile: number | null, quartile: QuartileLabel): string {
+  const q = percentile !== null ? percentileToQuintile(percentile) : QUARTILE_TO_QUINTILE[quartile];
+  return QUINTILE_LABELS[q - 1];
+}
+
+function QuintileBar({ quartile, percentile, accentHex }: { quartile: QuartileLabel; percentile: number | null; accentHex: string }) {
+  const filled = percentile !== null ? percentileToQuintile(percentile) : QUARTILE_TO_QUINTILE[quartile];
   const radius = (i: number): string => {
     if (i === 1) return "3px 0 0 3px";
     if (i === 5) return "0 3px 3px 0";
     return "0";
   };
+  const tooltip = percentile !== null ? `${percentile}. percentil` : undefined;
   return (
-    <div style={{ display: "flex", gap: 2, width: "100%", marginTop: 8 }}>
+    <div title={tooltip} style={{ display: "flex", gap: 4, width: "100%", marginTop: 8, cursor: "default" }}>
       {[1, 2, 3, 4, 5].map((i) => (
         <div
           key={i}
@@ -164,7 +170,7 @@ export default function MetricTile({
   // tile-states.md §6.4
   let ariaLabel: string;
   if (confidenceState === "valid" && quartileLabel && percentile !== null) {
-    ariaLabel = `${metricLabel} — ${quartileLabel}, ${percentile}. percentil`;
+    ariaLabel = `${metricLabel} — ${getQuintileLabel(percentile, quartileLabel)}, ${percentile}. percentil`;
   } else if (confidenceState === "below-floor") {
     ariaLabel = `${metricLabel} — zatím nedostatek dat pro srovnání`;
   } else if (confidenceState === "empty") {
@@ -269,18 +275,15 @@ export default function MetricTile({
           {rawValue}
         </span>
 
-        {/* Row D — quartile bar + label */}
+        {/* Row D — quintile bar + label */}
         <div
-          aria-label={percentile !== null ? `${quartileLabel}, ${percentile}. percentil` : quartileLabel}
+          aria-label={percentile !== null ? `${getQuintileLabel(percentile, quartileLabel)}, ${percentile}. percentil` : getQuintileLabel(null, quartileLabel)}
           style={{ display: "flex", flexDirection: "column", gap: 5 }}
         >
-          <QuartileBar quartile={quartileLabel} percentile={percentile} accentHex={accentHex} />
-          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
-            <span style={{ fontWeight: 600, color: "#333333" }}>{quartileLabel}</span>
-            {percentile !== null && (
-              <span aria-hidden="true" style={{ color: "#9E9E9E" }}>{percentile}.&nbsp;p.</span>
-            )}
-          </div>
+          <QuintileBar quartile={quartileLabel} percentile={percentile} accentHex={accentHex} />
+          <span style={{ fontWeight: 600, color: "#333333", fontSize: 13 }}>
+            {getQuintileLabel(percentile, quartileLabel)}
+          </span>
         </div>
       </div>
     );
