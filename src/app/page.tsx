@@ -219,7 +219,7 @@ export default async function DashboardPage({
           background: #135ee2;
           display: flex;
           align-items: center;
-          justify-content: space-between;
+          justify-content: center;
           position: relative;
           padding: 0 16px;
         }
@@ -228,7 +228,7 @@ export default async function DashboardPage({
         }
         @media (max-width: 600px) {
           .db-header {
-            flex-wrap: wrap;
+            justify-content: space-between;
             height: auto;
             min-height: 48px;
             padding: 8px 16px;
@@ -242,13 +242,42 @@ export default async function DashboardPage({
           color: #ffffff;
           line-height: 1.3;
           margin: 0;
-          flex-shrink: 0;
-        }
-
-        /* IčO switcher wrapper — right-side of header */
-        .db-ico-switcher-wrap {
           display: flex;
           align-items: center;
+          gap: 8px;
+        }
+
+        .db-demo-badge {
+          display: inline-block;
+          font-size: 10px;
+          font-weight: 700;
+          color: #E65100;
+          background-color: #FFF3E0;
+          border-radius: 3px;
+          padding: 2px 6px;
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
+          vertical-align: middle;
+          line-height: 1.4;
+        }
+
+        /* IčO switcher wrapper — absolute right in header */
+        .db-ico-switcher-wrap {
+          position: absolute;
+          right: 16px;
+          top: 50%;
+          transform: translateY(-50%);
+          display: flex;
+          align-items: center;
+        }
+        @media (min-width: 601px) {
+          .db-ico-switcher-wrap { right: 24px; }
+        }
+        @media (max-width: 600px) {
+          .db-ico-switcher-wrap {
+            position: static;
+            transform: none;
+          }
         }
 
         .db-content {
@@ -348,17 +377,13 @@ export default async function DashboardPage({
 
       <div className="db-page">
 
-        {/* Header band — D-018: wordmark left, IčO switcher right */}
+        {/* Header band — wordmark centred, DEMO badge inline, IčO switcher absolute right */}
         <header role="banner" className="db-header">
-          <h1 className="db-wordmark" aria-label="Strategy Radar">
+          <h1 className="db-wordmark" aria-label="Strategy Radar — demo prostředí">
             Strategy Radar
+            <span className="db-demo-badge" aria-hidden="true">DEMO</span>
           </h1>
 
-          {/* IčO switcher — moderator-only (design/in-tile-prompts.md §4.3).
-              Originally gated behind DEMO_MODE=true; relaxed for v0.3 PoC because
-              this branch is the demo branch and the switcher IS the primary
-              moderator UX. The /api/owner/demo/{switch,reset} routes remain
-              gated by DEMO_MODE per ADR-OM-03. */}
           <div className="db-ico-switcher-wrap">
             <IcoSwitcher activeIco={activeIco} activeName={activeName} />
           </div>
@@ -370,7 +395,7 @@ export default async function DashboardPage({
             {/* Section 1 — Tile grid */}
             <section className="db-tile-section" aria-labelledby="tile-section-heading">
               <h2 id="tile-section-heading" className="db-section-heading">
-                Vaše pozice v kohortě
+                Vaše pozice v kohortě{activeName ? ` – ${activeName}` : ""}
               </h2>
 
               {tileProps.length > 0 ? (

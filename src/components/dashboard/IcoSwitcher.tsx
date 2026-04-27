@@ -90,33 +90,12 @@ export default function IcoSwitcher({ activeIco, activeName }: IcoSwitcherProps)
       aria-label="Přepnutí demo firmy"
     >
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        {/* DEMO badge — moderator-tool annotation */}
-        <span style={{
-          backgroundColor: "#FFF3E0",
-          color: "#E65100",
-          fontSize: 10,
-          fontWeight: 700,
-          padding: "1px 5px",
-          borderRadius: 3,
-          letterSpacing: "0.04em",
-          textTransform: "uppercase" as const,
-          marginRight: 2,
-          display: "inline-block",
-        }}>
-          DEMO
-        </span>
-
-        {/* Label prefix */}
-        <span style={{ fontSize: 12, color: "#9E9E9E", whiteSpace: "nowrap" }}>
-          Demo:
-        </span>
-
         {/* IČO input field */}
         <input
           type="text"
           inputMode="numeric"
           maxLength={8}
-          placeholder="IČO firmy"
+          placeholder="IČO"
           autoComplete="off"
           value={inputValue}
           onChange={(e) => {
@@ -171,31 +150,6 @@ export default function IcoSwitcher({ activeIco, activeName }: IcoSwitcherProps)
           {isLoading ? "…" : "Přepnout"}
         </button>
       </div>
-
-      {/* Active firm name — below the switcher row when present.
-          Helps the moderator see at a glance which firm is loaded without
-          having to remember the IčO. White text on the GDS blue header band
-          (#135ee2) for high contrast; bumped to 15px / weight 600 so it
-          reads at a glance, not just on close inspection. */}
-      {activeName && !error && (
-        <span
-          style={{
-            fontSize: 15,
-            color: "#ffffff",
-            marginTop: 6,
-            fontWeight: 600,
-            letterSpacing: "0.005em",
-            maxWidth: 320,
-            textAlign: "right" as const,
-            whiteSpace: "nowrap" as const,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-          }}
-          title={activeName}
-        >
-          {activeName}
-        </span>
-      )}
 
       {/* Inline error — below the switcher row */}
       {error && (
