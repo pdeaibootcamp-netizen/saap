@@ -334,6 +334,8 @@ function getFixtureMetrics(): OwnerMetric[] {
 async function getOwnerMetricsFromDB(
   userId: string,
   naceDivision: string = "49",
+  sizeBand: string = "S2",
+  region: string = "Praha",
 ): Promise<OwnerMetric[]> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -374,17 +376,14 @@ async function getOwnerMetricsFromDB(
     ownerValuesMap.set(metricId, dbRow?.raw_value ?? null);
   }
 
-  // Demo profile defaults (DEMO_OWNER_PROFILE in demo-owner.ts).
-  // v0.3 demo NACE = 49 (Silniční nákladní doprava). When the IČO switcher
-  // changes the active firm at runtime, the cookie flow updates the profile;
-  // for the v0.3 PoC we default to the seeded NACE division and size/region.
-  const sizeBand = "S2"; // mid-size SME (DEMO_OWNER_PROFILE)
-  const region = "Praha"; // DEMO_OWNER_PROFILE
-
+  // Demo profile values come from the active firm's cohort_companies row
+  // (set by /api/owner/demo/switch into cookies, threaded down by page.tsx).
+  // Fallbacks: DEMO_OWNER_PROFILE constants — handles the cold-load case
+  // before any IčO switch has happened.
   const benchmarkMetrics = await computeBenchmarkSnippet(
     ownerValuesMap,
     naceDivision,
-    sizeBand,
+    sizeBand as "S1" | "S2" | "S3",
     region,
   );
 
@@ -461,6 +460,8 @@ async function getOwnerMetricsFromDB(
 export async function getOwnerMetrics(
   userId: string,
   naceDivision?: string,
+  sizeBand?: string,
+  region?: string,
 ): Promise<OwnerMetric[]> {
   if (userId !== DEMO_OWNER_USER_ID) {
     // Non-demo user — no data available at v0.3
@@ -473,7 +474,12 @@ export async function getOwnerMetrics(
     return getFixtureMetrics();
   }
 
-  return getOwnerMetricsFromDB(userId, naceDivision ?? "49");
+  return getOwnerMetricsFromDB(
+    userId,
+    naceDivision ?? "49",
+    sizeBand ?? "S2",
+    region ?? "Praha",
+  );
 }
 
 // Re-export for type-checking in tests

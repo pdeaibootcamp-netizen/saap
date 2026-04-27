@@ -102,6 +102,17 @@ export default async function DashboardPage({
   const cookieStore = cookies();
   const activeIco = cookieStore.get(DEMO_ACTIVE_ICO_COOKIE)?.value ?? DEMO_DEFAULT_ICO;
 
+  // ── Active firm's cohort cell (set by /api/owner/demo/switch) ────────────
+  // When the moderator switches firms, the demo/switch route writes these
+  // cookies so the dashboard can compute percentiles against the firm's
+  // actual NACE × size × region cell. If unset, fall back to DEMO_OWNER_PROFILE.
+  const activeNace =
+    cookieStore.get("sr_active_nace")?.value || DEMO_OWNER_PROFILE.nace_sector;
+  const activeSize =
+    cookieStore.get("sr_active_size")?.value || DEMO_OWNER_PROFILE.size_band;
+  const activeRegion =
+    cookieStore.get("sr_active_region")?.value || DEMO_OWNER_PROFILE.region;
+
   // ── just-saved metric ID (from ?saved=<metricId> post-PATCH redirect) ────
   // Used to apply the mt-just-saved CSS pulse class to the matching tile.
   const savedParam = searchParams?.saved;
@@ -110,7 +121,7 @@ export default async function DashboardPage({
   // ── Metric tiles ────────────────────────────────────────────────────────────
   // Reads from owner_metrics DB table (when USE_REAL_OWNER_METRICS=true).
   // Falls back to fixture on DB error. Never throws.
-  const ownerMetrics = await getOwnerMetrics(userId);
+  const ownerMetrics = await getOwnerMetrics(userId, activeNace, activeSize, activeRegion);
 
   // Sort into D-011 category order
   const sortedMetrics = [...ownerMetrics].sort((a, b) => {
