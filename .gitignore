@@ -7,3 +7,9 @@ src/.next/
 src/next-env.d.ts
 src/.env.local
 src/.env*.local
+
+# Industry-data hand-offs — held local-only by default until the user OKs
+# committing them to a public repo (repo is currently public per gh repo view).
+PRD/industry-data/*.xlsx
+PRD/industry-data/*.xls
+PRD/industry-data/*.csv
