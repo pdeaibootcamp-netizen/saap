@@ -168,7 +168,7 @@ export default function MetricTile({
     backgroundColor: "#ffffff",
     color: "#1a1a1a",
     border: "1px solid #e4eaf0",
-    borderRadius: "8px",
+    borderRadius: "12px",
     padding: "16px",
     minHeight: confidenceState === "ask" ? "240px" : "130px",
     display: "flex",
@@ -259,7 +259,7 @@ export default function MetricTile({
   if (confidenceState === "loading") {
     return (
       <div role="region" aria-label={metricLabel} aria-busy="true" style={tileStyle}>
-        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 4, background: "#e4eaf0", borderRadius: 0 }} />
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 4, background: "#e4eaf0", borderRadius: "12px 12px 0 0" }} />
         <style dangerouslySetInnerHTML={{ __html: skeletonCss }} />
         <div className="mt-skeleton mt-skeleton-short" style={{ marginTop: 4 }} />
         <div className="mt-skeleton mt-skeleton-medium" />
@@ -278,7 +278,7 @@ export default function MetricTile({
         style={tileStyle}
         className={justSaved ? "mt-just-saved" : undefined}
       >
-        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 4, background: accentHex, borderRadius: 0 }} />
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 4, background: accentHex, borderRadius: "12px 12px 0 0" }} />
 
         <span style={{ fontSize: 15, fontWeight: 600, color: "#1a1a1a", lineHeight: 1.3, marginTop: 4 }}>
           {metricLabel}
@@ -335,7 +335,7 @@ export default function MetricTile({
           style={collapsedTileStyle}
         >
           {/* Subtle grey accent stripe — "action available", not alarming */}
-          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 4, background: CTA_ACCENT_HEX, borderRadius: 0 }} />
+          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 4, background: CTA_ACCENT_HEX, borderRadius: "12px 12px 0 0" }} />
 
           {/* Metric name (slightly muted) */}
           <span style={{ fontSize: 15, fontWeight: 600, color: "#374151", lineHeight: 1.3, marginTop: 4 }}>
@@ -382,7 +382,7 @@ export default function MetricTile({
         style={tileStyle}
       >
         {/* Accent stripe */}
-        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 4, background: CTA_ACCENT_HEX, borderRadius: 0 }} />
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 4, background: CTA_ACCENT_HEX, borderRadius: "12px 12px 0 0" }} />
 
         {/* Metric name */}
         <span style={{ fontSize: 15, fontWeight: 600, color: "#1a1a1a", lineHeight: 1.3, marginTop: 4 }}>
@@ -523,7 +523,7 @@ export default function MetricTile({
 
   return (
     <div role="region" aria-label={ariaLabel} style={tileStyle}>
-      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 4, background: nodataAccentHex, borderRadius: 0 }} />
+      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 4, background: nodataAccentHex, borderRadius: "12px 12px 0 0" }} />
 
       <span style={{ fontSize: 15, fontWeight: 600, color: "#1a1a1a", marginTop: 4 }}>
         {metricLabel}

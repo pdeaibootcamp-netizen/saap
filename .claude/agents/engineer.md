@@ -113,9 +113,14 @@ CSS vars in `globals.css` are fine for documentation/reference; never rely on th
 | spodní čtvrtina | `#cf2a1e` | `#FFEBEE` | `#C62828` |
 | no-data | `#537090` | `#F5F5F5` | `#757575` |
 
+### Card border-radius: 12px (not 8px)
+MetricTile and any future card containers use `borderRadius: "12px"`. Token: `--gds-radius-card: 12px` in globals.css —
+but use hardcoded `borderRadius: "12px"` in inline styles (CSS vars unreliable in Next.js dev mode).
+
 ### MetricTile structure (exact — do not reorder)
 1. Accent stripe: `position:absolute; top:0; left:0; right:0; height:4px; borderRadius:0; background:<accentHex>`  
-   Card must have `position:relative; overflow:hidden` — **never use `border-top`** (it rounds the corners)
+   Card must have `position:relative` and `borderRadius:"12px"` — **never use `border-top`** (it rounds the corners).  
+   Note: no `overflow:hidden` in v0.3 — ask-state form grows past 130 px and would be clipped.
 2. Metric name: 15px / 600 / `#1a1a1a`, `marginTop:4`
 3. Category badge: `borderRadius:999px; padding:2px 10px; fontSize:12px` — bg + text from quartile badge table above
 4. `<div style={{flex:1}}/>` — spacer
