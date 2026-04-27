@@ -211,9 +211,13 @@ function derivedMetrics(
   profitCzk: number | null,
   primaryCount: number | null,
   fallbackCount: number | null,
+  operatingProfitCzk: number | null,
+  currentAssetsCzk: number | null,
 ) {
   let netMargin: number | null = null;
   let revenuePerEmployee: number | null = null;
+  let ebitdaMargin: number | null = null;
+  let workingCapitalCycle: number | null = null;
 
   if (revenueCzk !== null && profitCzk !== null && Math.abs(revenueCzk) > 1000) {
     const nm = (profitCzk / revenueCzk) * 100;
@@ -236,7 +240,32 @@ function derivedMetrics(
     revenuePerEmployee = compute(fallbackCount);
   }
 
-  return { netMargin, revenuePerEmployee };
+  // EBITDA margin proxy: operating margin = Provozní HV / Obrat × 100.
+  // Technically operating margin (no D&A added back); used as proxy because
+  // D&A is not separately reported in this dataset. Same envelope as net_margin.
+  if (
+    operatingProfitCzk !== null &&
+    revenueCzk !== null &&
+    Math.abs(revenueCzk) > 1000
+  ) {
+    const em = (operatingProfitCzk / revenueCzk) * 100;
+    if (em >= -50 && em <= 60) ebitdaMargin = Math.round(em * 10000) / 10000;
+  }
+
+  // Working capital cycle proxy: Oběžná aktiva / Obrat × 365 (days).
+  // Rough "all current assets days" — not the real DIO+DSO-DPO cycle.
+  // Plausibility envelope: 0–730 days (allows extreme inventory businesses).
+  if (
+    currentAssetsCzk !== null &&
+    revenueCzk !== null &&
+    revenueCzk > 1000 &&
+    currentAssetsCzk >= 0
+  ) {
+    const wcc = (currentAssetsCzk / revenueCzk) * 365;
+    if (wcc >= 0 && wcc <= 730) workingCapitalCycle = Math.round(wcc * 100) / 100;
+  }
+
+  return { netMargin, revenuePerEmployee, ebitdaMargin, workingCapitalCycle };
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -271,6 +300,8 @@ async function main() {
   let skippedStaleYear = 0;
   let netMarginCount = 0;
   let revenuePerEmployeeCount = 0;
+  let ebitdaMarginCount = 0;
+  let workingCapitalCycleCount = 0;
   let regionMapped = 0;
   let regionUnmapped = 0;
   const sizeBandCounts: Record<string, number> = { S1: 0, S2: 0, S3: 0 };
@@ -307,6 +338,21 @@ async function main() {
     employee_count: number | null;
     net_margin: number | null;
     revenue_per_employee: number | null;
+    // Extended financials (migration 0010) — populated when the source
+    // Excel carries the relevant columns (furniture export does, freight
+    // does not). NULL otherwise.
+    sales_czk: number | null;
+    operating_profit_czk: number | null;
+    pretax_profit_czk: number | null;
+    costs_czk: number | null;
+    assets_total_czk: number | null;
+    fixed_assets_czk: number | null;
+    current_assets_czk: number | null;
+    liabilities_total_czk: number | null;
+    equity_czk: number | null;
+    debt_czk: number | null;
+    ebitda_margin: number | null;
+    working_capital_cycle: number | null;
     source_file: string;
   };
   const rowsToUpsert: RowToUpsert[] = [];
@@ -361,16 +407,51 @@ async function main() {
     };
     // Revenue: prefer "Obrat, Výnosy" (freight & furniture). Avoid the
     // "Kategorie obratu" bucket label collision. Fall back to "Tržby, Výkony"
-    // (alternate revenue field in some exports).
-    const revenueRaw = findCol(["Obrat, Výnosy", "Tržby, Výkony"]);
+    // (alternate revenue field) when Obrat is empty/missing — captured below
+    // as `salesRaw` and merged into the effective revenue used for derivations.
+    const revenueRawObrat = findCol(["Obrat, Výnosy"]);
+    const salesRaw = findCol(["Tržby, Výkony"]);
     // Profit: prefer "za účetní období" (net profit). Avoid "Provozní"
-    // (operating profit) and "před zdaněním" (pre-tax) which are different metrics.
+    // (operating profit) and "před zdaněním" (pre-tax) — those go into their
+    // own raw fields below for asset-richer derivations.
     const profitRaw = findCol(["Hospodářský výsledek za účetní"]);
+    const operatingProfitRaw = findCol(["Provozní hospodářský výsledek"]);
+    const pretaxProfitRaw = findCol(["Hospodářský výsledek před zdaněním"]);
+    const costsRaw = findCol(["Náklady"]);
     const exactCountRaw = findCol(["Počet zaměstnanců"]);
     const bucketRaw = findCol(["Kategorie počtu zaměstnanců"]);
+    // Balance-sheet fields (Aktiva / Pasiva). Persisted unconditionally;
+    // the working-capital-cycle proxy uses Oběžná aktiva.
+    const assetsTotalRaw       = findCol(["Aktiva celkem"]);
+    const fixedAssetsRaw       = findCol(["Stálá aktiva"]);
+    const currentAssetsRaw     = findCol(["Oběžná aktiva"]);
+    const liabilitiesTotalRaw  = findCol(["Pasiva celkem"]);
+    const equityRaw            = findCol(["Vlastní kapitál"]);
+    const debtRaw              = findCol(["Cizí zdroje"]);
 
-    const revenueCzk = revenueRaw != null && revenueRaw !== "" ? Number(revenueRaw) : null;
-    const profitCzk = profitRaw != null && profitRaw !== "" ? Number(profitRaw) : null;
+    // Helper: parse a numeric cell, treating empty string and null as null.
+    const num = (raw: unknown): number | null => {
+      if (raw == null || raw === "") return null;
+      const n = Number(raw);
+      return Number.isFinite(n) ? n : null;
+    };
+
+    const revenueObratCzk = num(revenueRawObrat);
+    const salesCzk = num(salesRaw);
+    // Effective revenue used for derived metrics: prefer Obrat, fall back to
+    // Tržby, Výkony when Obrat is empty. Both are stored in their raw columns
+    // unchanged for downstream auditability.
+    const revenueCzk = revenueObratCzk ?? salesCzk;
+    const profitCzk = num(profitRaw);
+    const operatingProfitCzk = num(operatingProfitRaw);
+    const pretaxProfitCzk = num(pretaxProfitRaw);
+    const costsCzk = num(costsRaw);
+    const assetsTotalCzk = num(assetsTotalRaw);
+    const fixedAssetsCzk = num(fixedAssetsRaw);
+    const currentAssetsCzk = num(currentAssetsRaw);
+    const liabilitiesTotalCzk = num(liabilitiesTotalRaw);
+    const equityCzk = num(equityRaw);
+    const debtCzk = num(debtRaw);
 
     // ── Employee count → size band ────────────────────────────────────────
     // Two source columns:
@@ -418,14 +499,18 @@ async function main() {
     }
 
     // ── Derived metrics ───────────────────────────────────────────────────
-    const { netMargin, revenuePerEmployee } = derivedMetrics(
+    const { netMargin, revenuePerEmployee, ebitdaMargin, workingCapitalCycle } = derivedMetrics(
       revenueCzk,
       profitCzk,
       employeeCount,
       bucketMidpoint(bucket),
+      operatingProfitCzk,
+      currentAssetsCzk,
     );
     if (netMargin !== null) netMarginCount++;
     if (revenuePerEmployee !== null) revenuePerEmployeeCount++;
+    if (ebitdaMargin !== null) ebitdaMarginCount++;
+    if (workingCapitalCycle !== null) workingCapitalCycleCount++;
 
     sizeBandCounts[sizeBand]++;
 
@@ -446,11 +531,26 @@ async function main() {
       nace_division: nace.naceDivision,
       cz_region: region,
       size_band: sizeBand,
+      // Note: revenue_czk stores the EFFECTIVE revenue (Obrat with Tržby
+      // fallback). The raw Tržby value is stored separately in sales_czk.
       revenue_czk: revenueCzk,
       profit_czk: profitCzk,
       employee_count: employeeCount,
       net_margin: netMargin,
       revenue_per_employee: revenuePerEmployee,
+      // Extended financials (migration 0010) — raw fields and proxy metrics.
+      sales_czk: salesCzk,
+      operating_profit_czk: operatingProfitCzk,
+      pretax_profit_czk: pretaxProfitCzk,
+      costs_czk: costsCzk,
+      assets_total_czk: assetsTotalCzk,
+      fixed_assets_czk: fixedAssetsCzk,
+      current_assets_czk: currentAssetsCzk,
+      liabilities_total_czk: liabilitiesTotalCzk,
+      equity_czk: equityCzk,
+      debt_czk: debtCzk,
+      ebitda_margin: ebitdaMargin,
+      working_capital_cycle: workingCapitalCycle,
       source_file: path.basename(file),
     });
     ingested++;
@@ -489,8 +589,10 @@ async function main() {
   console.log(`Ingested ${ingested} rows out of ${rows.length} source rows.`);
   console.log(`Skipped: ${skippedTotal} (${skippedMalformedIco} malformed IČO, ${skippedNoEmployee} missing employee fields, ${skippedNaceMismatch} NACE mismatch, ${skippedStaleYear} stale year < 2015).`);
   console.log(`Coverage:`);
-  console.log(`  net_margin           computed for ${netMarginCount} rows (${pct(netMarginCount, ingested)} %)`);
-  console.log(`  revenue_per_employee computed for ${revenuePerEmployeeCount} rows (${pct(revenuePerEmployeeCount, ingested)} %)`);
+  console.log(`  net_margin             computed for ${netMarginCount} rows (${pct(netMarginCount, ingested)} %)`);
+  console.log(`  revenue_per_employee   computed for ${revenuePerEmployeeCount} rows (${pct(revenuePerEmployeeCount, ingested)} %)`);
+  console.log(`  ebitda_margin (proxy)  computed for ${ebitdaMarginCount} rows (${pct(ebitdaMarginCount, ingested)} %)`);
+  console.log(`  working_capital_cycle  computed for ${workingCapitalCycleCount} rows (${pct(workingCapitalCycleCount, ingested)} %)`);
   console.log(`Region coverage: ${regionMapped} rows mapped (${pct(regionMapped, ingested)} %), ${regionUnmapped} unmapped (logged to ${logPath}).`);
   console.log(`Size-band distribution: S1 = ${sizeBandCounts.S1}, S2 = ${sizeBandCounts.S2}, S3 = ${sizeBandCounts.S3}.`);
   if (errorLog.length > 0) {

@@ -86,15 +86,24 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     cz_region: string | null;
     revenue_per_employee: number | null;
     net_margin: number | null;
+    ebitda_margin: number | null;
+    working_capital_cycle: number | null;
     name: string | null;
   } | null = null;
 
   try {
-    // `name` was added in migration 0009; tolerate its absence in older DBs
-    // by retrying without it on a "column does not exist" error.
+    // `name` was added in migration 0009; ebitda_margin / working_capital_cycle
+    // in 0010. Tolerate absence of newer columns by retrying with a smaller
+    // SELECT on "column does not exist" — keeps the route working in DBs
+    // where the user hasn't applied later migrations yet.
+    const fullSelect =
+      "ico, nace_division, size_band, cz_region, revenue_per_employee, " +
+      "net_margin, ebitda_margin, working_capital_cycle, name";
+    const fallbackSelect =
+      "ico, nace_division, size_band, cz_region, revenue_per_employee, net_margin";
     let queryRes = await supabase
       .from("cohort_companies")
-      .select("ico, nace_division, size_band, cz_region, revenue_per_employee, net_margin, name")
+      .select(fullSelect)
       .eq("ico", ico)
       .maybeSingle();
     if (
@@ -105,7 +114,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     ) {
       queryRes = await supabase
         .from("cohort_companies")
-        .select("ico, nace_division, size_band, cz_region, revenue_per_employee, net_margin")
+        .select(fallbackSelect)
         .eq("ico", ico)
         .maybeSingle();
     }
@@ -129,13 +138,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     } else if (!data) {
       firmFound = false;
     } else {
+      // Supabase's parser infers a union type from the dynamic select strings;
+      // cast through unknown so the optional newer-migration columns
+      // (ebitda_margin, working_capital_cycle, name) read cleanly.
+      const row = data as unknown as Record<string, unknown>;
       firmRow = {
-        nace_division: data.nace_division ?? "49",
-        size_band: data.size_band ?? null,
-        cz_region: data.cz_region ?? null,
-        revenue_per_employee: data.revenue_per_employee ?? null,
-        net_margin: data.net_margin ?? null,
-        name: ("name" in data ? (data.name as string | null) : null) ?? null,
+        nace_division: (row.nace_division as string | null) ?? "49",
+        size_band: (row.size_band as string | null) ?? null,
+        cz_region: (row.cz_region as string | null) ?? null,
+        revenue_per_employee: (row.revenue_per_employee as number | null) ?? null,
+        net_margin: (row.net_margin as number | null) ?? null,
+        ebitda_margin: (row.ebitda_margin as number | null | undefined) ?? null,
+        working_capital_cycle: (row.working_capital_cycle as number | null | undefined) ?? null,
+        name: (row.name as string | null | undefined) ?? null,
       };
       naceDivision = firmRow.nace_division;
     }
@@ -183,6 +198,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         new Intl.NumberFormat("cs-CZ", { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(n) + " %";
       const formatThousandsCzk = (n: number) =>
         new Intl.NumberFormat("cs-CZ", { maximumFractionDigits: 0 }).format(Math.round(n)) + " tis. Kč";
+      const formatDays = (n: number) =>
+        new Intl.NumberFormat("cs-CZ", { maximumFractionDigits: 0 }).format(Math.round(n)) + " dní";
 
       const rev_per_emp = firmRow?.revenue_per_employee != null
         ? Number(firmRow.revenue_per_employee)
@@ -190,20 +207,35 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const net_margin = firmRow?.net_margin != null
         ? Number(firmRow.net_margin)
         : null;
+      // Proxy metrics from migration 0010 - populated only for firms whose
+      // source Excel carried the P&L + BS detail (NACE 31 furniture today;
+      // NACE 49 freight rows have these as NULL).
+      // ebitda_margin: operating-margin proxy (Provozni HV / Obrat * 100).
+      // working_capital_cycle: Obezna aktiva / Obrat * 365 (days proxy).
+      // No frontend footnote per moderator decision - value displayed as-is.
+      const ebitda_margin = firmRow?.ebitda_margin != null
+        ? Number(firmRow.ebitda_margin)
+        : null;
+      const working_capital_cycle = firmRow?.working_capital_cycle != null
+        ? Number(firmRow.working_capital_cycle)
+        : null;
 
       const rows = [
         { metric_id: "gross_margin",          raw_value: null, raw_value_display: null },
-        { metric_id: "ebitda_margin",         raw_value: null, raw_value_display: null },
+        { metric_id: "ebitda_margin",
+          raw_value: ebitda_margin,
+          raw_value_display: ebitda_margin !== null ? formatPercent(ebitda_margin) : null },
         { metric_id: "net_margin",
           raw_value: net_margin,
           raw_value_display: net_margin !== null ? formatPercent(net_margin) : null },
         { metric_id: "labor_cost_ratio",      raw_value: null, raw_value_display: null },
         { metric_id: "revenue_per_employee",
-          // cohort_companies.revenue_per_employee is in CZK per FTE; the metric is in CZK,
-          // we display in thousands for legibility.
+          // cohort_companies.revenue_per_employee is in thousands CZK per FTE.
           raw_value: rev_per_emp,
           raw_value_display: rev_per_emp !== null ? formatThousandsCzk(rev_per_emp) : null },
-        { metric_id: "working_capital_cycle", raw_value: null, raw_value_display: null },
+        { metric_id: "working_capital_cycle",
+          raw_value: working_capital_cycle,
+          raw_value_display: working_capital_cycle !== null ? formatDays(working_capital_cycle) : null },
         { metric_id: "revenue_growth",        raw_value: null, raw_value_display: null },
         { metric_id: "pricing_power",         raw_value: null, raw_value_display: null },
       ];

@@ -29,13 +29,19 @@ import { getFloor } from "./cohort-compute";
 import type { CzRegion, SizeBand } from "../types/data-lanes";
 
 // ── Metric → column mapping ───────────────────────────────────────────────────
-// Only net_margin and revenue_per_employee have real-data columns on
-// cohort_companies at v0.3. All other metrics fall to synth.
-// (cohort-ingestion.md §4.4, cohort-runtime.md §4.2)
+// Real-data columns on cohort_companies. Coverage is sector-asymmetric:
+//   - net_margin / revenue_per_employee: present in all ingested Excels.
+//   - ebitda_margin (operating-margin proxy) / working_capital_cycle (Oběžná
+//     aktiva days proxy): present only in Excels carrying the full P&L + BS
+//     detail (currently NACE 31 furniture; NACE 49 freight rows have NULL).
+//     The four-rung degradation ladder + synth fallback handles the asymmetry.
+// (cohort-ingestion.md §4.4, cohort-runtime.md §4.2, migration 0010)
 
 const METRIC_TO_COLUMN: Partial<Record<MetricId, string>> = {
   net_margin: "net_margin",
   revenue_per_employee: "revenue_per_employee",
+  ebitda_margin: "ebitda_margin",
+  working_capital_cycle: "working_capital_cycle",
 };
 
 // ── Per-request memoisation (ADR-CR-02) ──────────────────────────────────────
