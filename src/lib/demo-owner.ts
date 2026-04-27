@@ -82,22 +82,26 @@ export const DEMO_DEFAULT_ICO = DEMO_ICOS_ORDERED[0];
 /**
  * Hardcoded SectorProfile for the demo owner (v0.2 fallback).
  * Shape matches SectorProfile from src/lib/profiles.ts.
- * NACE 31 = furniture manufacturing (matches v0.2 brief seed).
+ * NACE 49 = Silniční nákladní doprava (road freight transport) — the v0.3
+ * demo NACE per the user's industry-data Excel hand-off (Phase 3.0).
+ * v0.2 NACE 31 (furniture) stays on `main` for customer-testing continuity;
+ * v0.3 swaps to 49 because that's the NACE where we have real industry data
+ * + synth quintiles loaded.
  * consent_event_id is a dummy UUID — never written to DB.
  *
  * Used as a fallback when cohort_companies is not yet available
- * (Track B hasn't shipped or DB is unreachable).
+ * (Track B's ingest hasn't been run by the user yet, or DB is unreachable).
  */
 export const DEMO_OWNER_PROFILE: SectorProfile = {
   id: "00000000-5eed-0000-0000-000000000001",
   user_id: DEMO_OWNER_USER_ID,
-  nace_sector: "31",
+  nace_sector: "49",
   size_band: "S2",
   region: "Praha",
   source: "prepopulated",
   consent_event_id: "00000000-5eed-0000-0000-c0n5en7e0001",
-  created_at: "2026-04-21T00:00:00.000Z",
-  updated_at: "2026-04-21T00:00:00.000Z",
+  created_at: "2026-04-27T00:00:00.000Z",
+  updated_at: "2026-04-27T00:00:00.000Z",
 };
 
 // ─── Functions ───────────────────────────────────────────────────────────────

@@ -182,40 +182,49 @@ interface StubPercentileResult {
 }
 
 /**
- * Attempt to call Track B's cohort-compute module.
- * If Track B hasn't shipped yet (or the call signature differs), falls back to
- * a stub returning confidence_state="below-floor".
+ * Cross-track bridge: compute percentiles for all metrics with raw values
+ * via Track B's getBenchmarkSnapshotAsync(), in a single batch call.
  *
- * Track B's computePercentile (cohort-compute.ts) takes a PercentileInput object
- * with {metricId, ownerValue, naceDivision, sizeBand, region}. We supply minimal
- * required fields; Track B degrades gracefully on missing context.
+ * Per cohort-runtime.md §4.3, getBenchmarkSnapshotAsync walks the four-rung
+ * degradation ladder per metric and applies real-data + synth-quintile
+ * fallback per D-025. Returns a BenchmarkSnippet whose categories.metrics[]
+ * carry computed percentile / quartile_label / confidence_state.
  *
- * Transitional posture per owner-metrics-api.md §2 fallback comment.
- * When D-025 synthetic quintiles are seeded in cohort_aggregates, Track B's
- * dynamic-import path activates automatically and this stub is bypassed.
+ * If Track B's module is unreachable (hasn't shipped, DB unreachable, or
+ * cohort_aggregates is empty), this returns null and callers fall back to
+ * confidence_state="below-floor" per metric. Build never hard-fails.
+ *
+ * @param ownerValues — Map<MetricId, number | null> per Track B contract.
+ * @param naceDivision — 2-digit NACE division (e.g. "49").
+ * @param sizeBand    — S1 | S2 | S3, from active demo profile.
+ * @param region      — CzRegion string or null.
  */
-async function tryGetPercentile(
-  metricId: OwnerMetricId,
-  rawValue: number,
+async function computeBenchmarkSnippet(
+  ownerValues: Map<string, number | null>,
   naceDivision: string,
-): Promise<StubPercentileResult> {
+  sizeBand: "S1" | "S2" | "S3",
+  region: string | null,
+): Promise<BenchmarkMetric[] | null> {
   try {
-    // Track B's computePercentile requires realValues: number[] | null and
-    // synth: SynthQuintiles | null — data Track A does not own. We detect
-    // whether Track B's module is present; if it is, callers with full cohort
-    // data should call it directly. Track A falls through to the stub so that
-    // the ask-state flow works without Track B being shipped.
-    const computeModule = await import("./cohort-compute").catch(() => null);
-    void computeModule; // module present check only — do not call with partial args
-  } catch {
-    // Track B not shipped yet — fall through to stub
-  }
+    const cohort = await import("./cohort").catch(() => null);
+    if (!cohort?.getBenchmarkSnapshotAsync) return null;
 
-  return {
-    percentile: null,
-    quartile_label: null,
-    confidence_state: "below-floor",
-  };
+    // Track B's signature: (naceDivision, sizeBand, region, Map<MetricId, number|null>)
+    // The Map keys are MetricId-typed; owner-metrics uses string-typed keys but the
+    // values are the same frozen 8 IDs. Cast through unknown to honour the typed signature.
+    const snippet = await cohort.getBenchmarkSnapshotAsync(
+      naceDivision,
+      sizeBand as never,
+      region as never,
+      ownerValues as never,
+    );
+
+    // Flatten categories → metrics array, preserving the per-metric percentile fields.
+    return snippet.categories.flatMap((c) => c.metrics);
+  } catch (err) {
+    console.error("[owner-metrics] cohort compute failed:", err);
+    return null;
+  }
 }
 
 // ─── v0.2 fixture fallback ───────────────────────────────────────────────────
@@ -357,6 +366,36 @@ async function getOwnerMetricsFromDB(
     });
   }
 
+  // ── Batch percentile compute via Track B (cross-track bridge) ───────────────
+  // Build an owner-values map keyed by metricId; pass once to getBenchmarkSnapshotAsync.
+  const ownerValuesMap = new Map<string, number | null>();
+  for (const metricId of METRIC_ORDER) {
+    const dbRow = dbIndex.get(metricId);
+    ownerValuesMap.set(metricId, dbRow?.raw_value ?? null);
+  }
+
+  // Demo profile defaults (DEMO_OWNER_PROFILE in demo-owner.ts).
+  // v0.3 demo NACE = 49 (Silniční nákladní doprava). When the IČO switcher
+  // changes the active firm at runtime, the cookie flow updates the profile;
+  // for the v0.3 PoC we default to the seeded NACE division and size/region.
+  const sizeBand = "S2"; // mid-size SME (DEMO_OWNER_PROFILE)
+  const region = "Praha"; // DEMO_OWNER_PROFILE
+
+  const benchmarkMetrics = await computeBenchmarkSnippet(
+    ownerValuesMap,
+    naceDivision,
+    sizeBand,
+    region,
+  );
+
+  // Index Track B's per-metric results for O(1) lookup
+  const benchmarkByMetric = new Map<string, BenchmarkMetric>();
+  if (benchmarkMetrics) {
+    for (const bm of benchmarkMetrics) {
+      benchmarkByMetric.set(bm.metric_id, bm);
+    }
+  }
+
   // Build OwnerMetric array for all 8 frozen metrics in canonical order
   const results: OwnerMetric[] = [];
 
@@ -370,11 +409,18 @@ async function getOwnerMetricsFromDB(
     let percentile: number | null = null;
 
     if (rawValue !== null) {
-      // Value exists — compute percentile from cohort
-      const computed = await tryGetPercentile(metricId, rawValue, naceDivision);
-      confidence_state = computed.confidence_state as OwnerMetric["confidence_state"];
-      quartile_label = computed.quartile_label;
-      percentile = computed.percentile;
+      // Value exists — pick percentile from Track B's batch result
+      const bm = benchmarkByMetric.get(metricId);
+      if (bm) {
+        // Map BenchmarkMetric.confidence_state ("valid"|"below-floor"|"empty")
+        // to OwnerMetric.confidence_state (same set + "ask").
+        confidence_state = bm.confidence_state as OwnerMetric["confidence_state"];
+        quartile_label = bm.quartile_label;
+        percentile = bm.percentile;
+      } else {
+        // Track B didn't return this metric — degrade gracefully
+        confidence_state = "below-floor";
+      }
     }
     // else: raw_value is null → confidence_state stays "ask"
 
