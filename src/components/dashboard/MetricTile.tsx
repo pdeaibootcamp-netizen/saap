@@ -75,6 +75,32 @@ const QUARTILE_STYLES: Record<QuartileLabel, QuartileStyle> = {
   },
 };
 
+const QUARTILE_SEGMENTS: Record<QuartileLabel, number> = {
+  "spodní čtvrtina": 1,
+  "druhá čtvrtina":  2,
+  "třetí čtvrtina":  3,
+  "horní čtvrtina":  4,
+};
+
+function QuartileBar({ quartile, accentHex }: { quartile: QuartileLabel; accentHex: string }) {
+  const filled = QUARTILE_SEGMENTS[quartile];
+  return (
+    <div style={{ display: "flex", gap: 3, width: "100%" }}>
+      {[1, 2, 3, 4].map((i) => (
+        <div
+          key={i}
+          style={{
+            flex: 1,
+            height: 6,
+            borderRadius: 3,
+            backgroundColor: i <= filled ? accentHex : "#e4eaf0",
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
 /** Convert a 6-digit hex to an rgba() string with the given opacity (0–1). */
 function hexToRgba(hex: string, opacity: number): string {
   const r = parseInt(hex.slice(1, 3), 16);
@@ -227,14 +253,18 @@ export default function MetricTile({
           {rawValue}
         </span>
 
-        {/* Row D — quartile label + percentile */}
-        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}
+        {/* Row D — quartile bar + label */}
+        <div
           aria-label={percentile !== null ? `${quartileLabel}, ${percentile}. percentil` : quartileLabel}
+          style={{ display: "flex", flexDirection: "column", gap: 5 }}
         >
-          <span style={{ fontWeight: 600, color: "#333333" }}>{quartileLabel}</span>
-          {percentile !== null && (
-            <span aria-hidden="true" style={{ color: "#9E9E9E" }}>{percentile}.&nbsp;p.</span>
-          )}
+          <QuartileBar quartile={quartileLabel} accentHex={accentHex} />
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
+            <span style={{ fontWeight: 600, color: "#333333" }}>{quartileLabel}</span>
+            {percentile !== null && (
+              <span aria-hidden="true" style={{ color: "#9E9E9E" }}>{percentile}.&nbsp;p.</span>
+            )}
+          </div>
         </div>
       </div>
     );
