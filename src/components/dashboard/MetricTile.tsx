@@ -75,23 +75,34 @@ const QUARTILE_STYLES: Record<QuartileLabel, QuartileStyle> = {
   },
 };
 
-const QUARTILE_SEGMENTS: Record<QuartileLabel, number> = {
+// Fallback: quartile → quintile fill when percentile unavailable
+const QUARTILE_TO_QUINTILE: Record<QuartileLabel, number> = {
   "spodní čtvrtina": 1,
   "druhá čtvrtina":  2,
-  "třetí čtvrtina":  3,
-  "horní čtvrtina":  4,
+  "třetí čtvrtina":  4,
+  "horní čtvrtina":  5,
 };
 
-function QuartileBar({ quartile, accentHex }: { quartile: QuartileLabel; accentHex: string }) {
-  const filled = QUARTILE_SEGMENTS[quartile];
+function percentileToQuintile(p: number): number {
+  if (p <= 20) return 1;
+  if (p <= 40) return 2;
+  if (p <= 60) return 3;
+  if (p <= 80) return 4;
+  return 5;
+}
+
+function QuartileBar({ quartile, percentile, accentHex }: { quartile: QuartileLabel; percentile: number | null; accentHex: string }) {
+  const filled = percentile !== null
+    ? percentileToQuintile(percentile)
+    : QUARTILE_TO_QUINTILE[quartile];
   const radius = (i: number): string => {
     if (i === 1) return "3px 0 0 3px";
-    if (i === 4) return "0 3px 3px 0";
+    if (i === 5) return "0 3px 3px 0";
     return "0";
   };
   return (
     <div style={{ display: "flex", gap: 2, width: "100%", marginTop: 8 }}>
-      {[1, 2, 3, 4].map((i) => (
+      {[1, 2, 3, 4, 5].map((i) => (
         <div
           key={i}
           style={{
@@ -263,7 +274,7 @@ export default function MetricTile({
           aria-label={percentile !== null ? `${quartileLabel}, ${percentile}. percentil` : quartileLabel}
           style={{ display: "flex", flexDirection: "column", gap: 5 }}
         >
-          <QuartileBar quartile={quartileLabel} accentHex={accentHex} />
+          <QuartileBar quartile={quartileLabel} percentile={percentile} accentHex={accentHex} />
           <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
             <span style={{ fontWeight: 600, color: "#333333" }}>{quartileLabel}</span>
             {percentile !== null && (
