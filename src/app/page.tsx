@@ -307,22 +307,29 @@ export default async function DashboardPage({
           padding-bottom: 32px;
         }
 
+        /* Tile grid — mobile-first responsive
+           xs (<500 px):    1 sloupec — full-width karty na úzkých phonech
+           medium (500–899): 2 sloupce — wide phone / tablet portrait
+           large (≥900):    4 sloupce — tablet landscape + desktop
+           xl (≥1025):      4 sloupce + větší gap */
         .db-tile-grid {
           display: grid;
-          grid-template-columns: repeat(2, 1fr);
+          grid-template-columns: 1fr;
           gap: 12px;
         }
-        @media (min-width: 601px) {
+        @media (min-width: 500px) {
+          .db-tile-grid {
+            grid-template-columns: repeat(2, 1fr);
+          }
+        }
+        @media (min-width: 900px) {
           .db-tile-grid {
             grid-template-columns: repeat(4, 1fr);
             gap: 16px;
           }
         }
         @media (min-width: 1025px) {
-          .db-tile-grid {
-            grid-template-columns: repeat(4, 1fr);
-            gap: 20px;
-          }
+          .db-tile-grid { gap: 20px; }
         }
 
         .db-divider {
