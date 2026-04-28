@@ -135,6 +135,83 @@ a[role="button"],
   min-width: 44px;
 }
 
+/* GDS primary button — filled blue pill (button-system.md) */
+.gds-btn-primary {
+  background-color: var(--gds-color-primary);
+  color: #ffffff;
+  border: 2px solid var(--gds-color-primary);
+  border-radius: 9999px;
+  padding: 5px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  min-height: 32px;
+  transition: filter 0.1s ease;
+}
+.gds-btn-primary:hover {
+  filter: brightness(0.9);
+}
+.gds-btn-primary:focus-visible {
+  outline: 3px solid #1a1a1a;
+  outline-offset: 2px;
+}
+.gds-btn-primary:active {
+  transform: scale(0.97);
+}
+.gds-btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+@media (prefers-reduced-motion: reduce) {
+  .gds-btn-primary:active { transform: none; }
+}
+
+/* GDS input group — pill container with inline unit suffix (button-system.md) */
+.gds-input-group {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--gds-border-interactive);
+  border-radius: 9999px;
+  background: var(--gds-surface-card);
+  overflow: hidden;
+  height: 40px;
+  box-sizing: border-box;
+}
+.gds-input-group input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  padding: 0 16px;
+  font-size: 16px;
+  font-family: inherit;
+  background: transparent;
+  color: var(--gds-text-body);
+  box-sizing: border-box;
+}
+.gds-input-group__unit {
+  display: flex;
+  align-items: center;
+  padding: 0 14px 0 12px;
+  border-left: 1px solid var(--gds-border-interactive);
+  font-size: 13px;
+  color: var(--gds-text-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.gds-input-group:focus-within {
+  border-color: var(--gds-color-primary);
+  border-width: 2px;
+}
+.gds-input-group--error {
+  border-color: #c62828;
+  border-width: 2px;
+}
+.gds-input-group--error .gds-input-group__unit {
+  border-left-color: #c62828;
+}
+
 /* GDS secondary button — white pill with interactive border (button-system.md) */
 .gds-btn-secondary {
   background-color: var(--gds-surface-card);

@@ -385,8 +385,11 @@ export default function MetricTile({
         )}
 
         <form onSubmit={handleSubmit} noValidate>
-          {/* Input row: field + unit suffix */}
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
+          {/* Input row: pill container + unit suffix */}
+          <div
+            className={`gds-input-group${hasError ? " gds-input-group--error" : ""}`}
+            style={{ marginTop: 4 }}
+          >
             <input
               ref={inputRef}
               id={`${metricId}-input`}
@@ -406,34 +409,9 @@ export default function MetricTile({
                 hasError ? `${metricId}-error` : "",
               ].filter(Boolean).join(" ") || undefined}
               aria-invalid={hasError}
-              style={{
-                flex: 1,
-                minWidth: 0,            // allow shrink in narrow tiles (override flex auto min-width)
-                width: "100%",          // belt + suspenders for older flex impls
-                height: 40,
-                fontSize: 16,
-                fontWeight: 400,
-                color: "#1a1a1a",
-                border: hasError ? "2px solid #C62828" : "1px solid #9E9E9E",
-                borderRadius: 4,
-                padding: "0 8px",
-                outline: "none",
-                fontFamily: "inherit",
-                boxSizing: "border-box",
-              }}
-              onFocus={(e) => {
-                if (!hasError) {
-                  (e.target as HTMLInputElement).style.border = "2px solid #1a1a1a";
-                }
-              }}
-              onBlur={(e) => {
-                if (!hasError) {
-                  (e.target as HTMLInputElement).style.border = "1px solid #9E9E9E";
-                }
-              }}
             />
             {unitSuffix && (
-              <span aria-hidden="true" style={{ fontSize: 13, color: "#616161", whiteSpace: "nowrap" }}>
+              <span aria-hidden="true" className="gds-input-group__unit">
                 {unitSuffix}
               </span>
             )}
@@ -451,27 +429,8 @@ export default function MetricTile({
             </span>
           )}
 
-          {/* Buttons */}
+          {/* Buttons — Zrušit left, Uložit right (per GDS button-system.md) */}
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              style={{
-                backgroundColor: "#1565C0",
-                color: "#ffffff",
-                border: "none",
-                borderRadius: 4,
-                height: 36,
-                padding: "0 16px",
-                fontSize: 14,
-                fontWeight: 600,
-                cursor: isSubmitting ? "not-allowed" : "pointer",
-                opacity: isSubmitting ? 0.7 : 1,
-                fontFamily: "inherit",
-              }}
-            >
-              {isSubmitting ? "Ukládám…" : "Uložit"}
-            </button>
             <button
               type="button"
               onClick={() => {
@@ -480,20 +439,16 @@ export default function MetricTile({
                 setPatchError(null);
                 setExpanded(false);
               }}
-              style={{
-                backgroundColor: "transparent",
-                color: "#1565C0",
-                border: "none",
-                borderRadius: 4,
-                height: 36,
-                padding: "0 8px",
-                fontSize: 14,
-                fontWeight: 400,
-                cursor: "pointer",
-                fontFamily: "inherit",
-              }}
+              className="gds-btn-secondary"
             >
               Zrušit
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="gds-btn-primary"
+            >
+              {isSubmitting ? "Ukládám…" : "Uložit"}
             </button>
           </div>
         </form>
