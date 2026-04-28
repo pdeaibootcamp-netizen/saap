@@ -374,7 +374,8 @@ export default function MetricTile({
           {metricLabel}
         </span>
 
-        {/* Help text — full prompt copy when the form is open */}
+        {/* Help text + form pushed to bottom — no dead whitespace below buttons */}
+        <div style={{ marginTop: "auto", display: "flex", flexDirection: "column" }}>
         {promptHelpText && (
           <span
             id={`${metricId}-help`}
@@ -452,6 +453,7 @@ export default function MetricTile({
             </button>
           </div>
         </form>
+        </div>{/* end marginTop:auto wrapper */}
       </div>
     );
   }

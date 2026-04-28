@@ -172,7 +172,7 @@ a[role="button"],
   display: flex;
   align-items: stretch;
   border: 1px solid var(--gds-border-interactive);
-  border-radius: 9999px;
+  border-radius: 8px;
   background: var(--gds-surface-card);
   overflow: hidden;
   height: 40px;
