@@ -466,10 +466,8 @@ export default async function DashboardPage({
           </div>
         </main>
 
-        {/* AI disclaimer — mandatory per agent system instructions */}
-        <footer style={{ textAlign: "center", padding: "24px 16px 32px", color: "#9E9E9E", fontSize: "13px" }}>
-          Tento prototyp byl vygenerován pomocí AI.
-        </footer>
+        {/* AI disclaimer is rendered globally v app/layout.tsx — nikoli zde,
+            aby nedocházelo k duplikaci na dashboard route. */}
 
       </div>
     </>
