@@ -86,7 +86,7 @@ export default function IcoSwitcher({ activeIco, activeName }: IcoSwitcherProps)
     <form
       onSubmit={handleSubmit}
       noValidate
-      style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 0 }}
+      style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 0, position: "relative" }}
       aria-label="Přepnutí demo firmy"
     >
       {/* Input group — pill shape, input + button merged into one unit */}
@@ -154,13 +154,17 @@ export default function IcoSwitcher({ activeIco, activeName }: IcoSwitcherProps)
         </button>
       </div>
 
-      {/* Inline error — below the switcher row */}
+      {/* Inline error — absolutely positioned below the switcher row so the
+          form's height stays equal to the input row. The wrapper is
+          translateY(-50%) centred in the header band; if the error joined the
+          flex column, the form would grow and shove the input up out of the
+          stripe. */}
       {error && (
         <span
           id="ico-switcher-error"
           role="alert"
           aria-live="polite"
-          style={{ fontSize: 12, color: "#C62828", marginTop: 4 }}
+          style={{ position: "absolute", top: "100%", right: 0, fontSize: 12, color: "#C62828", marginTop: 4, whiteSpace: "nowrap" }}
         >
           {error}
         </span>
