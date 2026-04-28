@@ -30,13 +30,14 @@ SET nace_sectors = ARRAY[nace_sector]
 WHERE cardinality(nace_sectors) = 0;
 
 -- Validity: every entry must look like a 2-digit NACE division.
+-- Postgres CHECK constraints can't contain subqueries, so we coerce the
+-- array to a comma-joined string and pattern-match the whole thing in
+-- one go. Equivalent semantics, scalar expression.
 ALTER TABLE briefs
   ADD CONSTRAINT briefs_nace_sectors_format
   CHECK (
     cardinality(nace_sectors) > 0
-    AND NOT EXISTS (
-      SELECT 1 FROM unnest(nace_sectors) AS s WHERE s !~ '^\d{2}$'
-    )
+    AND array_to_string(nace_sectors, ',') ~ '^\d{2}(,\d{2})*$'
   );
 
 -- GIN index for ANY() / array containment queries from the dashboard.
