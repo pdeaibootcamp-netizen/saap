@@ -34,7 +34,7 @@ function db(): SupabaseClient {
 }
 
 const BRIEF_COLUMNS =
-  "id, nace_sector, publish_state, version, author_id, created_at, published_at, content_sections, benchmark_snippet";
+  "id, nace_sector, nace_sectors, publish_state, version, author_id, created_at, published_at, content_sections, benchmark_snippet";
 
 const DELIVERY_COLUMNS =
   "id, brief_id, brief_version, recipient_id, format, delivered_at";
@@ -43,7 +43,18 @@ const DELIVERY_COLUMNS =
 
 export interface Brief {
   id: string;
+  /**
+   * Legacy single-NACE field. Always equals `nace_sectors[0]`. Kept for
+   * backward compatibility with v0.1/v0.2 callers; new code should use
+   * `nace_sectors` for filter / display logic. (Migration 0011.)
+   */
   nace_sector: string;
+  /**
+   * v0.3+ multi-NACE field. Full list of NACE divisions this brief covers.
+   * The customer-facing dashboard filter is `WHERE active_firm_nace = ANY(nace_sectors)`.
+   * For v0.1/v0.2 briefs this is `[nace_sector]`. (Migration 0011, Model B.)
+   */
+  nace_sectors: string[];
   publish_state: PublishState;
   version: number;
   author_id: string;
@@ -125,6 +136,17 @@ export interface BriefPublication {
   source: string;               // attribution line
 }
 
+/**
+ * Per-NACE insights + actions bundle (v0.3, D-029, Model B).
+ * One entry per NACE division this brief covers. The brief page renders
+ * `per_nace_content[active_firm_nace]` for the customer; the analyst edit
+ * page (v0.4) will render all entries side-by-side.
+ */
+export interface PerNaceContent {
+  observations: Observation[];
+  closing_actions: ClosingAction[];
+}
+
 /** Structured content model stored in content_sections */
 export interface BriefContent {
   title: string;
@@ -136,8 +158,25 @@ export interface BriefContent {
    * opening_summary (if present) then the observations/actions section.
    */
   publication?: BriefPublication;
+  /**
+   * Top-level observations array (v0.1/v0.2 single-NACE briefs).
+   * For v0.3+ multi-NACE briefs (D-029), this is set to the FIRST NACE's
+   * observations as a backward-compat fallback; the per-NACE map is the
+   * authoritative source.
+   */
   observations: Observation[];
+  /**
+   * Top-level closing actions (v0.1/v0.2 single-NACE briefs).
+   * Same v0.3+ fallback semantics as `observations`.
+   */
   closing_actions: ClosingAction[];
+  /**
+   * v0.3+ multi-NACE content map (D-029, Model B). When present and the
+   * customer's active NACE is a key, the brief page renders these instead
+   * of the top-level `observations`/`closing_actions` arrays. Absent on
+   * v0.1/v0.2 briefs.
+   */
+  per_nace_content?: Record<string, PerNaceContent>;
   benchmark_categories: BenchmarkCategory[];
   pdf_footer_text: string; // For the Zápatí section
   email_teaser_observation_index: number; // index into observations array
@@ -180,7 +219,7 @@ export async function getPublishedBriefByNace(naceSector: string): Promise<Brief
   const { data, error } = await db()
     .from("briefs")
     .select(BRIEF_COLUMNS)
-    .eq("nace_sector", naceSector)
+    .contains("nace_sectors", [naceSector])
     .eq("publish_state", "published")
     .order("published_at", { ascending: false })
     .limit(1);
@@ -192,12 +231,17 @@ export async function getPublishedBriefByNace(naceSector: string): Promise<Brief
  * List all published briefs for a given NACE sector, ordered most-recent first.
  * Lane: brief (ADR-0002-C). Capped at 20 results for safety.
  * Used by the v0.2 dashboard briefs list (dashboard-v0-2.md §7).
+ *
+ * v0.3 (D-029, Model B): filters on `nace_sectors @> ARRAY[naceSector]` so
+ * multi-NACE briefs surface for any covered NACE. v0.1/v0.2 single-NACE briefs
+ * still match because migration 0011 backfilled `nace_sectors` from
+ * `nace_sector` for those rows.
  */
 export async function listPublishedBriefsByNace(naceSector: string): Promise<Brief[]> {
   const { data, error } = await db()
     .from("briefs")
     .select(BRIEF_COLUMNS)
-    .eq("nace_sector", naceSector)
+    .contains("nace_sectors", [naceSector])
     .eq("publish_state", "published")
     .order("published_at", { ascending: false })
     .order("created_at", { ascending: false })
@@ -207,7 +251,13 @@ export async function listPublishedBriefsByNace(naceSector: string): Promise<Bri
   return (data ?? []) as unknown as Brief[];
 }
 
-/** Create a new brief draft. Returns the new brief. */
+/**
+ * Create a new brief draft. Returns the new brief.
+ *
+ * v0.3 (D-029, Model B): also populates `nace_sectors` with `[nace_sector]`
+ * so the legacy single-NACE manual-create path produces rows discoverable
+ * via the new array-containment filter.
+ */
 export async function createDraftBrief(params: {
   nace_sector: string;
   author_id: string;
@@ -216,6 +266,7 @@ export async function createDraftBrief(params: {
     .from("briefs")
     .insert({
       nace_sector: params.nace_sector,
+      nace_sectors: [params.nace_sector],
       author_id: params.author_id,
       content_sections: [],
       publish_state: "draft",

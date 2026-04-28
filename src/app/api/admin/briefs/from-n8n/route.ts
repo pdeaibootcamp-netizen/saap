@@ -18,7 +18,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { createClient } from "@supabase/supabase-js";
-import type { BriefContent, ContentSection } from "@/lib/briefs";
+import type { BriefContent, ContentSection, Observation, ClosingAction } from "@/lib/briefs";
 
 // ── Supabase REST client ─────────────────────────────────────────────────────
 // Use the REST/HTTPS client because the developer's network blocks outbound
@@ -84,15 +84,27 @@ interface N8nClosingAction {
   category?: string;
 }
 
+interface N8nPublicationBlock {
+  heading: string;
+  opener_markdown: string;
+  full_text_markdown: string;
+  source: string;
+}
+
 interface N8nDraft {
   title: string;
   publication_month: string;
-  publication: {
-    heading: string;
-    opener_markdown: string;
-    full_text_markdown: string;
-    source: string;
-  };
+  publication: N8nPublicationBlock;
+  observations: N8nObservation[];
+  closing_actions: N8nClosingAction[];
+}
+
+/**
+ * v0.3 (D-029, Model B) per-NACE content bundle. n8n emits one of these per
+ * NACE the publication is relevant for. The relevance gate may exclude some
+ * NACEs entirely (they don't appear in `naceSectors` or `perNaceContent`).
+ */
+interface N8nPerNaceContent {
   observations: N8nObservation[];
   closing_actions: N8nClosingAction[];
 }
@@ -100,14 +112,28 @@ interface N8nDraft {
 interface N8nCallbackPayload {
   jobId: string;
   status: "done" | "failed";
-  draft?: N8nDraft;
   error?: string;
-  /**
-   * Optional top-level nace_division. Required for MCP/Claude-Code origin
-   * (no analysis_jobs row to read it from). Falls back to the job's
-   * nace_division when present, then to "31" as a last resort.
-   */
+
+  // ── v0.1/v0.2 single-NACE shape (legacy, manual-test workflow still uses this) ──
+  draft?: N8nDraft;
   naceDivision?: string;
+
+  // ── v0.3 multi-NACE shape (D-029, Model B — new analysis pipeline) ──
+  /**
+   * Array of 2-digit NACE divisions this brief covers. Non-empty.
+   * Customer dashboard filter: `WHERE active_firm_nace = ANY(naceSectors)`.
+   */
+  naceSectors?: string[];
+  /** Czech month-year string like "Duben 2026". */
+  publicationMonth?: string;
+  /** ISO month like "2026-04". */
+  publicationMonthIso?: string;
+  /** Brief title (no NACE in title for multi-NACE briefs). */
+  title?: string;
+  /** Shared publication block (opener + full text + source). */
+  publication?: N8nPublicationBlock;
+  /** Per-NACE insights + actions, keyed by 2-digit NACE division. */
+  perNaceContent?: Record<string, N8nPerNaceContent>;
 }
 
 // ── Payload validation (manual, no zod) ───────────────────────────────────────
@@ -126,6 +152,40 @@ const VALID_CATEGORIES = [
   "rust-trzni-pozice",
 ] as const;
 
+function validateObservations(arr: unknown, path: string): string | null {
+  if (!Array.isArray(arr)) return `${path} must be an array`;
+  if (arr.length < 1) return `${path} must contain at least one entry`;
+  for (let i = 0; i < arr.length; i++) {
+    const obs = arr[i] as Record<string, unknown>;
+    if (typeof obs.headline !== "string" || !obs.headline) return `${path}[${i}].headline must be a non-empty string`;
+    if (typeof obs.body !== "string") return `${path}[${i}].body must be a string`;
+    if (!VALID_TIME_HORIZONS.includes(obs.time_horizon as (typeof VALID_TIME_HORIZONS)[number])) {
+      return `${path}[${i}].time_horizon is invalid: '${String(obs.time_horizon)}'`;
+    }
+    if (typeof obs.is_email_teaser !== "boolean") return `${path}[${i}].is_email_teaser must be a boolean`;
+  }
+  return null;
+}
+
+function validateClosingActions(arr: unknown, observationsCount: number, path: string): string | null {
+  if (!Array.isArray(arr)) return `${path} must be an array`;
+  if (arr.length < 1) return `${path} must contain at least one entry`;
+  for (let i = 0; i < arr.length; i++) {
+    const act = arr[i] as Record<string, unknown>;
+    if (typeof act.action_text !== "string" || !act.action_text) return `${path}[${i}].action_text must be a non-empty string`;
+    if (!VALID_TIME_HORIZONS.includes(act.time_horizon as (typeof VALID_TIME_HORIZONS)[number])) {
+      return `${path}[${i}].time_horizon is invalid: '${String(act.time_horizon)}'`;
+    }
+    if (act.paired_observation_index !== undefined && act.paired_observation_index !== null) {
+      const idx = act.paired_observation_index;
+      if (typeof idx !== "number" || !Number.isInteger(idx) || idx < 0 || idx >= observationsCount) {
+        return `${path}[${i}].paired_observation_index is out of range`;
+      }
+    }
+  }
+  return null;
+}
+
 /** Returns null if valid, or an error string describing the first problem. */
 function validatePayload(raw: unknown): string | null {
   if (typeof raw !== "object" || raw === null) return "payload must be an object";
@@ -135,7 +195,36 @@ function validatePayload(raw: unknown): string | null {
   if (p.status !== "done" && p.status !== "failed") {
     return `status must be 'done' or 'failed', got '${String(p.status)}'`;
   }
+  if (p.status !== "done") return null; // 'failed' has no further required fields
 
+  // ── v0.3 multi-NACE shape (D-029) takes precedence when present ──
+  if (Array.isArray(p.naceSectors) && p.perNaceContent && typeof p.perNaceContent === "object") {
+    if (p.naceSectors.length < 1) return "naceSectors must be a non-empty array";
+    for (const s of p.naceSectors) {
+      if (typeof s !== "string" || !/^\d{2}$/.test(s)) {
+        return `naceSectors entry '${String(s)}' must be a 2-digit string`;
+      }
+    }
+    if (!p.publication || typeof p.publication !== "object") return "publication is required";
+    const pub = p.publication as Record<string, unknown>;
+    for (const f of ["heading", "opener_markdown", "full_text_markdown", "source"]) {
+      if (typeof pub[f] !== "string") return `publication.${f} must be a string`;
+    }
+    const perNace = p.perNaceContent as Record<string, unknown>;
+    for (const nace of p.naceSectors) {
+      const entry = perNace[nace];
+      if (!entry || typeof entry !== "object") return `perNaceContent['${nace}'] is missing`;
+      const e = entry as Record<string, unknown>;
+      const obsErr = validateObservations(e.observations, `perNaceContent['${nace}'].observations`);
+      if (obsErr) return obsErr;
+      const obsArr = e.observations as unknown[];
+      const actErr = validateClosingActions(e.closing_actions, obsArr.length, `perNaceContent['${nace}'].closing_actions`);
+      if (actErr) return actErr;
+    }
+    return null;
+  }
+
+  // ── v0.1/v0.2 single-NACE shape (legacy, manual-test workflow) ──
   if (p.status === "done") {
     if (!p.draft || typeof p.draft !== "object") return "draft is required when status is 'done'";
     const d = p.draft as Record<string, unknown>;
@@ -154,49 +243,11 @@ function validatePayload(raw: unknown): string | null {
       }
     }
 
-    if (!Array.isArray(d.observations)) return "draft.observations must be an array";
-    if (d.observations.length < 1) return "draft.observations must contain at least one entry";
-    for (let i = 0; i < d.observations.length; i++) {
-      const obs = d.observations[i] as Record<string, unknown>;
-      if (typeof obs.headline !== "string" || !obs.headline) {
-        return `draft.observations[${i}].headline must be a non-empty string`;
-      }
-      if (typeof obs.body !== "string") {
-        return `draft.observations[${i}].body must be a string`;
-      }
-      if (!VALID_TIME_HORIZONS.includes(obs.time_horizon as (typeof VALID_TIME_HORIZONS)[number])) {
-        return `draft.observations[${i}].time_horizon is invalid: '${String(obs.time_horizon)}'`;
-      }
-      if (typeof obs.is_email_teaser !== "boolean") {
-        return `draft.observations[${i}].is_email_teaser must be a boolean`;
-      }
-    }
-
-    if (!Array.isArray(d.closing_actions)) return "draft.closing_actions must be an array";
-    if (d.closing_actions.length < 1) return "draft.closing_actions must contain at least one entry";
-    for (let i = 0; i < d.closing_actions.length; i++) {
-      const act = d.closing_actions[i] as Record<string, unknown>;
-      if (typeof act.action_text !== "string" || !act.action_text) {
-        return `draft.closing_actions[${i}].action_text must be a non-empty string`;
-      }
-      if (!VALID_TIME_HORIZONS.includes(act.time_horizon as (typeof VALID_TIME_HORIZONS)[number])) {
-        return `draft.closing_actions[${i}].time_horizon is invalid: '${String(act.time_horizon)}'`;
-      }
-      if (
-        act.paired_observation_index !== undefined &&
-        act.paired_observation_index !== null
-      ) {
-        const idx = act.paired_observation_index;
-        if (
-          typeof idx !== "number" ||
-          !Number.isInteger(idx) ||
-          idx < 0 ||
-          idx >= (d.observations as unknown[]).length
-        ) {
-          return `draft.closing_actions[${i}].paired_observation_index is out of range`;
-        }
-      }
-    }
+    const obsErr = validateObservations(d.observations, "draft.observations");
+    if (obsErr) return obsErr;
+    const obsCount = (d.observations as unknown[]).length;
+    const actErr = validateClosingActions(d.closing_actions, obsCount, "draft.closing_actions");
+    if (actErr) return actErr;
   }
 
   return null;
@@ -307,11 +358,19 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Resolve nace_division: prefer the job row, then the payload top-level,
-  // then a "31" fallback so a malformed payload still produces a brief
-  // rather than a 500.
-  const naceDivision =
-    job?.nace_division ?? payload.naceDivision ?? "31";
+  // ── Resolve target NACE list for this brief (D-029, Model B) ──
+  // v0.3 multi-NACE shape: payload.naceSectors carries the relevance set
+  // (already filtered to relevant NACEs by the n8n relevance gate).
+  // v0.1/v0.2 single-NACE shape: derived from payload.naceDivision or job row.
+  const isMultiNace =
+    Array.isArray(payload.naceSectors) &&
+    payload.naceSectors.length > 0 &&
+    payload.perNaceContent !== undefined;
+
+  const naceSectors: string[] = isMultiNace
+    ? (payload.naceSectors as string[])
+    : [(job?.nace_division ?? payload.naceDivision ?? "31")];
+  const naceDivision = naceSectors[0]; // legacy column = first (or only) NACE
 
   // ── Handle failed status ──
   if (payload.status === "failed") {
@@ -335,36 +394,78 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Handle done status — insert brief ──
-  const draft = payload.draft!;
+  // Build BriefContent. Two paths:
+  //   (a) v0.3 multi-NACE shape: per_nace_content map populated; top-level
+  //       observations/closing_actions backfilled from the FIRST NACE for
+  //       v0.1/v0.2 callers that don't know about per_nace_content.
+  //   (b) v0.1/v0.2 single-NACE shape: top-level arrays populated; no per_nace map.
+  const mapObservation = (o: N8nObservation): Observation => ({
+    headline: o.headline,
+    body: o.body,
+    time_horizon: o.time_horizon,
+    is_email_teaser: o.is_email_teaser,
+  });
+  const mapAction = (a: N8nClosingAction): ClosingAction => ({
+    action_text: a.action_text,
+    time_horizon: a.time_horizon,
+    category: a.category ?? "ziskovost",
+    paired_observation_index:
+      a.paired_observation_index !== undefined ? a.paired_observation_index : null,
+  });
 
-  // Map n8n draft to BriefContent
-  const briefContent: BriefContent = {
-    title: draft.title,
-    publication_month: draft.publication_month,
-    opening_summary: "",
-    publication: {
-      heading: draft.publication.heading,
-      opener_markdown: draft.publication.opener_markdown,
-      full_text_markdown: draft.publication.full_text_markdown,
-      source: draft.publication.source,
-    },
-    observations: draft.observations.map((o) => ({
-      headline: o.headline,
-      body: o.body,
-      time_horizon: o.time_horizon,
-      is_email_teaser: o.is_email_teaser,
-    })),
-    closing_actions: draft.closing_actions.map((a) => ({
-      action_text: a.action_text,
-      time_horizon: a.time_horizon,
-      category: a.category ?? "ziskovost",
-      paired_observation_index:
-        a.paired_observation_index !== undefined ? a.paired_observation_index : null,
-    })),
-    benchmark_categories: [],
-    pdf_footer_text: "Strategy Radar · Česká spořitelna",
-    email_teaser_observation_index: 0,
-  };
+  let briefContent: BriefContent;
+
+  if (isMultiNace) {
+    const pub = payload.publication!;
+    const perNace = payload.perNaceContent!;
+    const perNaceContent: BriefContent["per_nace_content"] = {};
+    for (const nace of naceSectors) {
+      const entry = perNace[nace];
+      perNaceContent![nace] = {
+        observations: entry.observations.map(mapObservation),
+        closing_actions: entry.closing_actions.map(mapAction),
+      };
+    }
+    // Top-level fallback = first NACE's content (v0.1/v0.2 reader compat)
+    const firstNace = naceSectors[0];
+    const first = perNaceContent![firstNace];
+
+    briefContent = {
+      title: payload.title ?? `Sektorová analýza — ${payload.publicationMonth ?? ""}`.trim(),
+      publication_month: payload.publicationMonthIso ?? "",
+      opening_summary: "",
+      publication: {
+        heading: pub.heading,
+        opener_markdown: pub.opener_markdown,
+        full_text_markdown: pub.full_text_markdown,
+        source: pub.source,
+      },
+      observations: first.observations,
+      closing_actions: first.closing_actions,
+      per_nace_content: perNaceContent,
+      benchmark_categories: [],
+      pdf_footer_text: "Strategy Radar · Česká spořitelna",
+      email_teaser_observation_index: 0,
+    };
+  } else {
+    const draft = payload.draft!;
+    briefContent = {
+      title: draft.title,
+      publication_month: draft.publication_month,
+      opening_summary: "",
+      publication: {
+        heading: draft.publication.heading,
+        opener_markdown: draft.publication.opener_markdown,
+        full_text_markdown: draft.publication.full_text_markdown,
+        source: draft.publication.source,
+      },
+      observations: draft.observations.map(mapObservation),
+      closing_actions: draft.closing_actions.map(mapAction),
+      benchmark_categories: [],
+      pdf_footer_text: "Strategy Radar · Česká spořitelna",
+      email_teaser_observation_index: 0,
+    };
+  }
 
   const contentSection: ContentSection = {
     section_id: "brief_content",
@@ -380,6 +481,7 @@ export async function POST(req: NextRequest) {
       .from("briefs")
       .insert({
         nace_sector: naceDivision,
+        nace_sectors: naceSectors,
         author_id: "n8n-generated",
         content_sections: [contentSection],
         publish_state: "draft",
