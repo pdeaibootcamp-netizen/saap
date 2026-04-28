@@ -230,6 +230,18 @@ a[role="button"],
 .gds-input-group--error .gds-input-group__action {
   border-left-color: #c62828;
 }
+/* Compact variant — 32px height, tighter padding, 14px text. Used in
+   contexts with limited vertical space (e.g. IcoSwitcher in 56px header). */
+.gds-input-group--compact { height: 32px; }
+.gds-input-group--compact input,
+.gds-input-group--compact .gds-input-group__action {
+  padding: 0 12px;
+  font-size: 14px;
+}
+.gds-input-group--compact .gds-input-group__unit {
+  padding: 0 10px;
+  font-size: 12px;
+}
 
 /* GDS secondary button — white pill with interactive border (button-system.md) */
 .gds-btn-secondary {
