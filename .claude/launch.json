@@ -3,10 +3,10 @@
   "configurations": [
     {
       "name": "strategy-radar",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeExecutable": "C:\\Program Files\\nodejs\\node.exe",
+      "runtimeArgs": ["node_modules/next/dist/bin/next", "dev"],
       "port": 3000,
-      "cwd": "/Users/lexislav/Projekty/Strategy radar/saap/src"
+      "cwd": "C:\\Users\\Claude 1\\Desktop\\StrategyRadar\\saap\\src"
     }
   ]
 }

@@ -170,9 +170,52 @@ Self-monitoring (kept in artifacts, not promoted): the remaining ~40 spec-intern
 
 ---
 
+## v0.3 Pulz oboru spec gate (2026-04-28)
+
+PD spec (`docs/design/pulz-oboru.md`) and PM spec (`docs/product/pulz-oboru.md`) landed for the new **Pulz oboru** section — a brief surface synthesising the latest ČS sector publication, sitting as the third dashboard section between cohort tiles and the briefs list. PM resolved 4 of 9 design-spec OQs (Q-PO-001/004/005/008 → recorded inside `docs/product/pulz-oboru.md` §10). The remaining 5 are promoted here.
+
+| Date | ID | Question | Raised by | Blocking | Status |
+|---|---|---|---|---|---|
+| 2026-04-28 | OQ-077 | **Admin-side upload flow for Pulz oboru content.** Before any Pulz oboru section can render real data, the analyst needs a way to (a) upload 3 chart images with mandatory alt text, (b) write a one-sentence verdict per chart, (c) write the 3–6 sentence summary, (d) optionally attach a PDF, (e) author 1–3 actions with time-horizon tags, (f) assign to NACE division + publication period, (g) publish. None of this is designed. Design + data schema + upload pipeline are all open. | designer, product-manager | Engineer implementation start on Pulz oboru section. **Hard blocker for content authoring.** | open — `/PD` + `/DE` parallel; `/EN` follows once both land |
+| 2026-04-28 | OQ-078 | **Chart alt-text input contract.** Analyst-provided alt text is a hard accessibility requirement (WCAG AA, screen-reader users get zero chart info otherwise). Must be enforced as a mandatory field on the admin upload form with min-length validation (no `"graf"` placeholders). Inside Q-PO-002 admin-flow scope. | designer, product-manager | Accessibility certification of Pulz oboru. | open — folded into OQ-077 admin-flow spec |
+| 2026-04-28 | OQ-079 | **"Upozorněte mě" CTA in the empty state.** A "notify me when an analysis lands for my NACE" CTA would be a give-to-get email/push capture — explicitly out of scope at MVP per CLAUDE.md guardrail. Logged so it is not accidentally re-introduced by an engineer reading the design spec. | designer, product-manager | — (intentionally absent at MVP) | deferred — Increment 3 (Additional Customer Information Gatherer) |
+| 2026-04-28 | OQ-080 | **`--color-ink-muted (#888)` 15 px contrast on white.** 3.54:1 — fails WCAG AA 4.5:1 normal-text floor. Designer fallback: shift Pulz oboru chart captions and empty-state subtext to `--color-ink-tertiary (#666)` = 5.74:1. Same root issue as OQ-072 (DEMO-badge) and brief-page Q-TBD-BPV-002 — accumulate evidence that `#888` is no longer a load-bearing token at body sizes. | designer → engineer | Pulz oboru visual implementation. | resolved 2026-04-28 — EN applied `#666` to Pulz oboru chart captions, PDF subline, empty-state body. Pattern still pending across other surfaces (OQ-072, Q-TBD-BPV-002). |
+| 2026-04-28 | OQ-081 | **Multi-NACE owner profiles.** If an owner operates under one IČO across multiple NACE divisions, which Pulz oboru block do they see? Current spec inherits the dashboard's single-NACE assumption (per demo-owner D-023). Section design assumes one Pulz oboru per owner per NACE. | designer | Multi-NACE owner support (post-MVP). | deferred — reopen on multi-NACE owner profile feature planning |
+
+**Routing summary.** OQ-077 is the gate — `/PD` (admin upload page design), `/DE` (analyses-table schema + storage contract), `/EN` (upload pipeline, signed URLs, image processing) in dependency order. OQ-078 closes inside OQ-077. OQ-080 closes during EN implementation. OQ-079 + OQ-081 are deferred and tracked here only so they don't get accidentally re-introduced.
+
+---
+
+## v0.3 Pulz oboru admin-flow + schema gate (2026-04-28)
+
+PD admin-flow spec (`docs/design/pulz-oboru-admin.md`) and DE schema (`docs/data/analyses-schema.md`) landed in parallel. Cross-spec reconciliation: **aligned on structure** (3 chart sub-forms ↔ `pulz_analysis_charts × 3`, flat orphan actions ↔ `pulz_analysis_actions`, optional PDF ↔ nullable, edit-existing → publish-or-supersede flow matches DE's soft-supersede design). One naming mismatch and a handful of cross-domain items promoted below; specialist-internal items stay in the source artifacts.
+
+Resolved at this gate (in-doc only, not surfaced as new OQ rows):
+- **Q-POAL-005** (PD): `data_source_is_cs` flag — DE confirmed the flag exists in the schema as `uses_cs_internal_data`. Closed.
+- **Q-PA-DE-006** (DE): "soft-block on `/PD` admin spec arrival" — PD spec landed; reconciliation done at this gate. Closed.
+
+| Date | ID | Question | Raised by | Blocking | Status |
+|---|---|---|---|---|---|
+| 2026-04-28 | OQ-082 | **Field-naming mismatch between admin-flow spec and schema.** PD `pulz-oboru-admin.md` §6 / §9 uses `data_source_is_cs` for the per-chart ČS-internal-data flag; DE `analyses-schema.md` landed canonical name `uses_cs_internal_data`. DE's name wins (it is the schema column). PD spec needs a one-pass replace + the form copy hint reviewed. Trivial. | designer, data-engineer | PD spec accuracy; engineer must not implement `data_source_is_cs` in code. | resolved 2026-04-28 — `/PD` applied rename (4 occurrences) in `pulz-oboru-admin.md` |
+| 2026-04-28 | OQ-083 | **Manual save-as-draft vs. auto-save at MVP.** PD spec adopts manual save-as-draft only with unsaved-changes warning. Q-POAL-003 asks PM to confirm — auto-save is a product-scope decision affecting analyst workflow expectations. PD's reasoning (data loss surface is small, analyst is power user, auto-save adds versioning complexity) is sound but the call belongs to PM. | designer → product-manager | Final admin-flow spec freeze. | open — `/PM` to confirm or revise |
+| 2026-04-28 | OQ-084 | **Track C n8n pipeline draft pre-population path.** PD spec Q-POAL-004 flags that the Track C automation may produce a pre-populated Pulz oboru draft (per PM `pulz-oboru.md` §4.8 reference and OQ-068 context). The admin edit page `/admin/pulz-oboru/[id]/edit` is the review surface; data contract for the pre-pop draft (which fields populated, which left blank, how analyst is notified) is unspecified. Cross-references existing OQ-068. | designer → engineer, product-manager | Track C orchestration spec follow-up. | open — fold into OQ-068 resolution at Track C spec gate |
+| 2026-04-28 | OQ-085 | **`privacy-architecture.md` editorial addendum for Pulz oboru pipelines.** DE `analyses-schema.md` §7 confirms the two new pipelines (`pulz_analysis_publish`, `pulz_analysis_render`) are structurally analogous to existing brief-lane allow-list entries (`brief_author_publish`, `brief_render_delivery`) and require **no extension** of the lane allow-list. A one-line editorial addendum to `privacy-architecture.md` §3 making the analogy explicit is recommended for clarity at the next privacy-architecture revision. Non-blocking at MVP. | data-engineer | Privacy-architecture clarity (next revision). | open — `/DE` to extend `privacy-architecture.md` at next revision |
+
+**Specialist-internal, not promoted** (resolve in-thread during 3.2 implementation): PD Q-POAL-001 (modal component check), Q-POAL-002 (file-upload drop zone library/CSS), Q-POAL-006 (admin list page implementation detail), Q-POAL-007 (SVG security posture — DE's allow-list already restricts to PNG/SVG/WebP, schema-side enforcement covers `<img>` rendering). DE Q-PA-DE-001 (retention sweep), Q-PA-DE-002 (orphan-bucket cleanup), Q-PA-DE-003 (publish-invariant nightly check tooling), Q-PA-DE-004 (forward-pointer for `uses_cs_internal_data` UX surfacing — non-action), Q-PA-DE-005 (same as OQ-085, deduplicated). All MVP-volume non-blocking.
+
+**Routing summary.** Pulz oboru is now unblocked for **`/EN`** implementation:
+- Owner-facing render: `getCurrentPulzAnalysisForNace` server component, EmptyStateCard / StaleWarningBadge / ErrorCard wiring, signed-URL chart fetch, `<a download>` PDF, action-box reuse.
+- Admin upload pipeline: route `/admin/pulz-oboru/new` + `/admin/pulz-oboru/[id]/edit`, multipart upload to private buckets, signed-URL minting, server-side validation matching the schema invariants.
+- Migration: `0011_pulz_analyses.sql` + test (DE has the file scope ready).
+OQ-082 (field rename) closes before `/EN` ships; OQ-083 closes inside the next PM pass; OQ-080 (color contrast) closes during the EN implementation visual pass.
+
+---
+
 ## Changelog
 - 2026-04-17 — initial population after Phase 1 gate. 20 open questions transcribed from engineer, data-engineer, designer artifacts; 2 resolved at gate (D-010, D-011).
 - 2026-04-17 — user decisions on OQ-001 and OQ-002 resolved to D-012 and D-013. OQ-009 moot under D-012. OQ-021 added (retention window) post-reconciliation from data-engineer.
 - 2026-04-20 — Phase 2 PM + PD gate: 67 specialist OQs indexed by feature-artifact (not individually transcribed to keep register readable); 9 cross-cutting items promoted as OQ-045..053.
 - 2026-04-21 — v0.2 Track A + Track C spec gate on branch `trial-v0-2`: OQ-054..058 transcribed (1 DE, 1 PM, 3 PD). 6 specialist-internal items left in-artifact per triage. OQ-055, OQ-056 are user-gated; OQ-054 is PoC-accepted; OQ-057 is engineer-gated; OQ-058 is PM-gated and will close when `brief-page-v0-2.md` is written.
 - 2026-04-27 — v0.3 Phase 3.1 spec gate on branch `trial-v0-3`: 11 specs landed (2 PM + 1 PD + 5 DE + 3 EN). OQ-067..073 transcribed (3 cross-track; 4 v0.4-or-later forward-pointers). Two PM/DE files written by orchestrator on agents' behalf because of a filename heuristic guard — no content change, attribution noted in those files' changelogs.
+- 2026-04-28 — v0.3 Pulz oboru spec gate on branch `trial-v0-3-analyzy`: PD `docs/design/pulz-oboru.md` and PM `docs/product/pulz-oboru.md` landed. PM resolved 4 of 9 design-spec OQs in-doc (Q-PO-001/004/005/008). Remaining 5 promoted as OQ-077..081. OQ-077 (admin upload flow) is the next gate — blocks engineer implementation of the section.
+- 2026-04-28 — v0.3 Pulz oboru admin-flow + schema gate on branch `trial-v0-3-analyzy`: PD `docs/design/pulz-oboru-admin.md` and DE `docs/data/analyses-schema.md` landed in parallel. Cross-spec reconciliation aligned (3 sub-forms ↔ `pulz_analysis_charts × 3`, supersession flow matches edit-existing UX). 2 in-doc closures (Q-POAL-005, Q-PA-DE-006). 4 cross-domain items promoted as OQ-082..085. Pulz oboru is now `/EN` implementation-ready; OQ-082 (one-line PD rename) is the only blocker for code start.

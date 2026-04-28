@@ -32,6 +32,7 @@ import {
   BriefListItem,
   formatPublicationMonth,
 } from "@/components/dashboard/BriefListItem";
+import { PulzOboruSection } from "@/components/pulz-oboru/PulzOboruSection";
 import {
   DEMO_OWNER_USER_ID,
   isDemoOwner,
@@ -420,7 +421,13 @@ export default async function DashboardPage({
 
             <hr className="db-divider" aria-hidden="true" />
 
-            {/* Section 2 — Briefs list */}
+            {/* Section 2 — Pulz oboru (sector intelligence brief surface) */}
+            {/* Privacy: brief lane only. No user_contributed / rm_visible reads here. */}
+            <PulzOboruSection naceDivision={activeNace} />
+
+            <hr className="db-divider" aria-hidden="true" />
+
+            {/* Section 3 — Briefs list */}
             <section className="db-brief-section" aria-labelledby="brief-section-heading">
               <h2 id="brief-section-heading" className="db-section-heading" style={{ marginTop: "24px" }}>
                 Analýzy
