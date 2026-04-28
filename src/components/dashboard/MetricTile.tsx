@@ -374,7 +374,7 @@ export default function MetricTile({
           {metricLabel}
         </span>
 
-        {/* Help text + form pushed to bottom — no dead whitespace below buttons */}
+        {/* marginTop:auto pushes this block to the card bottom — no dead space below buttons */}
         <div style={{ marginTop: "auto", display: "flex", flexDirection: "column" }}>
         {promptHelpText && (
           <span

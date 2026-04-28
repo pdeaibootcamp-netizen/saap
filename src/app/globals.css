@@ -167,7 +167,8 @@ a[role="button"],
   .gds-btn-primary:active { transform: none; }
 }
 
-/* GDS input group — pill container with inline unit suffix (button-system.md) */
+/* GDS input group — rounded rectangle with inline unit suffix (button-system.md)
+   8px radius: rounded but not pill — matches design reference, distinct from pill buttons */
 .gds-input-group {
   display: flex;
   align-items: stretch;
