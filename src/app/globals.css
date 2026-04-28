@@ -14,6 +14,7 @@
   $color-gray-100                     (#eef0f4) → --gds-page-bg         → page background
   $color-gray-100                     (#eef0f4) → --gds-surface-secondary → NACE badge bg
   $color-gray-200                     (#e4eaf0) → --gds-border-default  → card border, dividers
+  $color-gray-300                     (#a3b5c9) → --gds-border-interactive → button outlines, focused inputs
   $color-gray-400                     (#537090) → --gds-text-secondary  → NACE badge text, dates, sub-labels
   $color-white                        (#ffffff) → --gds-surface-card    → metric tile / list item bg
   $color-ui-green                     (#057f19) → --gds-quartile-third  → 3rd quartile (50–75 %)
@@ -86,6 +87,9 @@
   /* no data                      — $color-gray-400 (closest GDS blue-gray to #455A64) */
   --gds-quartile-nodata: #537090;
 
+  /* Interactive border (button outlines, focused inputs) — $color-gray-300 */
+  --gds-border-interactive: #a3b5c9;
+
   /* Card border-radius — GDS design decision: 12px (not 8px) */
   --gds-radius-card: 12px;
 }
@@ -129,6 +133,34 @@ a[role="button"],
 [role="button"] {
   min-height: 44px;
   min-width: 44px;
+}
+
+/* GDS secondary button — white pill with interactive border (button-system.md) */
+.gds-btn-secondary {
+  background-color: var(--gds-surface-card);
+  color: var(--gds-color-primary);
+  border: 2px solid var(--gds-border-interactive);
+  border-radius: 9999px;
+  padding: 5px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  min-height: 32px; /* GDS spec: 32px — overrides global button 44px floor intentionally */
+  transition: border-color 0.1s ease, filter 0.1s ease;
+}
+.gds-btn-secondary:hover {
+  border-color: var(--gds-color-primary);
+}
+.gds-btn-secondary:focus-visible {
+  outline: 3px solid #1a1a1a;
+  outline-offset: 2px;
+}
+.gds-btn-secondary:active {
+  transform: scale(0.97);
+}
+@media (prefers-reduced-motion: reduce) {
+  .gds-btn-secondary:active { transform: none; }
 }
 
 /* Utility: visually hidden (for accessibility, not display:none) */

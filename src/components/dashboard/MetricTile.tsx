@@ -350,19 +350,8 @@ export default function MetricTile({
           <button
             type="button"
             onClick={() => setExpanded(true)}
-            style={{
-              width: "100%",
-              backgroundColor: "transparent",
-              color: "#1565C0",
-              border: "1px solid #1565C0",
-              borderRadius: 999,
-              padding: "4px 12px",
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: "pointer",
-              fontFamily: "inherit",
-              minHeight: 0,
-            }}
+            className="gds-btn-secondary"
+            style={{ width: "100%" }}
           >
             Doplnit hodnotu
           </button>
