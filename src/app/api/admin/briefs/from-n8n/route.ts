@@ -17,8 +17,23 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
-import { sql } from "@/lib/db";
+import { createClient } from "@supabase/supabase-js";
 import type { BriefContent, ContentSection } from "@/lib/briefs";
+
+// ── Supabase REST client ─────────────────────────────────────────────────────
+// Use the REST/HTTPS client because the developer's network blocks outbound
+// TCP 5432/6543 to the Supabase pooler (well-established constraint, see
+// src/scripts/ingest-industry-data.ts header comment). Service role key is
+// required because this route is a machine-to-machine endpoint authenticated
+// by HMAC, not by user session.
+function getSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    throw new Error("[from-n8n] Supabase env vars not configured");
+  }
+  return createClient(url, key, { auth: { persistSession: false } });
+}
 
 // ── HMAC verification ─────────────────────────────────────────────────────────
 
@@ -87,6 +102,12 @@ interface N8nCallbackPayload {
   status: "done" | "failed";
   draft?: N8nDraft;
   error?: string;
+  /**
+   * Optional top-level nace_division. Required for MCP/Claude-Code origin
+   * (no analysis_jobs row to read it from). Falls back to the job's
+   * nace_division when present, then to "31" as a last resort.
+   */
+  naceDivision?: string;
 }
 
 // ── Payload validation (manual, no zod) ───────────────────────────────────────
@@ -253,36 +274,63 @@ export async function POST(req: NextRequest) {
 
   const payload = raw as N8nCallbackPayload;
 
-  // ── Lookup analysis_jobs row ──
-  const jobRows = await sql<
-    Array<{ id: string; status: string; nace_division: string }>
-  >`
-    SELECT id, status, nace_division
-    FROM analysis_jobs
-    WHERE id = ${payload.jobId}::uuid
-    LIMIT 1
-  `.catch((err) => {
-    console.error("[from-n8n] DB lookup error:", err);
-    return null;
-  });
+  // ── Optional analysis_jobs lookup (Supabase REST) ──
+  // The original /admin/publications/new flow creates an analysis_jobs row
+  // before firing the webhook; the n8n callback can find it by jobId. The
+  // newer MCP/Claude-Code flow has NO such row — jobId is just an opaque
+  // correlation label. Make the lookup optional: if the row exists we link
+  // the brief to it; if not we proceed jobless.
+  //
+  // Job lookup uses `.eq("id", jobId)` only when jobId is a valid UUID.
+  // Non-UUID jobIds (mcp-..., manual-...) skip the lookup entirely.
+  const supabase = getSupabase();
 
-  if (!jobRows || jobRows.length === 0) {
-    return NextResponse.json({ error: "Job not found." }, { status: 404 });
+  const isUuid =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      payload.jobId
+    );
+
+  let job: { id: string; status: string; nace_division: string } | null = null;
+  if (isUuid) {
+    const { data, error: jobErr } = await supabase
+      .from("analysis_jobs")
+      .select("id, status, nace_division")
+      .eq("id", payload.jobId)
+      .maybeSingle();
+    if (jobErr) {
+      console.warn(
+        "[from-n8n] analysis_jobs lookup error (proceeding jobless):",
+        jobErr.message
+      );
+    } else if (data) {
+      job = data as { id: string; status: string; nace_division: string };
+    }
   }
 
-  const job = jobRows[0];
+  // Resolve nace_division: prefer the job row, then the payload top-level,
+  // then a "31" fallback so a malformed payload still produces a brief
+  // rather than a 500.
+  const naceDivision =
+    job?.nace_division ?? payload.naceDivision ?? "31";
 
   // ── Handle failed status ──
   if (payload.status === "failed") {
-    await sql`
-      UPDATE analysis_jobs
-      SET
-        status = 'failed',
-        error = ${payload.error ?? "n8n reported failure"},
-        completed_at = now()
-      WHERE id = ${payload.jobId}::uuid
-    `.catch((err) => console.error("[from-n8n] Failed to update job (failed):", err));
-
+    if (job) {
+      const { error: updErr } = await supabase
+        .from("analysis_jobs")
+        .update({
+          status: "failed",
+          error: payload.error ?? "n8n reported failure",
+          completed_at: new Date().toISOString(),
+        })
+        .eq("id", payload.jobId);
+      if (updErr) {
+        console.error(
+          "[from-n8n] Failed to update job (failed):",
+          updErr.message
+        );
+      }
+    }
     return NextResponse.json({}, { status: 200 });
   }
 
@@ -325,45 +373,62 @@ export async function POST(req: NextRequest) {
     order: 0,
   };
 
-  // Insert brief in draft state
+  // Insert brief in draft state via Supabase REST
   let briefId: string;
   try {
-    const briefRows = await sql<Array<{ id: string }>>`
-      INSERT INTO briefs (nace_sector, author_id, content_sections, publish_state, data_lane)
-      VALUES (
-        ${job.nace_division},
-        'n8n-generated',
-        ${JSON.stringify([contentSection])}::jsonb,
-        'draft',
-        'brief'
-      )
-      RETURNING id
-    `;
-    if (!briefRows[0]?.id) throw new Error("INSERT returned no id");
-    briefId = briefRows[0].id;
+    const { data: briefRow, error: insertErr } = await supabase
+      .from("briefs")
+      .insert({
+        nace_sector: naceDivision,
+        author_id: "n8n-generated",
+        content_sections: [contentSection],
+        publish_state: "draft",
+        data_lane: "brief",
+      })
+      .select("id")
+      .single();
+
+    if (insertErr || !briefRow?.id) {
+      throw new Error(insertErr?.message ?? "INSERT returned no id");
+    }
+    briefId = briefRow.id;
   } catch (err) {
-    console.error("[from-n8n] Failed to insert brief:", err);
-    // Mark job failed so polling surface shows failure
-    await sql`
-      UPDATE analysis_jobs
-      SET status = 'failed', error = 'brief insert failed', completed_at = now()
-      WHERE id = ${payload.jobId}::uuid
-    `.catch(() => {});
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[from-n8n] Failed to insert brief:", msg);
+    // Mark job failed (only if a real job row exists)
+    if (job) {
+      await supabase
+        .from("analysis_jobs")
+        .update({
+          status: "failed",
+          error: "brief insert failed",
+          completed_at: new Date().toISOString(),
+        })
+        .eq("id", payload.jobId);
+    }
     return NextResponse.json(
-      { error: "Failed to create brief." },
+      { error: "Failed to create brief.", detail: msg },
       { status: 500 }
     );
   }
 
-  // Update analysis_jobs row
-  await sql`
-    UPDATE analysis_jobs
-    SET
-      status = 'done',
-      brief_id = ${briefId}::uuid,
-      completed_at = now()
-    WHERE id = ${payload.jobId}::uuid
-  `.catch((err) => console.error("[from-n8n] Failed to update job (done):", err));
+  // Update analysis_jobs row (only when a real job row exists)
+  if (job) {
+    const { error: doneErr } = await supabase
+      .from("analysis_jobs")
+      .update({
+        status: "done",
+        brief_id: briefId,
+        completed_at: new Date().toISOString(),
+      })
+      .eq("id", payload.jobId);
+    if (doneErr) {
+      console.error(
+        "[from-n8n] Failed to update job (done):",
+        doneErr.message
+      );
+    }
+  }
 
   return NextResponse.json({ briefId }, { status: 200 });
 }
