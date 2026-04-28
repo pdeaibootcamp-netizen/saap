@@ -443,13 +443,7 @@ export async function POST(req: NextRequest) {
     briefContent = {
       title: payload.title ?? `Sektorová analýza — ${payload.publicationMonth ?? ""}`.trim(),
       publication_month: payload.publicationMonthIso ?? "",
-      opening_summary: "",
-      publication: {
-        heading: pub.heading,
-        opener_markdown: pub.opener_markdown,
-        full_text_markdown: pub.full_text_markdown,
-        source: pub.source,
-      },
+      opening_summary: pub.opener_markdown,
       observations: first.observations,
       closing_actions: first.closing_actions,
       per_nace_content: perNaceContent,
