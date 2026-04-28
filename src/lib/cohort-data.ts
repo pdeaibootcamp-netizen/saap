@@ -21,12 +21,30 @@
  *   Rung 2 — (naceDivision, region)              — drop size
  *   Rung 3 — (naceDivision)                      — drop both
  *   (Rung 4 = all failed — returned as null)
+ *
+ * v0.3 connection note: refactored from postgres tagged-template SQL to
+ * @supabase/supabase-js REST client because the dev environment blocks
+ * outbound TCP 5432/6543 to the Supabase pooler. Same constraint that
+ * forced the same refactor in lib/briefs.ts and the from-n8n route.
  */
-
-import { sqlUser } from "./db-user";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { MetricId, SynthQuintiles } from "./cohort-compute";
 import { getFloor } from "./cohort-compute";
 import type { CzRegion, SizeBand } from "../types/data-lanes";
+
+// ── Supabase REST client ─────────────────────────────────────────────────────
+
+let _client: SupabaseClient | null = null;
+function db(): SupabaseClient {
+  if (_client) return _client;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    throw new Error("[cohort-data] NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY must be set");
+  }
+  _client = createClient(url, key, { auth: { persistSession: false } });
+  return _client;
+}
 
 // ── Metric → column mapping ───────────────────────────────────────────────────
 // Real-data columns on cohort_companies. Coverage is sector-asymmetric:
@@ -54,6 +72,40 @@ const requestMemo = new Map<MemoKey, { values: number[]; rung: 0 | 1 | 2 | 3; n:
 /** Clear the per-request memo. Call once per request in the route handler. */
 export function clearCohortMemo(): void {
   requestMemo.clear();
+}
+
+// ── Helper: fetch cohort_companies values for a given filter set ─────────────
+
+async function fetchValues(
+  column: string,
+  filters: { nace_division: string; size_band?: SizeBand; cz_region?: CzRegion }
+): Promise<number[]> {
+  let q = db()
+    .from("cohort_companies")
+    .select(column)
+    .eq("nace_division", filters.nace_division)
+    .not(column, "is", null);
+  if (filters.size_band !== undefined) q = q.eq("size_band", filters.size_band);
+  if (filters.cz_region !== undefined) q = q.eq("cz_region", filters.cz_region);
+
+  // Supabase REST default page size is 1000 rows. For larger cohorts (NACE 49
+  // freight has ~3500 rows) we must paginate to fetch all values; otherwise
+  // percentile compute runs against a truncated cohort.
+  const pageSize = 1000;
+  const all: number[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await q.range(from, from + pageSize - 1);
+    if (error) {
+      throw new Error(`[cohort-data] fetchValues: ${error.message}`);
+    }
+    if (!data || data.length === 0) break;
+    for (const row of data as unknown as Array<Record<string, number | null>>) {
+      const v = row[column];
+      if (v !== null && v !== undefined) all.push(Number(v));
+    }
+    if (data.length < pageSize) break;
+  }
+  return all;
 }
 
 // ── getCohortFirmsForCell ─────────────────────────────────────────────────────
@@ -92,7 +144,7 @@ export async function getCohortFirmsForCell(
 
   const floor = getFloor(metricId);
 
-  // Try rungs 0–3 in order. Rungs 0 and 2 require region; skip them when null.
+  // Build the four rungs in order. Rungs 0 and 2 require region; skip when null.
   const rungs: Array<{
     rung: 0 | 1 | 2 | 3;
     query: () => Promise<number[]>;
@@ -102,64 +154,35 @@ export async function getCohortFirmsForCell(
   if (region !== null) {
     rungs.push({
       rung: 0,
-      query: async () => {
-        const rows = await sqlUser<{ v: number }[]>`
-          SELECT ${sqlUser(column)} AS v
-          FROM cohort_companies
-          WHERE nace_division = ${naceDivision}
-            AND size_band     = ${sizeBand}
-            AND cz_region     = ${region}
-            AND ${sqlUser(column)} IS NOT NULL
-        `;
-        return rows.map((r) => Number(r.v));
-      },
+      query: () =>
+        fetchValues(column, {
+          nace_division: naceDivision,
+          size_band: sizeBand,
+          cz_region: region,
+        }),
     });
   }
 
   // Rung 1 — (naceDivision, sizeBand) — drop region
   rungs.push({
     rung: 1,
-    query: async () => {
-      const rows = await sqlUser<{ v: number }[]>`
-        SELECT ${sqlUser(column)} AS v
-        FROM cohort_companies
-        WHERE nace_division = ${naceDivision}
-          AND size_band     = ${sizeBand}
-          AND ${sqlUser(column)} IS NOT NULL
-      `;
-      return rows.map((r) => Number(r.v));
-    },
+    query: () =>
+      fetchValues(column, { nace_division: naceDivision, size_band: sizeBand }),
   });
 
   // Rung 2 — (naceDivision, region) — drop size
   if (region !== null) {
     rungs.push({
       rung: 2,
-      query: async () => {
-        const rows = await sqlUser<{ v: number }[]>`
-          SELECT ${sqlUser(column)} AS v
-          FROM cohort_companies
-          WHERE nace_division = ${naceDivision}
-            AND cz_region     = ${region}
-            AND ${sqlUser(column)} IS NOT NULL
-        `;
-        return rows.map((r) => Number(r.v));
-      },
+      query: () =>
+        fetchValues(column, { nace_division: naceDivision, cz_region: region }),
     });
   }
 
   // Rung 3 — (naceDivision) — drop both
   rungs.push({
     rung: 3,
-    query: async () => {
-      const rows = await sqlUser<{ v: number }[]>`
-        SELECT ${sqlUser(column)} AS v
-        FROM cohort_companies
-        WHERE nace_division = ${naceDivision}
-          AND ${sqlUser(column)} IS NOT NULL
-      `;
-      return rows.map((r) => Number(r.v));
-    },
+    query: () => fetchValues(column, { nace_division: naceDivision }),
   });
 
   // Walk the ladder
@@ -190,24 +213,27 @@ export async function getSyntheticQuintiles(
   naceDivision: string,
   metricId: MetricId
 ): Promise<SynthQuintiles | null> {
-  const rows = await sqlUser<{
+  const { data, error } = await db()
+    .from("cohort_aggregates")
+    .select("q1, q2, median, q3, q4, n_proxy")
+    .eq("nace_division", naceDivision)
+    .eq("metric_id", metricId)
+    .eq("source", "synthetic")
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`[cohort-data] getSyntheticQuintiles: ${error.message}`);
+  }
+  if (!data) return null;
+  const r = data as {
     q1: number;
     q2: number;
     median: number;
     q3: number;
     q4: number;
     n_proxy: number;
-  }[]>`
-    SELECT q1, q2, median, q3, q4, n_proxy
-    FROM cohort_aggregates
-    WHERE nace_division = ${naceDivision}
-      AND metric_id     = ${metricId}
-      AND source        = 'synthetic'
-    LIMIT 1
-  `;
-
-  if (rows.length === 0) return null;
-  const r = rows[0];
+  };
   return {
     q1: Number(r.q1),
     q2: Number(r.q2),
@@ -225,14 +251,16 @@ export async function getSyntheticQuintiles(
  * Used by the IČO-based demo switcher (D-023, route.ts Track A).
  */
 export async function getNaceDivisionByIco(ico: string): Promise<string | null> {
-  const rows = await sqlUser<{ nace_division: string }[]>`
-    SELECT nace_division
-    FROM cohort_companies
-    WHERE ico = ${ico}
-    ORDER BY year DESC
-    LIMIT 1
-  `;
-  return rows[0]?.nace_division ?? null;
+  const { data, error } = await db()
+    .from("cohort_companies")
+    .select("nace_division")
+    .eq("ico", ico)
+    .order("year", { ascending: false })
+    .limit(1);
+  if (error) {
+    throw new Error(`[cohort-data] getNaceDivisionByIco: ${error.message}`);
+  }
+  return ((data ?? [])[0] as { nace_division: string } | undefined)?.nace_division ?? null;
 }
 
 /**
@@ -244,7 +272,18 @@ export async function getCohortAggregate(
   naceDivision: string,
   metricId: MetricId
 ): Promise<{ source: "real" | "synthetic"; data: SynthQuintiles } | null> {
-  const rows = await sqlUser<{
+  // No CASE WHEN equivalent in REST. Fetch all matching rows (≤2: one real,
+  // one synth) and pick real when present.
+  const { data, error } = await db()
+    .from("cohort_aggregates")
+    .select("source, q1, q2, median, q3, q4, n_proxy")
+    .eq("nace_division", naceDivision)
+    .eq("metric_id", metricId);
+  if (error) {
+    throw new Error(`[cohort-data] getCohortAggregate: ${error.message}`);
+  }
+  if (!data || data.length === 0) return null;
+  const rows = data as Array<{
     source: string;
     q1: number;
     q2: number;
@@ -252,26 +291,20 @@ export async function getCohortAggregate(
     q3: number;
     q4: number;
     n_proxy: number;
-  }[]>`
-    SELECT source, q1, q2, median, q3, q4, n_proxy
-    FROM cohort_aggregates
-    WHERE nace_division = ${naceDivision}
-      AND metric_id     = ${metricId}
-    ORDER BY CASE source WHEN 'real' THEN 0 ELSE 1 END
-    LIMIT 1
-  `;
-
-  if (rows.length === 0) return null;
-  const r = rows[0];
+  }>;
+  const real = rows.find((r) => r.source === "real");
+  const synth = rows.find((r) => r.source === "synthetic");
+  const picked = real ?? synth;
+  if (!picked) return null;
   return {
-    source: r.source as "real" | "synthetic",
+    source: picked.source as "real" | "synthetic",
     data: {
-      q1: Number(r.q1),
-      q2: Number(r.q2),
-      median: Number(r.median),
-      q3: Number(r.q3),
-      q4: Number(r.q4),
-      n_proxy: Number(r.n_proxy),
+      q1: Number(picked.q1),
+      q2: Number(picked.q2),
+      median: Number(picked.median),
+      q3: Number(picked.q3),
+      q4: Number(picked.q4),
+      n_proxy: Number(picked.n_proxy),
     },
   };
 }
