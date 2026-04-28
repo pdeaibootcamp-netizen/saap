@@ -299,6 +299,16 @@ export async function POST(req: NextRequest) {
 
   if (!hmacValid) {
     console.warn("[from-n8n] HMAC signature mismatch — rejecting request");
+    console.warn("[from-n8n] DIAGNOSTIC:", {
+      secretLength: secret.length,
+      secretFirst8: secret.slice(0, 8),
+      secretLast8: secret.slice(-8),
+      bodyLength: rawBodyText.length,
+      bodyFirst120: rawBodyText.slice(0, 120),
+      bodyLast80: rawBodyText.slice(-80),
+      receivedHex,
+      computedHex,
+    });
     return NextResponse.json(
       { error: "Signature mismatch." },
       { status: 401 }
