@@ -95,8 +95,8 @@ export default function IcoSwitcher({ activeIco, activeName }: IcoSwitcherProps)
           width: 180 udržuje původní kompaktní rozměr v hlavičce; gds-input-group
           default je 40px height — sedne i do 56px stripe headeru. */}
       <div
-        className={`gds-input-group${error ? " gds-input-group--error" : ""}`}
-        style={{ width: 240 }}
+        className={`gds-input-group gds-input-group--compact${error ? " gds-input-group--error" : ""}`}
+        style={{ width: 220 }}
       >
         <input
           type="text"
