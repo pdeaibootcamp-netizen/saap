@@ -1,24 +1,23 @@
 /**
  * /admin/publications/new — Upload publication for AI-assisted brief generation
  *
- * Analyst-only client component. The analyst:
- *   1. Picks a PDF or DOCX file (max 10 MB).
- *   2. Selects the NACE sector the publication concerns.
- *   3. Optionally checks "use active demo client data as context".
- *   4. Clicks "Generovat návrh přehledu".
+ * v0.3 (D-029, Model B): file-only upload. The analyst picks a PDF / DOCX /
+ * MD / TXT file and clicks "Generovat návrh přehledu". The n8n workflow
+ * (Strategy Radar — Analyze Publication) fans out to all four NACEs in
+ * parallel, runs a relevance gate per NACE, and writes ONE multi-NACE brief
+ * tagged with whichever NACEs the publication is relevant for. No NACE
+ * selector here — relevance is determined automatically.
  *
  * After submission the page polls GET /api/admin/publications/jobs/[id] every 5s.
  * On 'done', redirects to /admin/briefs/[brief_id]/edit.
- * Hard timeout at 3 minutes per PM spec (docs/product/analysis-automation.md §6).
+ * Hard timeout at 3 minutes per PM spec.
  *
  * Czech copy throughout. Formal register (vykání) per D-004.
- * docs/product/analysis-automation.md §3, §5, §6.
  */
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { NACE_SECTORS } from "@/lib/nace";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -49,8 +48,6 @@ export default function PublicationUploadPage() {
   const router = useRouter();
 
   const [file, setFile] = useState<File | null>(null);
-  const [nace, setNace] = useState<string>("");
-  const [useSnapshot, setUseSnapshot] = useState(false);
 
   const [status, setStatus] = useState<UploadStatus>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -131,8 +128,9 @@ export default function PublicationUploadPage() {
   // ── File validation ──
   function validateFile(f: File): string | null {
     const lower = f.name.toLowerCase();
-    if (!lower.endsWith(".pdf") && !lower.endsWith(".docx")) {
-      return "Tento formát zatím nepodporujeme. Nahrajte prosím PDF nebo DOCX.";
+    const allowed = [".pdf", ".docx", ".doc", ".md", ".txt"];
+    if (!allowed.some((ext) => lower.endsWith(ext))) {
+      return "Tento formát zatím nepodporujeme. Nahrajte prosím PDF, DOCX, MD nebo TXT.";
     }
     if (f.size > MAX_FILE_BYTES) {
       return "Soubor přesahuje 10 MB. Použijte zhuštěnější verzi a zkuste to znovu.";
@@ -167,17 +165,19 @@ export default function PublicationUploadPage() {
       setErrorMessage(fileErr);
       return;
     }
-    if (!nace) {
-      setErrorMessage("Vyberte prosím sektor NACE.");
-      return;
-    }
 
-    setStatus("uploading");
+    setStatus("running");
+    const now = Date.now();
+    setStartedAt(now);
+    startElapsedTicker(now);
 
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("naceDivision", nace);
-    formData.append("useSnapshot", useSnapshot ? "true" : "false");
+
+    // n8n's webhook responseMode='lastNode' means the POST blocks until the
+    // WHOLE pipeline finishes (~30-60s with 4 NACE branches). When the upload
+    // route's `await fetch(webhookUrl)` returns, the brief is already in the
+    // DB — no polling needed, just redirect to /admin.
 
     try {
       const res = await fetch("/api/admin/publications/upload", {
@@ -188,9 +188,11 @@ export default function PublicationUploadPage() {
       if (!res.ok) {
         let msg = "Nahrávání selhalo. Zkontrolujte připojení a zkuste to znovu.";
         try {
-          const data = (await res.json()) as { error?: string };
+          const data = (await res.json()) as { error?: string; detail?: string };
           if (data.error) msg = data.error;
+          if (data.detail) msg += ` (${data.detail})`;
         } catch {}
+        clearAllTimers();
         setStatus("failed");
         setErrorMessage(msg);
         return;
@@ -198,11 +200,11 @@ export default function PublicationUploadPage() {
 
       const { jobId: id } = (await res.json()) as { jobId: string };
       setJobId(id);
-      const now = Date.now();
-      setStartedAt(now);
-      setStatus("queued");
-      startPolling(id, now);
+      clearAllTimers();
+      setStatus("done");
+      router.push("/admin");
     } catch {
+      clearAllTimers();
       setStatus("failed");
       setErrorMessage("Nahrávání selhalo. Zkontrolujte připojení a zkuste to znovu.");
     }
@@ -223,8 +225,8 @@ export default function PublicationUploadPage() {
     idle: "",
     uploading: "Nahrávám soubor…",
     queued: "Zařazeno",
-    running: "Generuje se…",
-    done: "Hotovo",
+    running: "Generuji návrh přehledu… (typicky 30–60 s)",
+    done: "Hotovo, otevírám přehled úloh…",
     failed: "Selhalo",
     timeout: "Vypršel čas",
   };
@@ -269,8 +271,9 @@ export default function PublicationUploadPage() {
           Nahrát publikaci pro automatické generování
         </h1>
         <p style={{ fontSize: "14px", color: "#666", marginBottom: "32px" }}>
-          Nahrajte sektorovou analýzu ve formátu PDF nebo DOCX. Systém automaticky
-          vygeneruje návrh přehledu, který poté zkontrolujete a publikujete.
+          Nahrajte sektorovou analýzu (PDF, DOCX, MD nebo TXT). Systém automaticky
+          vyhodnotí, pro které obory je publikace relevantní, a vygeneruje
+          jednotný návrh přehledu pokrývající všechny tyto obory.
         </p>
 
         {/* ── Status strip (shown during / after generation) ── */}
@@ -408,12 +411,12 @@ export default function PublicationUploadPage() {
                   marginBottom: "6px",
                 }}
               >
-                Publikace (PDF nebo DOCX, max 10 MB)
+                Publikace (PDF, DOCX, MD nebo TXT, max 10 MB)
               </label>
               <input
                 id="pub-file"
                 type="file"
-                accept=".pdf,.docx"
+                accept=".pdf,.docx,.doc,.md,.txt"
                 onChange={handleFileChange}
                 style={{
                   display: "block",
@@ -427,70 +430,6 @@ export default function PublicationUploadPage() {
                   Vybrán: {file.name} ({(file.size / (1024 * 1024)).toFixed(1)} MB)
                 </p>
               )}
-            </div>
-
-            {/* NACE selector */}
-            <div style={{ marginBottom: "20px" }}>
-              <label
-                htmlFor="pub-nace"
-                style={{
-                  display: "block",
-                  fontSize: "13px",
-                  fontWeight: "600",
-                  marginBottom: "6px",
-                }}
-              >
-                Sektor NACE (ke které publikaci patří)
-              </label>
-              <select
-                id="pub-nace"
-                value={nace}
-                onChange={(e) => setNace(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "8px 10px",
-                  border: "1px solid #d0d0d0",
-                  borderRadius: "4px",
-                  fontSize: "14px",
-                  backgroundColor: "#fff",
-                  boxSizing: "border-box",
-                }}
-              >
-                <option value="">— Vyberte sektor —</option>
-                {NACE_SECTORS.map((s) => (
-                  <option key={s.code} value={s.code}>
-                    {s.code} — {s.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Demo client snapshot checkbox */}
-            <div style={{ marginBottom: "24px" }}>
-              <label
-                style={{
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: "10px",
-                  fontSize: "14px",
-                  cursor: "pointer",
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={useSnapshot}
-                  onChange={(e) => setUseSnapshot(e.target.checked)}
-                  style={{ marginTop: "2px", flexShrink: 0 }}
-                />
-                <span>
-                  Použít data aktivního demo klienta jako kontext
-                  <span style={{ display: "block", fontSize: "12px", color: "#888", marginTop: "2px" }}>
-                    Metriky klienta (percentily a kvartily — bez konkrétních hodnot) budou zahrnuty
-                    do promptu tak, aby vygenerovaná pozorování mohla odkazovat na pozici firmy
-                    v rámci oboru.
-                  </span>
-                </span>
-              </label>
             </div>
 
             {/* Error (form-level) */}
@@ -515,16 +454,16 @@ export default function PublicationUploadPage() {
             <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
               <button
                 type="submit"
-                disabled={!file || !nace}
+                disabled={!file}
                 style={{
                   padding: "12px 24px",
-                  backgroundColor: file && nace ? "#1a1a1a" : "#999",
+                  backgroundColor: file ? "#1a1a1a" : "#999",
                   color: "#fff",
                   border: "none",
                   borderRadius: "4px",
                   fontSize: "14px",
                   fontWeight: "bold",
-                  cursor: file && nace ? "pointer" : "not-allowed",
+                  cursor: file ? "pointer" : "not-allowed",
                 }}
               >
                 Generovat návrh přehledu
