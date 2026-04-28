@@ -189,6 +189,35 @@ a[role="button"],
   white-space: nowrap;
   flex-shrink: 0;
 }
+/* Right-side interactive slot — mirrors __unit divider but is clickable.
+   Used by IcoSwitcher (Přepnout) and any future inline submit affordance. */
+.gds-input-group__action {
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  border: none;
+  border-left: 1px solid var(--gds-border-interactive);
+  background: transparent;
+  color: var(--gds-color-primary);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  white-space: nowrap;
+  flex-shrink: 0;
+  cursor: pointer;
+  min-height: 0;
+  min-width: 0;
+}
+.gds-input-group__action:hover { filter: brightness(0.9); }
+.gds-input-group__action:active { transform: scale(0.97); }
+.gds-input-group__action:focus-visible {
+  outline: 2px solid var(--gds-color-primary);
+  outline-offset: -2px;
+}
+.gds-input-group__action:disabled { opacity: 0.6; cursor: not-allowed; }
+@media (prefers-reduced-motion: reduce) {
+  .gds-input-group__action:active { transform: none; }
+}
 .gds-input-group:focus-within {
   border-color: var(--gds-color-primary);
   border-width: 2px;
@@ -197,7 +226,8 @@ a[role="button"],
   border-color: #c62828;
   border-width: 2px;
 }
-.gds-input-group--error .gds-input-group__unit {
+.gds-input-group--error .gds-input-group__unit,
+.gds-input-group--error .gds-input-group__action {
   border-left-color: #c62828;
 }
 
@@ -264,5 +294,64 @@ a[role="button"],
     /* Static blue ring instead of animation per design spec */
     box-shadow: 0 0 0 2px #1565C0;
   }
+}
+
+/* ─── GDS Snackbar (POC error toast) ─────────────────────────────────────────
+   Floats bottom-right, slides in, dark navy bg + red icon + light text.
+   Used by IcoSwitcher (header) where inline errors fall on the boundary of
+   the coloured stripe and white content area and become illegible.
+   ─────────────────────────────────────────────────────────────────────────── */
+.gds-snackbar {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--gds-heading-color);
+  color: #ffffff;
+  border-radius: 12px;
+  padding: 14px 16px;
+  max-width: 480px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  animation: gds-snackbar-in 200ms ease-out;
+}
+.gds-snackbar__icon {
+  display: flex;
+  flex-shrink: 0;
+}
+.gds-snackbar__text {
+  flex: 1;
+  font-size: 15px;
+  line-height: 1.4;
+}
+.gds-snackbar__close {
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 8px;
+  margin: -4px -8px -4px 0;
+  min-height: 0;
+  min-width: 0;
+  font-family: inherit;
+}
+.gds-snackbar__close:hover {
+  opacity: 0.8;
+}
+.gds-snackbar__close:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+@keyframes gds-snackbar-in {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gds-snackbar { animation: none; }
 }
 

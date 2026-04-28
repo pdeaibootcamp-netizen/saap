@@ -21,6 +21,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Snackbar from "../ui/Snackbar";
 
 interface IcoSwitcherProps {
   /** Current active IČO (from cookie, shown as input value). */
@@ -83,22 +84,20 @@ export default function IcoSwitcher({ activeIco, activeName }: IcoSwitcherProps)
   }
 
   return (
+    <>
     <form
       onSubmit={handleSubmit}
       noValidate
       style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 0, position: "relative" }}
       aria-label="Přepnutí demo firmy"
     >
-      {/* Input group — pill shape, input + button merged into one unit */}
-      <div style={{
-        display: "flex",
-        alignItems: "stretch",
-        borderRadius: 999,
-        overflow: "hidden",
-        border: error ? "2px solid #C62828" : "1.5px solid rgba(255,255,255,0.7)",
-        backgroundColor: "#ffffff",
-        height: 34,
-      }}>
+      {/* GDS input group — 8px radius (NOT pill), input + akční tlačítko sloučené.
+          width: 180 udržuje původní kompaktní rozměr v hlavičce; gds-input-group
+          default je 40px height — sedne i do 56px stripe headeru. */}
+      <div
+        className={`gds-input-group${error ? " gds-input-group--error" : ""}`}
+        style={{ width: 240 }}
+      >
         <input
           type="text"
           inputMode="numeric"
@@ -113,62 +112,28 @@ export default function IcoSwitcher({ activeIco, activeName }: IcoSwitcherProps)
           aria-label="IČO firmy pro přepnutí demo firmy"
           aria-describedby={error ? "ico-switcher-error" : undefined}
           aria-invalid={error !== null}
-          style={{
-            width: 90,
-            fontSize: 13,
-            color: "#1a1a1a",
-            border: "none",
-            borderRight: "1px solid #e4eaf0",
-            padding: "0 12px",
-            outline: "none",
-            fontFamily: "inherit",
-            backgroundColor: "transparent",
-            boxSizing: "border-box" as const,
-          }}
         />
         <button
           type="submit"
           disabled={isLoading}
           aria-label={isLoading ? "Načítám…" : "Přepnout firmu"}
           aria-disabled={isLoading}
-          style={{
-            backgroundColor: "transparent",
-            color: "#135ee2",
-            border: "none",
-            padding: "0 14px",
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: isLoading ? "not-allowed" : "pointer",
-            opacity: isLoading ? 0.7 : 1,
-            fontFamily: "inherit",
-            whiteSpace: "nowrap" as const,
-            flexShrink: 0,
-            minHeight: 0,
-            display: "flex",
-            alignItems: "center",
-            paddingTop: 0,
-            paddingBottom: 0,
-          }}
+          className="gds-input-group__action"
         >
           {isLoading ? "…" : "Přepnout"}
         </button>
       </div>
 
-      {/* Inline error — absolutely positioned below the switcher row so the
-          form's height stays equal to the input row. The wrapper is
-          translateY(-50%) centred in the header band; if the error joined the
-          flex column, the form would grow and shove the input up out of the
-          stripe. */}
-      {error && (
-        <span
-          id="ico-switcher-error"
-          role="alert"
-          aria-live="polite"
-          style={{ position: "absolute", top: "100%", right: 0, fontSize: 12, color: "#C62828", marginTop: 4, whiteSpace: "nowrap" }}
-        >
-          {error}
-        </span>
-      )}
     </form>
+    {/* Errors render in a floating bottom-right Snackbar instead of inline,
+        because the inline error span sits on the boundary of the coloured
+        stripe header and the lighter content area — the contrast was poor
+        regardless of which colour we picked. */}
+    <Snackbar
+      open={error !== null}
+      message={error ?? ""}
+      onClose={() => setError(null)}
+    />
+    </>
   );
 }
