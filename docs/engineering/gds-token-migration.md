@@ -100,6 +100,7 @@ Full mapping from GDS SCSS source to CSS var to usage:
 | `$color-gray-100` | `#eef0f4` | `--gds-page-bg` | Body bg, `.db-page` bg, bli-row hover state |
 | `$color-gray-100` | `#eef0f4` | `--gds-surface-secondary` | NACE badge bg |
 | `$color-gray-200` | `#e4eaf0` | `--gds-border-default` | Card border, dividers, tile 1px border, section hr |
+| `$color-gray-300` | `#a3b5c9` | `--gds-border-interactive` | Secondary button outline, interactive element borders |
 | `$color-white` | `#ffffff` | `--gds-surface-card` | Metric tile bg, BriefListItem bg, brief page bg, screen bg |
 | `$color-gray-400` | `#537090` | `--gds-text-secondary` | NACE badge text, publication month, obs body text, sub-labels |
 | — (design spec) | `#1a1a1a` | `--gds-text-body` | Tile values (26px bold), title text, action text; no direct GDS token for near-black |

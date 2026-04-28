@@ -9,19 +9,20 @@
   ─── GDS token mapping ────────────────────────────────────────────────────────
   SCSS source → CSS var → used in
 
-  $color-blue-300 / $color-ui-blue   (#135ee2) → --gds-color-primary   → header bg, "Nový" pill, "Zobrazit" link, quartile-top border color
+  $color-blue-300 / $color-ui-blue   (#135ee2) → --gds-color-primary   → header bg, "Nový" pill, "Zobrazit" link
   $color-blue-400                     (#0a285c) → --gds-heading-color   → section headings
   $color-gray-100                     (#eef0f4) → --gds-page-bg         → page background
   $color-gray-100                     (#eef0f4) → --gds-surface-secondary → NACE badge bg
   $color-gray-200                     (#e4eaf0) → --gds-border-default  → card border, dividers
+  $color-gray-300                     (#a3b5c9) → --gds-border-interactive → button outlines, focused inputs
   $color-gray-400                     (#537090) → --gds-text-secondary  → NACE badge text, dates, sub-labels
   $color-white                        (#ffffff) → --gds-surface-card    → metric tile / list item bg
-  $color-ui-green                     (#057f19) → --gds-quartile-third  → 3rd quartile (50–75 %)
-  $color-ui-red                       (#cf2a1e) → --gds-quartile-bottom → bottom quartile (0–25 %)
-  $color-carrot                       (#ff6130) → --gds-quartile-second → 2nd quartile (25–50 %); closest GDS warm-orange to #E65100
-  $color-gray-400                     (#537090) → --gds-quartile-nodata → no-data state; closest GDS blue-gray to #455A64
   (no direct GDS match for #9E9E9E)             → --gds-text-muted     → fallback #9e9e9e (used in footer, percentile sub-label)
   (no direct GDS match for #1A1A1A)             → --gds-text-body      → fallback #1a1a1a (tile values, body text)
+
+  Quintile band colours (5 percentile bands) live as inline hex in
+  components/dashboard/MetricTile.tsx — CSS vars are not reliable inside
+  inline style objects, so the renderer hardcodes Material Design hex.
 
   Font: Inter Variable — loaded via @font-face from local GDS toolkit dist.
   Font family: 'Inter var', Inter, sans-serif (matches $theme-font-body in _typography.scss).
@@ -74,17 +75,8 @@
   /* Muted text (footer, percentile) — no direct GDS token; design spec value */
   --gds-text-muted: #9e9e9e;
 
-  /* Quartile colour system */
-  /* horní čtvrtina  (top 25 %)   — $color-blue-300 / $color-ui-blue */
-  --gds-quartile-top:    #135ee2;
-  /* třetí čtvrtina (50–75 %)    — $color-ui-green */
-  --gds-quartile-third:  #057f19;
-  /* druhá čtvrtina (25–50 %)    — $color-carrot (closest GDS warm-orange to #E65100) */
-  --gds-quartile-second: #ff6130;
-  /* spodní čtvrtina (0–25 %)    — $color-ui-red */
-  --gds-quartile-bottom: #cf2a1e;
-  /* no data                      — $color-gray-400 (closest GDS blue-gray to #455A64) */
-  --gds-quartile-nodata: #537090;
+  /* Interactive border (button outlines, focused inputs) — $color-gray-300 */
+  --gds-border-interactive: #a3b5c9;
 
   /* Card border-radius — GDS design decision: 12px (not 8px) */
   --gds-radius-card: 12px;
@@ -131,6 +123,112 @@ a[role="button"],
   min-width: 44px;
 }
 
+/* GDS primary button — filled blue pill (button-system.md) */
+.gds-btn-primary {
+  background-color: var(--gds-color-primary);
+  color: #ffffff;
+  border: 2px solid var(--gds-color-primary);
+  border-radius: 9999px;
+  padding: 5px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  min-height: 32px;
+  transition: filter 0.1s ease;
+}
+.gds-btn-primary:hover {
+  filter: brightness(0.9);
+}
+.gds-btn-primary:focus-visible {
+  outline: 3px solid #1a1a1a;
+  outline-offset: 2px;
+}
+.gds-btn-primary:active {
+  transform: scale(0.97);
+}
+.gds-btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+@media (prefers-reduced-motion: reduce) {
+  .gds-btn-primary:active { transform: none; }
+}
+
+/* GDS input group — rounded rectangle with inline unit suffix (button-system.md)
+   8px radius: rounded but not pill — matches design reference, distinct from pill buttons */
+.gds-input-group {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--gds-border-interactive);
+  border-radius: 8px;
+  background: var(--gds-surface-card);
+  overflow: hidden;
+  height: 40px;
+  box-sizing: border-box;
+}
+.gds-input-group input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  padding: 0 16px;
+  font-size: 16px;
+  font-family: inherit;
+  background: transparent;
+  color: var(--gds-text-body);
+  box-sizing: border-box;
+}
+.gds-input-group__unit {
+  display: flex;
+  align-items: center;
+  padding: 0 14px 0 12px;
+  border-left: 1px solid var(--gds-border-interactive);
+  font-size: 13px;
+  color: var(--gds-text-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.gds-input-group:focus-within {
+  border-color: var(--gds-color-primary);
+  border-width: 2px;
+}
+.gds-input-group--error {
+  border-color: #c62828;
+  border-width: 2px;
+}
+.gds-input-group--error .gds-input-group__unit {
+  border-left-color: #c62828;
+}
+
+/* GDS secondary button — white pill with interactive border (button-system.md) */
+.gds-btn-secondary {
+  background-color: var(--gds-surface-card);
+  color: var(--gds-color-primary);
+  border: 2px solid var(--gds-border-interactive);
+  border-radius: 9999px;
+  padding: 5px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  min-height: 32px; /* GDS spec: 32px — overrides global button 44px floor intentionally */
+  transition: border-color 0.1s ease, filter 0.1s ease;
+}
+.gds-btn-secondary:hover {
+  border-color: var(--gds-color-primary);
+}
+.gds-btn-secondary:focus-visible {
+  outline: 3px solid #1a1a1a;
+  outline-offset: 2px;
+}
+.gds-btn-secondary:active {
+  transform: scale(0.97);
+}
+@media (prefers-reduced-motion: reduce) {
+  .gds-btn-secondary:active { transform: none; }
+}
+
 /* Utility: visually hidden (for accessibility, not display:none) */
 .sr-only {
   position: absolute;
@@ -168,12 +266,3 @@ a[role="button"],
   }
 }
 
-/* ─── CTA accent token alias (design/in-tile-prompts.md §7.1) ───────────────
-   --color-cta-accent = #E65100 (amber, same hex as --gds-quartile-second / druhá čtvrtina).
-   Named separately so the ask-state accent carries "action available" semantics,
-   not quartile-position semantics. Do not read this var in inline styles or
-   dangerouslySetInnerHTML — use the hardcoded hex instead.
-   ─────────────────────────────────────────────────────────────────────────── */
-:root {
-  --color-cta-accent: #E65100;
-}

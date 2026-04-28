@@ -33,33 +33,79 @@ type QuartileLabel =
   | "druhá čtvrtina"
   | "spodní čtvrtina";
 
-interface QuartileStyle {
-  accentVar: string;
-  accentHex: string;
-}
-
 interface BadgeStyle {
   background: string;
   color: string;
 }
 
-const BADGE_STYLES: Record<
-  "horní čtvrtina" | "třetí čtvrtina" | "druhá čtvrtina" | "spodní čtvrtina" | "nodata",
-  BadgeStyle
-> = {
-  "horní čtvrtina":  { background: "#E3F2FD", color: "#1565C0" },
-  "třetí čtvrtina":  { background: "#E8F5E9", color: "#2E7D32" },
-  "druhá čtvrtina":  { background: "#FFF3E0", color: "#E65100" },
-  "spodní čtvrtina": { background: "#FFEBEE", color: "#C62828" },
-  nodata:            { background: "#F5F5F5", color: "#757575" },
+// ─── Quintile colour system (main branch, approved 2026-04-27) ────────────────
+// Accent stripe and badge colours driven by percentile band, not quartile label.
+
+interface QuintileStyle {
+  accentHex: string;
+  badgeStyle: BadgeStyle;
+}
+
+const QUINTILE_STYLES: Record<1 | 2 | 3 | 4 | 5, QuintileStyle> = {
+  5: { accentHex: "#1565C0", badgeStyle: { background: "#E3F2FD", color: "#1565C0" } }, // 80–100. p
+  4: { accentHex: "#2E7D32", badgeStyle: { background: "#E8F5E9", color: "#2E7D32" } }, // 60–79. p
+  3: { accentHex: "#E65100", badgeStyle: { background: "#FFF3E0", color: "#E65100" } }, // 40–59. p
+  2: { accentHex: "#BF360C", badgeStyle: { background: "#FBE9E7", color: "#BF360C" } }, // 20–39. p
+  1: { accentHex: "#C62828", badgeStyle: { background: "#FFEBEE", color: "#C62828" } }, // 0–19. p
 };
 
-const QUARTILE_STYLES: Record<QuartileLabel, QuartileStyle> = {
-  "horní čtvrtina": { accentVar: "var(--gds-quartile-top)", accentHex: "#1565C0" },
-  "třetí čtvrtina": { accentVar: "var(--gds-quartile-third)", accentHex: "#2E7D32" },
-  "druhá čtvrtina": { accentVar: "var(--gds-quartile-second)", accentHex: "#E65100" },
-  "spodní čtvrtina": { accentVar: "var(--gds-quartile-bottom)", accentHex: "#C62828" },
+const NODATA_STYLE: QuintileStyle = {
+  accentHex: "#455A64",
+  badgeStyle: { background: "#F5F5F5", color: "#757575" },
 };
+
+// Fallback mapping when percentile is unavailable — skips Q3 intentionally
+// (quartile labels map to Q1/Q2/Q4/Q5, never Q3 — no "middle" quartile label).
+const QUARTILE_TO_QUINTILE: Record<QuartileLabel, number> = {
+  "spodní čtvrtina": 1,
+  "druhá čtvrtina":  2,
+  "třetí čtvrtina":  4,
+  "horní čtvrtina":  5,
+};
+
+const QUINTILE_LABELS = ["spodní pětina", "druhá pětina", "třetí pětina", "čtvrtá pětina", "horní pětina"];
+
+function percentileToQuintile(p: number): number {
+  if (p <= 20) return 1;
+  if (p <= 40) return 2;
+  if (p <= 60) return 3;
+  if (p <= 80) return 4;
+  return 5;
+}
+
+function getQuintileLabel(percentile: number | null, quartile: QuartileLabel): string {
+  const q = percentile !== null ? percentileToQuintile(percentile) : QUARTILE_TO_QUINTILE[quartile];
+  return QUINTILE_LABELS[q - 1];
+}
+
+function getQuintileStyle(percentile: number | null, quartileLabel: QuartileLabel): QuintileStyle {
+  const q = percentile !== null ? percentileToQuintile(percentile) : QUARTILE_TO_QUINTILE[quartileLabel];
+  return QUINTILE_STYLES[q as 1 | 2 | 3 | 4 | 5] ?? NODATA_STYLE;
+}
+
+function QuintileBar({ quartile, percentile, accentHex }: { quartile: QuartileLabel; percentile: number | null; accentHex: string }) {
+  const filled = percentile !== null ? percentileToQuintile(percentile) : QUARTILE_TO_QUINTILE[quartile];
+  const radius = (i: number): string => {
+    if (i === 1) return "3px 0 0 3px";
+    if (i === 5) return "0 3px 3px 0";
+    return "0";
+  };
+  return (
+    <div
+      title={percentile !== null ? `${percentile}. percentil` : undefined}
+      style={{ display: "flex", gap: 4, width: "100%", marginTop: 8, cursor: "default" }}
+    >
+      {[1, 2, 3, 4, 5].map((i) => (
+        <div key={i} style={{ flex: 1, height: 6, borderRadius: radius(i), backgroundColor: i <= filled ? accentHex : "#e4eaf0" }} />
+      ))}
+    </div>
+  );
+}
 
 // ask state uses neutral blue-grey — distinct from any quartile colour and
 // non-alarming (the tile is asking for input, not flagging a problem).
@@ -136,17 +182,15 @@ export default function MetricTile({
 
   // ── Derive visual style ─────────────────────────────────────────────────────
   const isValid = confidenceState === "valid" && quartileLabel !== null;
-  const style = isValid && quartileLabel ? QUARTILE_STYLES[quartileLabel] : null;
-  const accentHex = confidenceState === "ask"
-    ? CTA_ACCENT_HEX
-    : (style?.accentHex ?? "#455A64");
-  const badgeStyle: BadgeStyle =
-    isValid && quartileLabel ? BADGE_STYLES[quartileLabel] : BADGE_STYLES.nodata;
+  const quintileStyle: QuintileStyle =
+    isValid && quartileLabel ? getQuintileStyle(percentile, quartileLabel) : NODATA_STYLE;
+  const accentHex = confidenceState === "ask" ? CTA_ACCENT_HEX : quintileStyle.accentHex;
+  const badgeStyle: BadgeStyle = quintileStyle.badgeStyle;
 
   // ── Accessible name ─────────────────────────────────────────────────────────
   let ariaLabel: string;
   if (confidenceState === "valid" && quartileLabel && percentile !== null) {
-    ariaLabel = `${metricLabel} — ${quartileLabel}, ${percentile}. percentil`;
+    ariaLabel = `${metricLabel} — ${getQuintileLabel(percentile, quartileLabel)}, ${percentile}. percentil`;
   } else if (confidenceState === "below-floor") {
     ariaLabel = `${metricLabel} — zatím nedostatek dat pro srovnání`;
   } else if (confidenceState === "empty") {
@@ -266,7 +310,7 @@ export default function MetricTile({
 
   // ── Valid state ──────────────────────────────────────────────────────────────
 
-  if (isValid && style && quartileLabel) {
+  if (isValid && quartileLabel) {
     return (
       <div
         role="region"
@@ -295,13 +339,13 @@ export default function MetricTile({
         </span>
 
         <div
-          style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}
-          aria-label={percentile !== null ? `${quartileLabel}, ${percentile}. percentil` : quartileLabel}
+          aria-label={percentile !== null ? `${getQuintileLabel(percentile, quartileLabel)}, ${percentile}. percentil` : getQuintileLabel(null, quartileLabel)}
+          style={{ display: "flex", flexDirection: "column", gap: 5 }}
         >
-          <span style={{ fontWeight: 600, color: "#333333" }}>{quartileLabel}</span>
-          {percentile !== null && (
-            <span aria-hidden="true" style={{ color: "#9E9E9E" }}>{percentile}.&nbsp;p.</span>
-          )}
+          <QuintileBar quartile={quartileLabel} percentile={percentile} accentHex={accentHex} />
+          <span style={{ fontWeight: 600, color: "#333333", fontSize: 13 }}>
+            {getQuintileLabel(percentile, quartileLabel)}
+          </span>
         </div>
       </div>
     );
@@ -350,19 +394,8 @@ export default function MetricTile({
           <button
             type="button"
             onClick={() => setExpanded(true)}
-            style={{
-              width: "100%",
-              backgroundColor: "transparent",
-              color: "#1565C0",
-              border: "1px solid #1565C0",
-              borderRadius: 999,
-              padding: "4px 12px",
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: "pointer",
-              fontFamily: "inherit",
-              minHeight: 0,
-            }}
+            className="gds-btn-secondary"
+            style={{ width: "100%" }}
           >
             Doplnit hodnotu
           </button>
@@ -385,7 +418,8 @@ export default function MetricTile({
           {metricLabel}
         </span>
 
-        {/* Help text — full prompt copy when the form is open */}
+        {/* marginTop:auto pushes this block to the card bottom — no dead space below buttons */}
+        <div style={{ marginTop: "auto", display: "flex", flexDirection: "column" }}>
         {promptHelpText && (
           <span
             id={`${metricId}-help`}
@@ -396,8 +430,11 @@ export default function MetricTile({
         )}
 
         <form onSubmit={handleSubmit} noValidate>
-          {/* Input row: field + unit suffix */}
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
+          {/* Input row: pill container + unit suffix */}
+          <div
+            className={`gds-input-group${hasError ? " gds-input-group--error" : ""}`}
+            style={{ marginTop: 4 }}
+          >
             <input
               ref={inputRef}
               id={`${metricId}-input`}
@@ -417,34 +454,9 @@ export default function MetricTile({
                 hasError ? `${metricId}-error` : "",
               ].filter(Boolean).join(" ") || undefined}
               aria-invalid={hasError}
-              style={{
-                flex: 1,
-                minWidth: 0,            // allow shrink in narrow tiles (override flex auto min-width)
-                width: "100%",          // belt + suspenders for older flex impls
-                height: 40,
-                fontSize: 16,
-                fontWeight: 400,
-                color: "#1a1a1a",
-                border: hasError ? "2px solid #C62828" : "1px solid #9E9E9E",
-                borderRadius: 4,
-                padding: "0 8px",
-                outline: "none",
-                fontFamily: "inherit",
-                boxSizing: "border-box",
-              }}
-              onFocus={(e) => {
-                if (!hasError) {
-                  (e.target as HTMLInputElement).style.border = "2px solid #1a1a1a";
-                }
-              }}
-              onBlur={(e) => {
-                if (!hasError) {
-                  (e.target as HTMLInputElement).style.border = "1px solid #9E9E9E";
-                }
-              }}
             />
             {unitSuffix && (
-              <span aria-hidden="true" style={{ fontSize: 13, color: "#616161", whiteSpace: "nowrap" }}>
+              <span aria-hidden="true" className="gds-input-group__unit">
                 {unitSuffix}
               </span>
             )}
@@ -462,27 +474,8 @@ export default function MetricTile({
             </span>
           )}
 
-          {/* Buttons */}
+          {/* Buttons — Zrušit left, Uložit right (per GDS button-system.md) */}
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              style={{
-                backgroundColor: "#1565C0",
-                color: "#ffffff",
-                border: "none",
-                borderRadius: 4,
-                height: 36,
-                padding: "0 16px",
-                fontSize: 14,
-                fontWeight: 600,
-                cursor: isSubmitting ? "not-allowed" : "pointer",
-                opacity: isSubmitting ? 0.7 : 1,
-                fontFamily: "inherit",
-              }}
-            >
-              {isSubmitting ? "Ukládám…" : "Uložit"}
-            </button>
             <button
               type="button"
               onClick={() => {
@@ -491,31 +484,28 @@ export default function MetricTile({
                 setPatchError(null);
                 setExpanded(false);
               }}
-              style={{
-                backgroundColor: "transparent",
-                color: "#1565C0",
-                border: "none",
-                borderRadius: 4,
-                height: 36,
-                padding: "0 8px",
-                fontSize: 14,
-                fontWeight: 400,
-                cursor: "pointer",
-                fontFamily: "inherit",
-              }}
+              className="gds-btn-secondary"
             >
               Zrušit
             </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="gds-btn-primary"
+            >
+              {isSubmitting ? "Ukládám…" : "Uložit"}
+            </button>
           </div>
         </form>
+        </div>{/* end marginTop:auto wrapper */}
       </div>
     );
   }
 
   // ── No-data state (below-floor / empty) ──────────────────────────────────────
 
-  const nodataAccentHex = "#455A64";
-  const nodataBadgeStyle = BADGE_STYLES.nodata;
+  const nodataAccentHex = NODATA_STYLE.accentHex;
+  const nodataBadgeStyle = NODATA_STYLE.badgeStyle;
 
   return (
     <div role="region" aria-label={ariaLabel} style={tileStyle}>
