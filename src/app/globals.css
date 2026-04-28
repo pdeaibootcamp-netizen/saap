@@ -9,7 +9,7 @@
   ─── GDS token mapping ────────────────────────────────────────────────────────
   SCSS source → CSS var → used in
 
-  $color-blue-300 / $color-ui-blue   (#135ee2) → --gds-color-primary   → header bg, "Nový" pill, "Zobrazit" link, quartile-top border color
+  $color-blue-300 / $color-ui-blue   (#135ee2) → --gds-color-primary   → header bg, "Nový" pill, "Zobrazit" link
   $color-blue-400                     (#0a285c) → --gds-heading-color   → section headings
   $color-gray-100                     (#eef0f4) → --gds-page-bg         → page background
   $color-gray-100                     (#eef0f4) → --gds-surface-secondary → NACE badge bg
@@ -17,12 +17,12 @@
   $color-gray-300                     (#a3b5c9) → --gds-border-interactive → button outlines, focused inputs
   $color-gray-400                     (#537090) → --gds-text-secondary  → NACE badge text, dates, sub-labels
   $color-white                        (#ffffff) → --gds-surface-card    → metric tile / list item bg
-  $color-ui-green                     (#057f19) → --gds-quartile-third  → 3rd quartile (50–75 %)
-  $color-ui-red                       (#cf2a1e) → --gds-quartile-bottom → bottom quartile (0–25 %)
-  $color-carrot                       (#ff6130) → --gds-quartile-second → 2nd quartile (25–50 %); closest GDS warm-orange to #E65100
-  $color-gray-400                     (#537090) → --gds-quartile-nodata → no-data state; closest GDS blue-gray to #455A64
   (no direct GDS match for #9E9E9E)             → --gds-text-muted     → fallback #9e9e9e (used in footer, percentile sub-label)
   (no direct GDS match for #1A1A1A)             → --gds-text-body      → fallback #1a1a1a (tile values, body text)
+
+  Quintile band colours (5 percentile bands) live as inline hex in
+  components/dashboard/MetricTile.tsx — CSS vars are not reliable inside
+  inline style objects, so the renderer hardcodes Material Design hex.
 
   Font: Inter Variable — loaded via @font-face from local GDS toolkit dist.
   Font family: 'Inter var', Inter, sans-serif (matches $theme-font-body in _typography.scss).
@@ -74,18 +74,6 @@
 
   /* Muted text (footer, percentile) — no direct GDS token; design spec value */
   --gds-text-muted: #9e9e9e;
-
-  /* Quartile colour system */
-  /* horní čtvrtina  (top 25 %)   — $color-blue-300 / $color-ui-blue */
-  --gds-quartile-top:    #135ee2;
-  /* třetí čtvrtina (50–75 %)    — $color-ui-green */
-  --gds-quartile-third:  #057f19;
-  /* druhá čtvrtina (25–50 %)    — $color-carrot (closest GDS warm-orange to #E65100) */
-  --gds-quartile-second: #ff6130;
-  /* spodní čtvrtina (0–25 %)    — $color-ui-red */
-  --gds-quartile-bottom: #cf2a1e;
-  /* no data                      — $color-gray-400 (closest GDS blue-gray to #455A64) */
-  --gds-quartile-nodata: #537090;
 
   /* Interactive border (button outlines, focused inputs) — $color-gray-300 */
   --gds-border-interactive: #a3b5c9;
@@ -278,12 +266,3 @@ a[role="button"],
   }
 }
 
-/* ─── CTA accent token alias (design/in-tile-prompts.md §7.1) ───────────────
-   --color-cta-accent = #E65100 (amber, same hex as --gds-quartile-second / druhá čtvrtina).
-   Named separately so the ask-state accent carries "action available" semantics,
-   not quartile-position semantics. Do not read this var in inline styles or
-   dangerouslySetInnerHTML — use the hardcoded hex instead.
-   ─────────────────────────────────────────────────────────────────────────── */
-:root {
-  --color-cta-accent: #E65100;
-}

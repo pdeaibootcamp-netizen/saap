@@ -33,33 +33,10 @@ type QuartileLabel =
   | "druhá čtvrtina"
   | "spodní čtvrtina";
 
-interface QuartileStyle {
-  accentVar: string;
-  accentHex: string;
-}
-
 interface BadgeStyle {
   background: string;
   color: string;
 }
-
-const BADGE_STYLES: Record<
-  "horní čtvrtina" | "třetí čtvrtina" | "druhá čtvrtina" | "spodní čtvrtina" | "nodata",
-  BadgeStyle
-> = {
-  "horní čtvrtina":  { background: "#E3F2FD", color: "#1565C0" },
-  "třetí čtvrtina":  { background: "#E8F5E9", color: "#2E7D32" },
-  "druhá čtvrtina":  { background: "#FFF3E0", color: "#E65100" },
-  "spodní čtvrtina": { background: "#FFEBEE", color: "#C62828" },
-  nodata:            { background: "#F5F5F5", color: "#757575" },
-};
-
-const QUARTILE_STYLES: Record<QuartileLabel, QuartileStyle> = {
-  "horní čtvrtina": { accentVar: "var(--gds-quartile-top)", accentHex: "#1565C0" },
-  "třetí čtvrtina": { accentVar: "var(--gds-quartile-third)", accentHex: "#2E7D32" },
-  "druhá čtvrtina": { accentVar: "var(--gds-quartile-second)", accentHex: "#E65100" },
-  "spodní čtvrtina": { accentVar: "var(--gds-quartile-bottom)", accentHex: "#C62828" },
-};
 
 // ─── Quintile colour system (main branch, approved 2026-04-27) ────────────────
 // Accent stripe and badge colours driven by percentile band, not quartile label.
@@ -527,8 +504,8 @@ export default function MetricTile({
 
   // ── No-data state (below-floor / empty) ──────────────────────────────────────
 
-  const nodataAccentHex = "#455A64";
-  const nodataBadgeStyle = BADGE_STYLES.nodata;
+  const nodataAccentHex = NODATA_STYLE.accentHex;
+  const nodataBadgeStyle = NODATA_STYLE.badgeStyle;
 
   return (
     <div role="region" aria-label={ariaLabel} style={tileStyle}>
