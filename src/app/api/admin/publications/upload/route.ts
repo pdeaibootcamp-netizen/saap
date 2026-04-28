@@ -90,8 +90,14 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Generate job ID ──
+  // Storage path uses only the UUID + extension — original filename can
+  // contain non-ASCII chars (Czech diacritics) which Supabase Storage
+  // rejects with "Invalid key". The original filename isn't needed
+  // downstream; the n8n workflow detects file type from URL extension.
   const jobId = crypto.randomUUID();
-  const storagePath = `${jobId}-${f.name}`;
+  const lowerName = f.name.toLowerCase();
+  const matchedExt = ALLOWED_EXTENSIONS.find((ext) => lowerName.endsWith(ext)) ?? ".bin";
+  const storagePath = `${jobId}${matchedExt}`;
 
   // ── Upload to Supabase Storage ──
   const supabase = getSupabaseClient();
