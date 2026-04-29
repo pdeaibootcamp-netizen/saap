@@ -1031,9 +1031,11 @@ export default async function DashboardPage({
                       : false;
                     // v0.4 (D-033): label by the brief's primary NACE — the
                     // topic the publication is ABOUT — not the viewer's NACE.
-                    // Falls back to nace_sector for legacy briefs without
-                    // primary_nace set (pre-migration-0014 rows).
-                    const labelNace = brief.primary_nace ?? brief.nace_sector;
+                    // primary_nace IS NULL → general/cross-sector brief → null
+                    // pill ("Obecné"). Legacy briefs (pre-migration 0014) have
+                    // primary_nace backfilled from nace_sectors[1], so they
+                    // never hit the null branch.
+                    const labelNace = brief.primary_nace;
                     return (
                       <BriefListItem
                         key={brief.id}
@@ -1041,7 +1043,7 @@ export default async function DashboardPage({
                         title={title}
                         publicationMonth={publicationMonth}
                         naceCode={labelNace}
-                        naceName={NACE_LABELS[labelNace] ?? null}
+                        naceName={labelNace ? NACE_LABELS[labelNace] ?? null : null}
                         isNew={isNew}
                       />
                     );

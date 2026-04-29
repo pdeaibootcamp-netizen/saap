@@ -471,11 +471,13 @@ export default function PublicationUploadPage() {
                 <option value="31">31 — Výroba nábytku</option>
                 <option value="46">46 — Velkoobchod kovy</option>
                 <option value="49">49 — Pozemní nákladní doprava</option>
+                <option value="general">Obecná analýza (napříč obory)</option>
               </select>
               <p style={{ fontSize: "12px", color: "#666", marginTop: "4px" }}>
                 Hlavní téma publikace. Pulz oboru se zobrazí klientům v tomto oboru;
                 ostatní obory mohou být přidány automaticky systémem analýzy
-                relevance, pokud je to vhodné.
+                relevance, pokud je to vhodné. Volba „Obecná analýza“ zobrazí
+                přehled v seznamu Analýz všem klientům, ale nikoli v jejich Pulzu.
               </p>
             </div>
 

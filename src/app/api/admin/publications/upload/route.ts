@@ -52,7 +52,10 @@ function computeHmac(body: string, secret: string): string {
 
 const MAX_BYTES = 10 * 1024 * 1024;
 const ALLOWED_EXTENSIONS = [".pdf", ".docx", ".doc", ".md", ".txt"];
-const ALLOWED_PRIMARY_NACES = ["10", "31", "46", "49"];
+// "general" is a sentinel for cross-sector analyses — n8n echoes it back
+// and from-n8n writes briefs.primary_nace = null. General briefs surface to
+// all firms in the Analýzy list but never in Pulz oboru.
+const ALLOWED_PRIMARY_NACES = ["10", "31", "46", "49", "general"];
 
 // ── Handler ───────────────────────────────────────────────────────────────────
 

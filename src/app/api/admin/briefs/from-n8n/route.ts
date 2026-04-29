@@ -390,16 +390,23 @@ export async function POST(req: NextRequest) {
   const naceDivision = naceSectors[0]; // legacy column = first (or only) NACE
 
   // v0.4 (D-033): primary-NACE tag from upload-time analyst pick.
-  // Resolution: callback payload → naceSectors[0] fallback. Must be in the
-  // relevance set or DB CHECK constraint will reject the insert; if the
-  // analyst's pick somehow dropped out of the relevance gate, fall back.
-  const primaryNaceCandidate =
-    typeof payload.primaryNace === "string" && payload.primaryNace.length > 0
-      ? payload.primaryNace
-      : naceDivision;
-  const primaryNace = naceSectors.includes(primaryNaceCandidate)
-    ? primaryNaceCandidate
-    : naceDivision;
+  // Resolution rules:
+  //   - "general" sentinel → primary_nace = null (general/cross-sector brief)
+  //   - 2-digit NACE that appears in naceSectors → use it
+  //   - missing or NACE outside the relevance set → fallback to naceDivision
+  //     (defensive: the analyst's pick can't survive the relevance gate
+  //     otherwise the DB CHECK rejects the insert)
+  let primaryNace: string | null;
+  if (payload.primaryNace === "general") {
+    primaryNace = null;
+  } else if (
+    typeof payload.primaryNace === "string" &&
+    naceSectors.includes(payload.primaryNace)
+  ) {
+    primaryNace = payload.primaryNace;
+  } else {
+    primaryNace = naceDivision;
+  }
 
   // ── Handle failed status ──
   if (payload.status === "failed") {

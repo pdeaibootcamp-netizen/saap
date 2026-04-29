@@ -248,10 +248,13 @@ export async function getPublishedBriefByNace(naceSector: string): Promise<Brief
  * `nace_sector` for those rows.
  */
 export async function listPublishedBriefsByNace(naceSector: string): Promise<Brief[]> {
+  // v0.4 (D-033): include general briefs (primary_nace IS NULL) regardless of
+  // nace_sectors — they surface to every firm in the Analýzy list. NACE-tagged
+  // briefs still filter by nace_sectors @> ARRAY[$1] (cross-relevance).
   const { data, error } = await db()
     .from("briefs")
     .select(BRIEF_COLUMNS)
-    .contains("nace_sectors", [naceSector])
+    .or(`primary_nace.is.null,nace_sectors.cs.{${naceSector}}`)
     .eq("publish_state", "published")
     .order("published_at", { ascending: false })
     .order("created_at", { ascending: false })
