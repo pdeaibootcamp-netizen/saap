@@ -1083,7 +1083,6 @@ export default function BriefEditorPage({ params }: BriefEditorPageProps) {
       if (!o.headline) errors.push(`Pozorování ${i + 1}: nadpis je povinný.`);
       if (!o.time_horizon) errors.push(`Pozorování ${i + 1}: zvolte časový horizont.`);
     });
-    if (emailTeaserObsIndex === null) errors.push("Označte jedno pozorování jako e-mail teaser.");
     if (actions.length < 2) errors.push("Přidejte alespoň 2 doporučené kroky před publikováním.");
     if (actions.length > 4) errors.push("Maximální počet doporučených kroků je 4.");
     actions.forEach((a, i) => {

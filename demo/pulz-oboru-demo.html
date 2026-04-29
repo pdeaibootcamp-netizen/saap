@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Strategy Radar — Pulz oboru (demo)</title>
+  <style>
+    /* ─── Tokens (from globals.css / dashboard-v0-2 layout.md) ──────────── */
+    :root {
+      --color-ink-primary: #1a1a1a;
+      --color-ink-secondary: #333;
+      --color-ink-tertiary: #666;
+      --color-ink-muted: #888;
+      --color-surface: #ffffff;
+      --color-surface-card: #fafafa;
+      --color-surface-page: #f7f7f5;
+      --color-border: #e4eaf0;
+      --color-accent: #E65100;
+      --color-accent-soft: #FFF1E6;
+      --color-blue-band: #1F4FB6;
+      --color-blue-band-text: #ffffff;
+      --color-pill-blue: #E8F0FF;
+      --color-pill-blue-ink: #2256C9;
+      --color-pill-amber: #FFF6E5;
+      --color-pill-amber-ink: #8a5500;
+      --color-pill-green: #EAF6EE;
+      --color-pill-green-ink: #1f6b34;
+      --color-pill-purple: #F0EAF8;
+      --color-pill-purple-ink: #5b3699;
+      --radius-card: 12px;
+      --radius-pill: 999px;
+      --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04);
+      --text-body: 15px;
+      --text-small: 13px;
+      --text-h2: 20px;
+      --text-h3: 17px;
+      --text-verdict: 16px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: var(--text-body);
+      color: var(--color-ink-primary);
+      background: var(--color-surface-page);
+      line-height: 1.5;
+    }
+
+    /* ─── Header band ──────────────────────────────────────────────────── */
+    .header-band {
+      background: var(--color-blue-band);
+      color: var(--color-blue-band-text);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .header-band__brand {
+      font-weight: 700;
+      font-size: 17px;
+      letter-spacing: -0.01em;
+    }
+    .header-band__brand-sep {
+      opacity: 0.55;
+      margin: 0 8px;
+    }
+    .header-band__demo {
+      background: #FFC107;
+      color: #5a3e00;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 3px 9px;
+      border-radius: var(--radius-pill);
+      letter-spacing: 0.04em;
+    }
+    .header-band__spacer { flex: 1; }
+    .header-band__ico {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #ffffff;
+      border-radius: var(--radius-pill);
+      padding: 6px 6px 6px 14px;
+    }
+    .header-band__ico-input {
+      background: transparent;
+      border: 0;
+      color: var(--color-ink-primary);
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      width: 90px;
+      outline: none;
+    }
+    .header-band__ico-btn {
+      background: transparent;
+      border: 0;
+      color: var(--color-blue-band);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 4px 12px;
+      border-radius: var(--radius-pill);
+    }
+
+    /* ─── Layout ────────────────────────────────────────────────────────── */
+    .container {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 28px 24px 64px;
+    }
+
+    .section {
+      margin-bottom: 48px;
+    }
+    .section__heading {
+      font-size: var(--text-h2);
+      font-weight: 700;
+      color: var(--color-ink-primary);
+      margin: 0 0 16px;
+      letter-spacing: -0.01em;
+    }
+    .section__sub {
+      font-size: var(--text-small);
+      color: var(--color-ink-tertiary);
+      margin: -8px 0 16px;
+    }
+
+    /* ─── Cohort tile preview (Section 1, just for context) ─────────────── */
+    .cohort-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+    .cohort-tile {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-card);
+      padding: 16px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: var(--shadow-card);
+    }
+    .cohort-tile::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 4px;
+      background: var(--color-accent);
+    }
+    .cohort-tile__name {
+      font-size: 14px;
+      font-weight: 600;
+      margin-top: 4px;
+    }
+    .cohort-tile__cat {
+      display: inline-block;
+      background: var(--color-pill-amber);
+      color: var(--color-pill-amber-ink);
+      padding: 2px 9px;
+      font-size: 11px;
+      border-radius: var(--radius-pill);
+      margin-top: 6px;
+    }
+    .cohort-tile__value {
+      font-size: 24px;
+      font-weight: 700;
+      margin-top: 14px;
+    }
+    .cohort-tile__bar {
+      display: flex;
+      gap: 3px;
+      margin-top: 10px;
+    }
+    .cohort-tile__bar span {
+      flex: 1;
+      height: 6px;
+      border-radius: 2px;
+      background: #e0e3e8;
+    }
+    .cohort-tile__bar span.on { background: var(--color-accent); }
+    .cohort-tile__quint {
+      font-size: 12px;
+      color: var(--color-ink-tertiary);
+      margin-top: 6px;
+    }
+
+    /* ─── Pulz oboru section ────────────────────────────────────────────── */
+    .pulz-meta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: -8px 0 18px;
+    }
+    .pulz-meta__period {
+      font-size: var(--text-small);
+      color: var(--color-ink-tertiary);
+    }
+
+    .chart-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+    .chart-tile {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-card);
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: var(--shadow-card);
+    }
+    .chart-tile__verdict {
+      font-size: var(--text-verdict);
+      font-weight: 600;
+      color: var(--color-ink-primary);
+      line-height: 1.4;
+      min-height: 64px;
+    }
+    .chart-tile__chart {
+      background: #fcfcfc;
+      border-radius: 6px;
+      padding: 8px 4px;
+      height: 180px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .chart-tile__chart svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    .chart-tile__caption {
+      font-size: 12px;
+      color: var(--color-ink-tertiary);
+      font-style: italic;
+    }
+
+    /* ─── Summary block ─────────────────────────────────────────────────── */
+    .summary {
+      background: var(--color-surface-card);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-card);
+      padding: 22px 24px;
+      margin-bottom: 18px;
+      font-size: var(--text-body);
+      line-height: 1.65;
+      color: var(--color-ink-secondary);
+    }
+
+    /* ─── PDF link ──────────────────────────────────────────────────────── */
+    .pdf-link {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 28px;
+      font-size: var(--text-body);
+    }
+    .pdf-link__main {
+      color: var(--color-blue-band);
+      text-decoration: underline;
+      font-weight: 500;
+    }
+    .pdf-link__sub {
+      color: var(--color-ink-tertiary);
+      font-size: 13px;
+    }
+    .pdf-link__icon {
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+      color: var(--color-blue-band);
+    }
+
+    /* ─── Action box ────────────────────────────────────────────────────── */
+    .action-box {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-card);
+      padding: 20px 24px 22px;
+      box-shadow: var(--shadow-card);
+    }
+    .action-box__heading {
+      font-size: var(--text-h3);
+      font-weight: 700;
+      margin: 0 0 14px;
+      color: var(--color-ink-primary);
+    }
+    .action-card {
+      padding: 14px 0;
+      border-top: 1px solid var(--color-border);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .action-card:first-of-type { border-top: 0; padding-top: 4px; }
+    .action-card__horizon {
+      display: inline-block;
+      align-self: flex-start;
+      font-size: 11.5px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      padding: 3px 10px;
+      border-radius: var(--radius-pill);
+      text-transform: uppercase;
+    }
+    .horizon-short { background: var(--color-pill-green); color: var(--color-pill-green-ink); }
+    .horizon-mid { background: var(--color-pill-blue); color: var(--color-pill-blue-ink); }
+    .horizon-long { background: var(--color-pill-purple); color: var(--color-pill-purple-ink); }
+    .action-card__text {
+      color: var(--color-ink-primary);
+      font-size: var(--text-body);
+      line-height: 1.5;
+    }
+
+    /* ─── Brief list (Section 3, for context) ───────────────────────────── */
+    .brief-list-empty {
+      background: var(--color-surface-card);
+      border: 1px dashed #cfd6e0;
+      border-radius: var(--radius-card);
+      padding: 20px;
+      color: var(--color-ink-tertiary);
+      font-size: var(--text-body);
+    }
+
+    /* ─── AI disclaimer ─────────────────────────────────────────────────── */
+    .ai-disclaimer {
+      text-align: center;
+      color: var(--color-ink-muted);
+      font-size: 13px;
+      padding: 24px 0;
+    }
+
+    /* ─── Responsive ────────────────────────────────────────────────────── */
+    @media (max-width: 760px) {
+      .cohort-grid { grid-template-columns: repeat(2, 1fr); }
+      .chart-grid { grid-template-columns: 1fr; }
+      .header-band { flex-wrap: wrap; }
+      .header-band__spacer { flex-basis: 100%; height: 0; }
+      .container { padding: 20px 14px 48px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ─── Header band ─────────────────────────────────────────────────── -->
+  <header class="header-band">
+    <div class="header-band__brand">
+      Česká Spořitelna <span class="header-band__brand-sep">·</span> Strategy Radar
+    </div>
+    <span class="header-band__demo">DEMO</span>
+    <div class="header-band__spacer"></div>
+    <div class="header-band__ico">
+      <input class="header-band__ico-input" value="03846415" readonly />
+      <button class="header-band__ico-btn">Přepnout</button>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- ─── Section 1: Cohort position (just a slim preview) ─────────── -->
+    <section class="section">
+      <h2 class="section__heading">Vaše pozice v kohortě – Nuoro Truck s.r.o.</h2>
+      <div class="cohort-grid">
+        <div class="cohort-tile">
+          <div class="cohort-tile__name">Hrubá marže</div>
+          <span class="cohort-tile__cat">Ziskovost</span>
+          <div class="cohort-tile__value">23,4 %</div>
+          <div class="cohort-tile__bar">
+            <span class="on"></span><span class="on"></span><span class="on"></span><span></span><span></span>
+          </div>
+          <div class="cohort-tile__quint">třetí pětina</div>
+        </div>
+        <div class="cohort-tile">
+          <div class="cohort-tile__name">Marže EBITDA</div>
+          <span class="cohort-tile__cat">Ziskovost</span>
+          <div class="cohort-tile__value">8,2 %</div>
+          <div class="cohort-tile__bar">
+            <span class="on"></span><span class="on"></span><span class="on"></span><span></span><span></span>
+          </div>
+          <div class="cohort-tile__quint">třetí pětina</div>
+        </div>
+        <div class="cohort-tile">
+          <div class="cohort-tile__name">Čistá marže</div>
+          <span class="cohort-tile__cat">Ziskovost</span>
+          <div class="cohort-tile__value">5,1 %</div>
+          <div class="cohort-tile__bar">
+            <span class="on"></span><span class="on"></span><span class="on"></span><span></span><span></span>
+          </div>
+          <div class="cohort-tile__quint">třetí pětina</div>
+        </div>
+        <div class="cohort-tile">
+          <div class="cohort-tile__name">Cyklus pracovního kapitálu</div>
+          <span class="cohort-tile__cat">Efektivita kapitálu</span>
+          <div class="cohort-tile__value">62 dní</div>
+          <div class="cohort-tile__bar">
+            <span class="on"></span><span class="on"></span><span class="on"></span><span></span><span></span>
+          </div>
+          <div class="cohort-tile__quint">třetí pětina</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── Section 2: Pulz oboru ────────────────────────────────────── -->
+    <section class="section" aria-labelledby="pulz-heading">
+      <h2 id="pulz-heading" class="section__heading">Pulz oboru</h2>
+      <div class="pulz-meta">
+        <span class="pulz-meta__period">CZ-NACE 31 · Výroba nábytku · Q2 2026</span>
+      </div>
+
+      <!-- 3 chart tiles -->
+      <div class="chart-grid">
+
+        <!-- Tile 1: Tržby a zisk -->
+        <article class="chart-tile" role="region" aria-label="Tržby odvětví se po propadu v roce 2023 stabilizovaly na 49 mld. Kč, ale ziskovost zůstává pod úrovní roku 2021.">
+          <div class="chart-tile__verdict">
+            Tržby odvětví se po propadu v roce 2023 stabilizovaly na 49 mld. Kč, ale ziskovost zůstává pod úrovní roku 2021.
+          </div>
+          <div class="chart-tile__chart">
+            <!-- Line chart: revenue (2009-2024) + profit overlay -->
+            <svg viewBox="0 0 320 180" role="img" aria-label="Sloupcový a čárový graf tržeb a zisku ve výrobě nábytku, 2009 až 2024.">
+              <!-- Axes -->
+              <line x1="34" y1="6" x2="34" y2="148" stroke="#cfd6e0" stroke-width="1"/>
+              <line x1="34" y1="148" x2="312" y2="148" stroke="#cfd6e0" stroke-width="1"/>
+              <!-- Y labels -->
+              <text x="6" y="24" font-size="9" fill="#888">60</text>
+              <text x="6" y="60" font-size="9" fill="#888">45</text>
+              <text x="6" y="96" font-size="9" fill="#888">30</text>
+              <text x="6" y="132" font-size="9" fill="#888">15</text>
+              <!-- Bars: revenue (mld Kč) per year, 2009..2024 — 16 bars across 280px ≈ 17.5px each -->
+              <!-- 34, 36, 39, 42, 41, 41, 43, 45, 47, 47, 48, 49, 50, 53, 47, 49 -->
+              <g fill="#1F4FB6">
+                <rect x="38"  y="92"  width="13" height="56"/>
+                <rect x="55"  y="86"  width="13" height="62"/>
+                <rect x="72"  y="78"  width="13" height="70"/>
+                <rect x="89"  y="71"  width="13" height="77"/>
+                <rect x="106" y="73"  width="13" height="75"/>
+                <rect x="123" y="73"  width="13" height="75"/>
+                <rect x="140" y="69"  width="13" height="79"/>
+                <rect x="157" y="64"  width="13" height="84"/>
+                <rect x="174" y="60"  width="13" height="88"/>
+                <rect x="191" y="60"  width="13" height="88"/>
+                <rect x="208" y="58"  width="13" height="90"/>
+                <rect x="225" y="55"  width="13" height="93"/>
+                <rect x="242" y="52"  width="13" height="96"/>
+                <rect x="259" y="44"  width="13" height="104"/>
+                <rect x="276" y="58"  width="13" height="90"/>
+                <rect x="293" y="55"  width="13" height="93"/>
+              </g>
+              <!-- Profit line (2.5 mld in 2024, peaked 3.3 in 2021). Scale: 1 mld = 6px -->
+              <polyline fill="none" stroke="#E65100" stroke-width="2"
+                points="44,140 61,138 78,135 95,130 112,134 129,138 146,134 163,130 180,128 197,127 214,128 231,124 248,128 265,135 282,138 299,134"/>
+              <!-- Profit dots -->
+              <g fill="#E65100">
+                <circle cx="231" cy="124" r="2.5"/>
+                <circle cx="299" cy="134" r="2.5"/>
+              </g>
+              <!-- X labels -->
+              <text x="42"  y="162" font-size="9" fill="#888">'09</text>
+              <text x="125" y="162" font-size="9" fill="#888">'15</text>
+              <text x="225" y="162" font-size="9" fill="#888">'21</text>
+              <text x="289" y="162" font-size="9" fill="#888">'24</text>
+              <!-- Legend -->
+              <rect x="38"  y="172" width="10" height="6" fill="#1F4FB6"/>
+              <text x="52"  y="178" font-size="10" fill="#666">Tržby (mld. Kč)</text>
+              <line x1="160" y1="175" x2="174" y2="175" stroke="#E65100" stroke-width="2"/>
+              <text x="178" y="178" font-size="10" fill="#666">Zisk po zdanění</text>
+            </svg>
+          </div>
+          <div class="chart-tile__caption">Zdroj: MPO, Panorama zpracovatelského průmyslu</div>
+        </article>
+
+        <!-- Tile 2: POS vs e-commerce -->
+        <article class="chart-tile" role="region" aria-label="E-commerce roste dvouciferným tempem (18 % v roce 2025), zatímco kamenné prodejny stagnují — zákazníci online nakupují dražší kusy.">
+          <div class="chart-tile__verdict">
+            E-commerce roste dvouciferným tempem (18 % v roce 2025), zatímco kamenné prodejny stagnují — zákazníci online nakupují dražší kusy.
+          </div>
+          <div class="chart-tile__chart">
+            <!-- Two grouped bars per year (2020..2025) -->
+            <svg viewBox="0 0 320 180" role="img" aria-label="Sloupcový graf objemu transakcí, kamenné prodejny vs. e-commerce, 2020 až 2025.">
+              <line x1="34" y1="6" x2="34" y2="148" stroke="#cfd6e0" stroke-width="1"/>
+              <line x1="34" y1="148" x2="312" y2="148" stroke="#cfd6e0" stroke-width="1"/>
+              <text x="14" y="24" font-size="9" fill="#888">100</text>
+              <text x="14" y="60" font-size="9" fill="#888">75</text>
+              <text x="14" y="96" font-size="9" fill="#888">50</text>
+              <text x="14" y="132" font-size="9" fill="#888">25</text>
+              <!-- 6 year groups, each ~44px wide. POS bar (blue) + ECOM bar (orange) -->
+              <!-- POS index: 80, 65, 99, 100, 102, 103 ; ECOM: 32, 50, 44, 54, 67, 79 -->
+              <g>
+                <!-- 2020 -->
+                <rect x="46"  y="34" width="14" height="114" fill="#1F4FB6"/>
+                <rect x="62"  y="102" width="14" height="46" fill="#E65100"/>
+                <!-- 2021 -->
+                <rect x="92"  y="56" width="14" height="92" fill="#1F4FB6"/>
+                <rect x="108" y="76" width="14" height="72" fill="#E65100"/>
+                <!-- 2022 -->
+                <rect x="138" y="6"  width="14" height="142" fill="#1F4FB6"/>
+                <rect x="154" y="84" width="14" height="64" fill="#E65100"/>
+                <!-- 2023 -->
+                <rect x="184" y="4"  width="14" height="144" fill="#1F4FB6"/>
+                <rect x="200" y="70" width="14" height="78" fill="#E65100"/>
+                <!-- 2024 -->
+                <rect x="230" y="2"  width="14" height="146" fill="#1F4FB6"/>
+                <rect x="246" y="52" width="14" height="96" fill="#E65100"/>
+                <!-- 2025 -->
+                <rect x="276" y="0"  width="14" height="148" fill="#1F4FB6"/>
+                <rect x="292" y="34" width="14" height="114" fill="#E65100"/>
+              </g>
+              <!-- Year labels -->
+              <text x="48"  y="162" font-size="9" fill="#888">'20</text>
+              <text x="94"  y="162" font-size="9" fill="#888">'21</text>
+              <text x="140" y="162" font-size="9" fill="#888">'22</text>
+              <text x="186" y="162" font-size="9" fill="#888">'23</text>
+              <text x="232" y="162" font-size="9" fill="#888">'24</text>
+              <text x="278" y="162" font-size="9" fill="#888">'25</text>
+              <!-- Legend -->
+              <rect x="38"  y="172" width="10" height="6" fill="#1F4FB6"/>
+              <text x="52"  y="178" font-size="10" fill="#666">Kamenné prodejny</text>
+              <rect x="178" y="172" width="10" height="6" fill="#E65100"/>
+              <text x="192" y="178" font-size="10" fill="#666">E-commerce</text>
+            </svg>
+          </div>
+          <div class="chart-tile__caption">Zdroj: data České spořitelny; vlastní zpracování</div>
+        </article>
+
+        <!-- Tile 3: Domestic share -->
+        <article class="chart-tile" role="region" aria-label="Čeští výrobci tvoří jen 31 % domácí spotřeby nábytku a jejich tržní podíl dále klesá.">
+          <div class="chart-tile__verdict">
+            Čeští výrobci tvoří jen 31 % domácí spotřeby nábytku a jejich tržní podíl dále klesá.
+          </div>
+          <div class="chart-tile__chart">
+            <!-- Stacked horizontal bars by year, showing domestic % vs imports -->
+            <svg viewBox="0 0 320 180" role="img" aria-label="Skládaný sloupcový graf podílu tuzemské výroby na spotřebě nábytku v ČR, 2021 až 2025.">
+              <!-- 5 stacked bars, year labels on the left, full bar = 240px -->
+              <!-- domestic shares: 35.5, 33.9, 32.6, 31.1, 31.0 -->
+              <g font-size="10" fill="#666">
+                <text x="6" y="36">2021</text>
+                <text x="6" y="64">2022</text>
+                <text x="6" y="92">2023</text>
+                <text x="6" y="120">2024</text>
+                <text x="6" y="148">2025</text>
+              </g>
+              <!-- Bars (left domestic = blue, right imports = light gray) -->
+              <g>
+                <rect x="36" y="26" width="85"  height="14" fill="#1F4FB6"/>
+                <rect x="121" y="26" width="155" height="14" fill="#dde3eb"/>
+                <text x="278" y="36" font-size="10" font-weight="600" fill="#1F4FB6">35,5 %</text>
+
+                <rect x="36" y="54" width="81"  height="14" fill="#1F4FB6"/>
+                <rect x="117" y="54" width="159" height="14" fill="#dde3eb"/>
+                <text x="278" y="64" font-size="10" font-weight="600" fill="#1F4FB6">33,9 %</text>
+
+                <rect x="36" y="82" width="78"  height="14" fill="#1F4FB6"/>
+                <rect x="114" y="82" width="162" height="14" fill="#dde3eb"/>
+                <text x="278" y="92" font-size="10" font-weight="600" fill="#1F4FB6">32,6 %</text>
+
+                <rect x="36" y="110" width="75" height="14" fill="#1F4FB6"/>
+                <rect x="111" y="110" width="165" height="14" fill="#dde3eb"/>
+                <text x="278" y="120" font-size="10" font-weight="600" fill="#1F4FB6">31,1 %</text>
+
+                <rect x="36" y="138" width="74" height="14" fill="#E65100"/>
+                <rect x="110" y="138" width="166" height="14" fill="#dde3eb"/>
+                <text x="278" y="148" font-size="10" font-weight="700" fill="#E65100">31,0 %</text>
+              </g>
+              <!-- Legend -->
+              <rect x="38"  y="170" width="10" height="6" fill="#1F4FB6"/>
+              <text x="52"  y="176" font-size="10" fill="#666">Tuzemská výroba</text>
+              <rect x="160" y="170" width="10" height="6" fill="#dde3eb"/>
+              <text x="174" y="176" font-size="10" fill="#666">Dovoz</text>
+            </svg>
+          </div>
+          <div class="chart-tile__caption">Zdroj: Asociace českých nábytkářů; vlastní zpracování</div>
+        </article>
+
+      </div>
+
+      <!-- Summary text block -->
+      <div class="summary">
+        Výroba nábytku v Česku se po rekordním roce 2022 vrátila na stabilnější úroveň — tržby odvětví loni dosáhly necelých 50 mld. Kč a mírně rostou. Klíčovým trendem je rychlý přesun zákazníků do online kanálů: e-commerce roste ročním tempem přes 17 %, zatímco kamenné prodejny téměř stagnují, a průměrná online objednávka je zhruba dvakrát dražší než nákup v prodejně. Zároveň čeští výrobci pokrývají jen asi třetinu domácí spotřeby nábytku, přičemž jejich podíl rok od roku mírně klesá ve prospěch dováženého zboží. Pro firmy v oboru to znamená tlak na marže i na nalezení vlastní pozice mezi levnějšími dovozci a velkými retailery.
+      </div>
+
+      <!-- PDF link -->
+      <div class="pdf-link">
+        <svg class="pdf-link__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="9" y1="13" x2="15" y2="13"/>
+          <line x1="9" y1="17" x2="15" y2="17"/>
+        </svg>
+        <a class="pdf-link__main" href="#">Přečíst celou analýzu (PDF)</a>
+        <span class="pdf-link__sub">Ekonomické a strategické analýzy ČS · Q2 2026 · 12 stran</span>
+      </div>
+
+      <!-- Action box -->
+      <div class="action-box">
+        <h3 class="action-box__heading">Doporučené kroky</h3>
+
+        <div class="action-card">
+          <span class="action-card__horizon horizon-short">Krátkodobě · 0–3 měsíce</span>
+          <div class="action-card__text">
+            Zkontrolujte, zda vaše firma nabízí přímý prodej online — e-commerce roste o 18 % ročně a zákazníci přes internet nakupují průměrně za 5 100 Kč vs. 2 500 Kč v kamenné prodejně.
+          </div>
+        </div>
+
+        <div class="action-card">
+          <span class="action-card__horizon horizon-mid">Střednědobě · 3–12 měsíců</span>
+          <div class="action-card__text">
+            Zmapujte, která část vašich tržeb pochází od zahraničních zákazníků nebo exportu — vývoz tvoří 73 % hodnoty výroby oboru a je primárním odbytem pro větší výrobce.
+          </div>
+        </div>
+
+        <div class="action-card">
+          <span class="action-card__horizon horizon-long">Dlouhodobě · 1–3 roky</span>
+          <div class="action-card__text">
+            Zvažte, zda je vaše produktová nabídka diferencovaná od levnějšího dováženého zboží — domácí výrobci tvoří jen 31 % spotřeby, a ten podíl klesá.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── Section 3: Briefs list (slim placeholder) ─────────────────── -->
+    <section class="section">
+      <h2 class="section__heading">Analýzy</h2>
+      <div class="brief-list-empty">
+        Pro váš obor zatím nejsou k dispozici žádné přehledy. Jakmile nějaký připravíme, najdete ho zde.
+      </div>
+    </section>
+
+    <div class="ai-disclaimer">Tento prototyp byl vygenerován pomocí AI.</div>
+
+  </main>
+
+</body>
+</html>
