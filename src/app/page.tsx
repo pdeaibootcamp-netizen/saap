@@ -27,7 +27,7 @@
  */
 
 import { listPublishedBriefsByNace } from "@/lib/briefs";
-import type { Brief, BriefContent } from "@/lib/briefs";
+import type { Brief, BriefContent, Observation, ClosingAction } from "@/lib/briefs";
 import {
   BriefListItem,
   formatPublicationMonth,
@@ -86,6 +86,46 @@ function extractTitle(brief: Brief): string {
   } catch {
     return `Přehled ${brief.id}`;
   }
+}
+
+interface PulzPair {
+  observation: Observation;
+  action: ClosingAction;
+}
+
+interface PulzData {
+  summary: string | null;
+  pairs: PulzPair[];
+}
+
+function extractPulzData(brief: Brief | undefined, activeNace: string): PulzData {
+  if (!brief) return { summary: null, pairs: [] };
+  const section = brief.content_sections?.find((s) => s.section_id === "brief_content");
+  if (!section?.body) return { summary: null, pairs: [] };
+
+  let content: BriefContent;
+  try {
+    content = JSON.parse(section.body) as BriefContent;
+  } catch {
+    return { summary: null, pairs: [] };
+  }
+
+  const perNace = content.per_nace_content?.[activeNace];
+  const observations = perNace?.observations ?? content.observations ?? [];
+  const actions = perNace?.closing_actions ?? content.closing_actions ?? [];
+
+  const pairs: PulzPair[] = [];
+  observations.forEach((obs, i) => {
+    const paired = actions.find((a) => a.paired_observation_index === i);
+    const fallback = actions[i];
+    const action = paired ?? fallback;
+    if (action) pairs.push({ observation: obs, action });
+  });
+
+  return {
+    summary: content.opening_summary || null,
+    pairs,
+  };
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -199,6 +239,9 @@ export default async function DashboardPage({
     console.error("[dashboard] briefs fetch failed:", err);
     briefs = [];
   }
+
+  // ── Pulz oboru — latest brief content for the active NACE ────────────────
+  const pulzData = extractPulzData(briefs[0], activeNace);
 
   const now = Date.now();
 
@@ -519,14 +562,152 @@ export default async function DashboardPage({
           font-size: 13px;
           color: #666;
         }
-        .db-pulz-empty {
-          border: 1px dashed #d0d6dc;
+        /* Pulz oboru — charts */
+        .db-chart-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 16px;
+          margin-bottom: 18px;
+        }
+        @media (max-width: 900px) {
+          .db-chart-grid { grid-template-columns: 1fr; }
+        }
+        .db-chart-tile {
+          background: #ffffff;
+          border: 1px solid #e4eaf0;
           border-radius: 12px;
-          padding: 32px 16px;
-          color: #888;
-          font-size: 13px;
-          text-align: center;
+          padding: 18px;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+        }
+        .db-chart-tile-verdict {
+          font-size: 16px;
+          font-weight: 600;
+          color: #1a1a1a;
+          line-height: 1.4;
+          min-height: 64px;
+        }
+        .db-chart-tile-chart {
+          background: #fcfcfc;
+          border-radius: 6px;
+          padding: 8px 4px;
+          height: 180px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .db-chart-tile-chart svg {
+          width: 100%;
+          height: 100%;
+          display: block;
+        }
+        .db-chart-tile-caption {
+          font-size: 12px;
+          color: #666;
+          font-style: italic;
+        }
+
+        /* Pulz oboru — summary */
+        .db-pulz-summary {
           background: #fafafa;
+          border: 1px solid #e4eaf0;
+          border-radius: 12px;
+          padding: 22px 24px;
+          margin-bottom: 18px;
+          font-size: 15px;
+          line-height: 1.65;
+          color: #333;
+        }
+        .db-pulz-summary--empty {
+          color: #888;
+          font-style: italic;
+        }
+
+        /* Pulz oboru — action box */
+        .db-action-box {
+          background: #FFF1E6;
+          border: 1px solid #f3c8a8;
+          border-left: 4px solid #E65100;
+          border-radius: 12px;
+          padding: 22px 26px 20px;
+          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+        }
+        .db-action-box-heading {
+          font-size: 17px;
+          font-weight: 700;
+          margin: 0 0 14px;
+          color: #1a1a1a;
+        }
+        .db-action-list {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .db-action-card {
+          display: grid;
+          grid-template-columns: 1.5fr 40px 1fr;
+          gap: 0;
+          align-items: stretch;
+          background: #ffffff;
+          border: 1px solid #f3c8a8;
+          border-radius: 10px;
+          overflow: hidden;
+        }
+        @media (max-width: 700px) {
+          .db-action-card {
+            grid-template-columns: 1fr;
+          }
+          .db-action-card-arrow {
+            display: none !important;
+          }
+        }
+        .db-action-card-finding {
+          background: #fff5ea;
+          padding: 14px 16px 16px;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          border-right: 1px solid #f3c8a8;
+        }
+        .db-action-card-action {
+          padding: 14px 16px 16px;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          background: #ffffff;
+          border-left: 1px solid #f3c8a8;
+        }
+        .db-action-card-label {
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: #9e9e9e;
+        }
+        .db-action-card-finding-text {
+          font-size: 15px;
+          font-weight: 500;
+          color: #1a1a1a;
+          line-height: 1.5;
+        }
+        .db-action-card-action-text {
+          font-size: 15px;
+          font-weight: 700;
+          color: #1F4FB6;
+          line-height: 1.5;
+        }
+        .db-action-card-arrow {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: #FFF1E6;
+          color: #E65100;
+          font-size: 22px;
+          font-weight: 700;
+          line-height: 1;
+          user-select: none;
         }
       `;
 
@@ -572,12 +753,187 @@ export default async function DashboardPage({
 
             <hr className="db-divider" aria-hidden="true" />
 
-            {/* Section 2 — Pulz oboru (placeholder, intentionally empty) */}
+            {/* Section 2 — Pulz oboru */}
             <section className="db-section-block" aria-labelledby="pulz-section-heading">
               <h2 id="pulz-section-heading" className="db-section-heading">
                 Pulz oboru
               </h2>
-              <div className="db-pulz-empty">Sekce Pulz oboru — obsah bude doplněn.</div>
+
+              {/* (a) Charts — hardcoded demo content */}
+              <div className="db-chart-grid">
+                <article className="db-chart-tile" role="region" aria-label="Tržby odvětví se po propadu v roce 2023 stabilizovaly na 49 mld. Kč, ale ziskovost zůstává pod úrovní roku 2021.">
+                  <div className="db-chart-tile-verdict">
+                    Tržby odvětví se po propadu v roce 2023 stabilizovaly na 49 mld. Kč, ale ziskovost zůstává pod úrovní roku 2021.
+                  </div>
+                  <div className="db-chart-tile-chart">
+                    <svg viewBox="0 0 320 180" role="img" aria-label="Sloupcový a čárový graf tržeb a zisku ve výrobě nábytku, 2009 až 2024.">
+                      <line x1="34" y1="6" x2="34" y2="148" stroke="#cfd6e0" strokeWidth="1" />
+                      <line x1="34" y1="148" x2="312" y2="148" stroke="#cfd6e0" strokeWidth="1" />
+                      <text x="6" y="24" fontSize="9" fill="#888">60</text>
+                      <text x="6" y="60" fontSize="9" fill="#888">45</text>
+                      <text x="6" y="96" fontSize="9" fill="#888">30</text>
+                      <text x="6" y="132" fontSize="9" fill="#888">15</text>
+                      <g fill="#1F4FB6">
+                        <rect x="38" y="92" width="13" height="56" />
+                        <rect x="55" y="86" width="13" height="62" />
+                        <rect x="72" y="78" width="13" height="70" />
+                        <rect x="89" y="71" width="13" height="77" />
+                        <rect x="106" y="73" width="13" height="75" />
+                        <rect x="123" y="73" width="13" height="75" />
+                        <rect x="140" y="69" width="13" height="79" />
+                        <rect x="157" y="64" width="13" height="84" />
+                        <rect x="174" y="60" width="13" height="88" />
+                        <rect x="191" y="60" width="13" height="88" />
+                        <rect x="208" y="58" width="13" height="90" />
+                        <rect x="225" y="55" width="13" height="93" />
+                        <rect x="242" y="52" width="13" height="96" />
+                        <rect x="259" y="44" width="13" height="104" />
+                        <rect x="276" y="58" width="13" height="90" />
+                        <rect x="293" y="55" width="13" height="93" />
+                      </g>
+                      <polyline fill="none" stroke="#E65100" strokeWidth="2"
+                        points="44,140 61,138 78,135 95,130 112,134 129,138 146,134 163,130 180,128 197,127 214,128 231,124 248,128 265,135 282,138 299,134" />
+                      <g fill="#E65100">
+                        <circle cx="231" cy="124" r="2.5" />
+                        <circle cx="299" cy="134" r="2.5" />
+                      </g>
+                      <text x="42" y="162" fontSize="9" fill="#888">&apos;09</text>
+                      <text x="125" y="162" fontSize="9" fill="#888">&apos;15</text>
+                      <text x="225" y="162" fontSize="9" fill="#888">&apos;21</text>
+                      <text x="289" y="162" fontSize="9" fill="#888">&apos;24</text>
+                      <rect x="38" y="172" width="10" height="6" fill="#1F4FB6" />
+                      <text x="52" y="178" fontSize="10" fill="#666">Tržby (mld. Kč)</text>
+                      <line x1="160" y1="175" x2="174" y2="175" stroke="#E65100" strokeWidth="2" />
+                      <text x="178" y="178" fontSize="10" fill="#666">Zisk po zdanění</text>
+                    </svg>
+                  </div>
+                  <div className="db-chart-tile-caption">Zdroj: MPO, Panorama zpracovatelského průmyslu</div>
+                </article>
+
+                <article className="db-chart-tile" role="region" aria-label="E-commerce roste dvouciferným tempem (18 % v roce 2025), zatímco kamenné prodejny stagnují — zákazníci online nakupují dražší kusy.">
+                  <div className="db-chart-tile-verdict">
+                    E-commerce roste dvouciferným tempem (18 % v roce 2025), zatímco kamenné prodejny stagnují — zákazníci online nakupují dražší kusy.
+                  </div>
+                  <div className="db-chart-tile-chart">
+                    <svg viewBox="0 0 320 180" role="img" aria-label="Sloupcový graf objemu transakcí, kamenné prodejny vs. e-commerce, 2020 až 2025.">
+                      <line x1="34" y1="6" x2="34" y2="148" stroke="#cfd6e0" strokeWidth="1" />
+                      <line x1="34" y1="148" x2="312" y2="148" stroke="#cfd6e0" strokeWidth="1" />
+                      <text x="14" y="24" fontSize="9" fill="#888">100</text>
+                      <text x="14" y="60" fontSize="9" fill="#888">75</text>
+                      <text x="14" y="96" fontSize="9" fill="#888">50</text>
+                      <text x="14" y="132" fontSize="9" fill="#888">25</text>
+                      <g>
+                        <rect x="46" y="34" width="14" height="114" fill="#1F4FB6" />
+                        <rect x="62" y="102" width="14" height="46" fill="#E65100" />
+                        <rect x="92" y="56" width="14" height="92" fill="#1F4FB6" />
+                        <rect x="108" y="76" width="14" height="72" fill="#E65100" />
+                        <rect x="138" y="6" width="14" height="142" fill="#1F4FB6" />
+                        <rect x="154" y="84" width="14" height="64" fill="#E65100" />
+                        <rect x="184" y="4" width="14" height="144" fill="#1F4FB6" />
+                        <rect x="200" y="70" width="14" height="78" fill="#E65100" />
+                        <rect x="230" y="2" width="14" height="146" fill="#1F4FB6" />
+                        <rect x="246" y="52" width="14" height="96" fill="#E65100" />
+                        <rect x="276" y="0" width="14" height="148" fill="#1F4FB6" />
+                        <rect x="292" y="34" width="14" height="114" fill="#E65100" />
+                      </g>
+                      <text x="48" y="162" fontSize="9" fill="#888">&apos;20</text>
+                      <text x="94" y="162" fontSize="9" fill="#888">&apos;21</text>
+                      <text x="140" y="162" fontSize="9" fill="#888">&apos;22</text>
+                      <text x="186" y="162" fontSize="9" fill="#888">&apos;23</text>
+                      <text x="232" y="162" fontSize="9" fill="#888">&apos;24</text>
+                      <text x="278" y="162" fontSize="9" fill="#888">&apos;25</text>
+                      <rect x="38" y="172" width="10" height="6" fill="#1F4FB6" />
+                      <text x="52" y="178" fontSize="10" fill="#666">Kamenné prodejny</text>
+                      <rect x="178" y="172" width="10" height="6" fill="#E65100" />
+                      <text x="192" y="178" fontSize="10" fill="#666">E-commerce</text>
+                    </svg>
+                  </div>
+                  <div className="db-chart-tile-caption">Zdroj: data České spořitelny; vlastní zpracování</div>
+                </article>
+
+                <article className="db-chart-tile" role="region" aria-label="Čeští výrobci tvoří jen 31 % domácí spotřeby nábytku a jejich tržní podíl dále klesá.">
+                  <div className="db-chart-tile-verdict">
+                    Čeští výrobci tvoří jen 31 % domácí spotřeby nábytku a jejich tržní podíl dále klesá.
+                  </div>
+                  <div className="db-chart-tile-chart">
+                    <svg viewBox="0 0 320 180" role="img" aria-label="Skládaný sloupcový graf podílu tuzemské výroby na spotřebě nábytku v ČR, 2021 až 2025.">
+                      <g fontSize="10" fill="#666">
+                        <text x="6" y="36">2021</text>
+                        <text x="6" y="64">2022</text>
+                        <text x="6" y="92">2023</text>
+                        <text x="6" y="120">2024</text>
+                        <text x="6" y="148">2025</text>
+                      </g>
+                      <g>
+                        <rect x="36" y="26" width="85" height="14" fill="#1F4FB6" />
+                        <rect x="121" y="26" width="155" height="14" fill="#dde3eb" />
+                        <text x="278" y="36" fontSize="10" fontWeight="600" fill="#1F4FB6">35,5 %</text>
+
+                        <rect x="36" y="54" width="81" height="14" fill="#1F4FB6" />
+                        <rect x="117" y="54" width="159" height="14" fill="#dde3eb" />
+                        <text x="278" y="64" fontSize="10" fontWeight="600" fill="#1F4FB6">33,9 %</text>
+
+                        <rect x="36" y="82" width="78" height="14" fill="#1F4FB6" />
+                        <rect x="114" y="82" width="162" height="14" fill="#dde3eb" />
+                        <text x="278" y="92" fontSize="10" fontWeight="600" fill="#1F4FB6">32,6 %</text>
+
+                        <rect x="36" y="110" width="75" height="14" fill="#1F4FB6" />
+                        <rect x="111" y="110" width="165" height="14" fill="#dde3eb" />
+                        <text x="278" y="120" fontSize="10" fontWeight="600" fill="#1F4FB6">31,1 %</text>
+
+                        <rect x="36" y="138" width="74" height="14" fill="#E65100" />
+                        <rect x="110" y="138" width="166" height="14" fill="#dde3eb" />
+                        <text x="278" y="148" fontSize="10" fontWeight="700" fill="#E65100">31,0 %</text>
+                      </g>
+                      <rect x="38" y="170" width="10" height="6" fill="#1F4FB6" />
+                      <text x="52" y="176" fontSize="10" fill="#666">Tuzemská výroba</text>
+                      <rect x="160" y="170" width="10" height="6" fill="#dde3eb" />
+                      <text x="174" y="176" fontSize="10" fill="#666">Dovoz</text>
+                    </svg>
+                  </div>
+                  <div className="db-chart-tile-caption">Zdroj: Asociace českých nábytkářů; vlastní zpracování</div>
+                </article>
+              </div>
+
+              {/* (b) Summary text — opening_summary from latest brief */}
+              {pulzData.summary ? (
+                <div className="db-pulz-summary">{pulzData.summary}</div>
+              ) : (
+                <div className="db-pulz-summary db-pulz-summary--empty">
+                  Pro váš obor zatím není k dispozici žádný přehled. Jakmile nějaký
+                  publikujeme, jeho shrnutí se objeví zde.
+                </div>
+              )}
+
+              {/* (c) Co nám říká trh — pairs of insights + actions */}
+              {pulzData.pairs.length > 0 && (
+                <div className="db-action-box">
+                  <h3 className="db-action-box-heading">Co nám říká trh — a co s tím udělat</h3>
+                  <div className="db-action-list">
+                    {pulzData.pairs.map((pair, i) => (
+                      <div className="db-action-card" key={i}>
+                        <div className="db-action-card-finding">
+                          <span className="db-action-card-label">Zjištění</span>
+                          <div className="db-action-card-finding-text">
+                            {pair.observation.headline ? (
+                              <strong>{pair.observation.headline}</strong>
+                            ) : null}
+                            {pair.observation.headline && pair.observation.body ? " " : null}
+                            {pair.observation.body}
+                          </div>
+                        </div>
+                        <div className="db-action-card-arrow" aria-hidden="true">→</div>
+                        <div className="db-action-card-action">
+                          <span className="db-action-card-label">Doporučení</span>
+                          <div className="db-action-card-action-text">
+                            {pair.action.action_text}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </section>
 
             <hr className="db-divider" aria-hidden="true" />
