@@ -128,7 +128,11 @@ export type TimeHorizon = (typeof TIME_HORIZON)[keyof typeof TIME_HORIZON];
  *
  * The eight IDs in recommended-ask order (in-tile-prompts.md §7):
  *   gross_margin, ebitda_margin, net_margin, revenue_per_employee,
- *   labor_cost_ratio, revenue_growth, working_capital_cycle, pricing_power
+ *   labor_cost_ratio, revenue_growth, working_capital_cycle, roe
+ *
+ * D-032 (2026-04-29): pricing_power → roe. The new ROE metric is sourced
+ * from cohort_companies.roe (migration 0012); pricing_power had no real
+ * cohort column and is removed entirely.
  */
 export const OWNER_METRIC_ID = {
   GROSS_MARGIN: "gross_margin",
@@ -138,7 +142,7 @@ export const OWNER_METRIC_ID = {
   WORKING_CAPITAL_CYCLE: "working_capital_cycle",
   NET_MARGIN: "net_margin",
   REVENUE_GROWTH: "revenue_growth",
-  PRICING_POWER: "pricing_power",
+  ROE: "roe",
 } as const;
 
 export type OwnerMetricId = (typeof OWNER_METRIC_ID)[keyof typeof OWNER_METRIC_ID];
@@ -225,11 +229,11 @@ export const METRIC_BOUNDS: Record<OwnerMetricId, MetricBound> = {
     allowNegative: true,
     errorCopy: "Růst tržeb by měl být mezi -80 a 200 %. Zkontrolujte prosím zadání.",
   },
-  pricing_power: {
-    min: -30,
-    max: 30,
+  roe: {
+    min: -100,
+    max: 200,
     decimalPlaces: 1,
     allowNegative: true,
-    errorCopy: "Změna marže by měla být mezi -30 a 30 procentními body.",
+    errorCopy: "ROE by měla být mezi -100 a 200 %. Zkontrolujte prosím zadání.",
   },
 };

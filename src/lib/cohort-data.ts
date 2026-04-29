@@ -60,6 +60,9 @@ const METRIC_TO_COLUMN: Partial<Record<MetricId, string>> = {
   revenue_per_employee: "revenue_per_employee",
   ebitda_margin: "ebitda_margin",
   working_capital_cycle: "working_capital_cycle",
+  // ROE added in migration 0012 (D-032). Populated from
+  // HV za účetní období / Vlastní kapitál × 100 at ingest time.
+  roe: "roe",
 };
 
 // ── Per-request memoisation (ADR-CR-02) ──────────────────────────────────────

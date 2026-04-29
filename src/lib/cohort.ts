@@ -87,7 +87,7 @@ const METRIC_META: Record<MetricId, { label: string; categoryId: string; categor
   revenue_per_employee:   { label: "Tržby na zaměstnance",    categoryId: "naklady-produktivita", categoryLabel: "Náklady a produktivita", isEmailTeaser: false },
   working_capital_cycle:  { label: "Obratový cyklus",         categoryId: "efektivita-kapitalu", categoryLabel: "Efektivita kapitálu",   isEmailTeaser: false },
   revenue_growth:         { label: "Růst tržeb",              categoryId: "rust-trzni-pozice",   categoryLabel: "Růst a tržní pozice",   isEmailTeaser: false },
-  pricing_power:          { label: "Cenová síla",             categoryId: "rust-trzni-pozice",   categoryLabel: "Růst a tržní pozice",   isEmailTeaser: false },
+  roe:                    { label: "ROE",                     categoryId: "rust-trzni-pozice",   categoryLabel: "Růst a tržní pozice",   isEmailTeaser: false },
 };
 
 const METRIC_ORDER: MetricId[] = [
@@ -98,7 +98,7 @@ const METRIC_ORDER: MetricId[] = [
   "revenue_per_employee",
   "working_capital_cycle",
   "revenue_growth",
-  "pricing_power",
+  "roe",
 ];
 
 const CATEGORY_ORDER = [

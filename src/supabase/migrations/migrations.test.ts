@@ -144,9 +144,9 @@ describe("0006 owner_metrics — metric_id domain (D-024)", () => {
       "gross_margin",
       "labor_cost_ratio",
       "net_margin",
-      "pricing_power",
       "revenue_growth",
       "revenue_per_employee",
+      "roe",
       "working_capital_cycle",
     ].sort();
     expect(values).toEqual(expected);

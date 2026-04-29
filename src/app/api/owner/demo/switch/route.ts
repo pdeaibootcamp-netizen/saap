@@ -88,6 +88,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     net_margin: number | null;
     ebitda_margin: number | null;
     working_capital_cycle: number | null;
+    roe: number | null;
     name: string | null;
   } | null = null;
 
@@ -98,7 +99,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // where the user hasn't applied later migrations yet.
     const fullSelect =
       "ico, nace_division, size_band, cz_region, revenue_per_employee, " +
-      "net_margin, ebitda_margin, working_capital_cycle, name";
+      "net_margin, ebitda_margin, working_capital_cycle, roe, name";
     const fallbackSelect =
       "ico, nace_division, size_band, cz_region, revenue_per_employee, net_margin";
     let queryRes = await supabase
@@ -150,6 +151,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         net_margin: (row.net_margin as number | null) ?? null,
         ebitda_margin: (row.ebitda_margin as number | null | undefined) ?? null,
         working_capital_cycle: (row.working_capital_cycle as number | null | undefined) ?? null,
+        roe: (row.roe as number | null | undefined) ?? null,
         name: (row.name as string | null | undefined) ?? null,
       };
       naceDivision = firmRow.nace_division;
@@ -170,7 +172,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // The cohort_companies row may have revenue_per_employee and net_margin
   // already computed at ingest time; the other 6 metrics (gross_margin,
   // ebitda_margin, labor_cost_ratio, working_capital_cycle, revenue_growth,
-  // pricing_power) are not in the source Excel and stay null — driving the
+  // roe) are not in the source Excel and stay null — driving the
   // "ask" state for those tiles. The user can fill them in via the in-tile form.
   //
   // Strategy: DELETE existing rows for this user, INSERT 8 fresh ones. This
@@ -219,6 +221,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const working_capital_cycle = firmRow?.working_capital_cycle != null
         ? Number(firmRow.working_capital_cycle)
         : null;
+      // ROE from migration 0012 (D-032). Computed at ingest from
+      // HV za účetní období / Vlastní kapitál × 100.
+      const roe = firmRow?.roe != null
+        ? Number(firmRow.roe)
+        : null;
 
       const rows = [
         { metric_id: "gross_margin",          raw_value: null, raw_value_display: null },
@@ -237,7 +244,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           raw_value: working_capital_cycle,
           raw_value_display: working_capital_cycle !== null ? formatDays(working_capital_cycle) : null },
         { metric_id: "revenue_growth",        raw_value: null, raw_value_display: null },
-        { metric_id: "pricing_power",         raw_value: null, raw_value_display: null },
+        { metric_id: "roe",
+          raw_value: roe,
+          raw_value_display: roe !== null ? formatPercent(roe) : null },
       ];
 
       const insertPayload = rows.map((r) => ({

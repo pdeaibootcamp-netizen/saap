@@ -57,9 +57,11 @@ describe("floor enforcement", () => {
     expect(getFloor("revenue_per_employee")).toBe(30);
   });
 
-  it("strict floor is 50 for working_capital_cycle and pricing_power", () => {
+  it("strict floor is 50 for working_capital_cycle", () => {
     expect(getFloor("working_capital_cycle")).toBe(50);
-    expect(getFloor("pricing_power")).toBe(50);
+    // ROE replaced pricing_power (D-032). ROE is normal-distribution; uses
+    // GLOBAL_FLOOR (30), not STRICT_FLOOR.
+    expect(getFloor("roe")).toBe(30);
   });
 
   it("29 real values → below-floor result (rung 4)", () => {
@@ -78,15 +80,16 @@ describe("floor enforcement", () => {
     expect(result.percentile).not.toBeNull();
   });
 
-  it("49 real values for pricing_power → below-floor (strict floor = 50)", () => {
+  // working_capital_cycle is now the only metric with the N≥50 strict floor.
+  it("49 real values for working_capital_cycle → below-floor (strict floor = 50)", () => {
     const values = Array.from({ length: 49 }, (_, i) => i + 1);
-    const result = computePercentile(makeInput("pricing_power", 25), values, null);
+    const result = computePercentile(makeInput("working_capital_cycle", 25), values, null);
     expect(result.confidenceState).toBe("below-floor");
   });
 
-  it("50 real values for pricing_power → valid (exactly at strict floor)", () => {
+  it("50 real values for working_capital_cycle → valid (exactly at strict floor)", () => {
     const values = Array.from({ length: 50 }, (_, i) => i + 1);
-    const result = computePercentile(makeInput("pricing_power", 25), values, null);
+    const result = computePercentile(makeInput("working_capital_cycle", 25), values, null);
     expect(result.confidenceState).toBe("valid");
   });
 });

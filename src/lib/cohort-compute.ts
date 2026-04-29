@@ -22,7 +22,7 @@
  *
  * Floors (cohort-math.md §3.1–§3.2):
  *   - Global: N ≥ 30
- *   - Per-metric for working_capital_cycle, pricing_power: N ≥ 50
+ *   - Per-metric for working_capital_cycle: N ≥ 50
  */
 
 import type { CzRegion, SizeBand } from "../types/data-lanes";
@@ -37,7 +37,7 @@ export type MetricId =
   | "working_capital_cycle"
   | "net_margin"
   | "revenue_growth"
-  | "pricing_power";
+  | "roe";
 
 export type QuartileLabel =
   | "spodní čtvrtina"
@@ -53,7 +53,6 @@ const GLOBAL_FLOOR = 30;
 /** Stricter per-metric floor for heavy-tail metrics (cohort-math.md §3.2). */
 const STRICT_FLOOR_METRIC_IDS: ReadonlyArray<MetricId> = [
   "working_capital_cycle",
-  "pricing_power",
 ];
 const STRICT_FLOOR = 50;
 

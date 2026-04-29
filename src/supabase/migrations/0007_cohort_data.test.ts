@@ -26,7 +26,7 @@ const COHORT_METRIC_IDS = [
   "working_capital_cycle",
   "net_margin",
   "revenue_growth",
-  "pricing_power",
+  "roe",
 ] as const;
 
 /**
@@ -44,9 +44,9 @@ describe("0007 cohort_aggregates — metric_id CHECK constraint (D-024)", () => 
       "gross_margin",
       "labor_cost_ratio",
       "net_margin",
-      "pricing_power",
       "revenue_growth",
       "revenue_per_employee",
+      "roe",
       "working_capital_cycle",
     ]);
   });

@@ -289,12 +289,12 @@ function buildSampleBenchmarkSnippet() {
             is_email_teaser_snippet: false,
           },
           {
-            metric_id: "pricing_power",
-            metric_label: "Cenová síla",
+            metric_id: "roe",
+            metric_label: "ROE",
             quartile_label: "druhá čtvrtina",
             percentile: 52,
             verdict_text:
-              "Vaše cenová síla vás řadí do druhé čtvrtiny firem ve vašem oboru — 52. percentil.",
+              "Vaše ROE vás řadí do druhé čtvrtiny firem ve vašem oboru — 52. percentil.",
             confidence_state: "valid",
             rung_footnote: null,
             is_email_teaser_snippet: false,
@@ -433,7 +433,7 @@ function buildPlaceholderBenchmarkSnippet() {
         category_label: "Růst a tržní pozice",
         metrics: [
           minMetric("revenue_growth", "Růst tržeb"),
-          minMetric("pricing_power", "Cenová síla"),
+          minMetric("roe", "ROE"),
         ],
       },
     ],
@@ -686,7 +686,7 @@ function buildFurnitureBenchmarkSnippet() {
         category_label: "Růst a tržní pozice",
         metrics: [
           belowFloor("revenue_growth", "Růst tržeb"),
-          belowFloor("pricing_power", "Cenová síla"),
+          belowFloor("roe", "ROE"),
         ],
       },
     ],
@@ -1087,7 +1087,7 @@ const DEMO_ICO_FULL_DATA     = "63999498"; // Small; all available data present 
 
 const FROZEN_METRIC_IDS = [
   "gross_margin", "ebitda_margin", "net_margin", "labor_cost_ratio",
-  "revenue_per_employee", "working_capital_cycle", "revenue_growth", "pricing_power",
+  "revenue_per_employee", "working_capital_cycle", "revenue_growth", "roe",
 ] as const;
 
 /**

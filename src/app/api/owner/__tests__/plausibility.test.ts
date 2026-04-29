@@ -102,13 +102,13 @@ describe("METRIC_BOUNDS — all 8 frozen metrics have correct bounds (in-tile-pr
     expect(validateBounds(id, 201)).toBeTruthy();
   });
 
-  it("pricing_power: accepts -30, 0, 30; rejects -31, 31", () => {
-    const id = OWNER_METRIC_ID.PRICING_POWER;
-    expect(validateBounds(id, -30)).toBeNull();
+  it("roe: accepts -100, 0, 200; rejects -101, 201", () => {
+    const id = OWNER_METRIC_ID.ROE;
+    expect(validateBounds(id, -100)).toBeNull();
     expect(validateBounds(id, 0)).toBeNull();
-    expect(validateBounds(id, 30)).toBeNull();
-    expect(validateBounds(id, -31)).toBeTruthy();
-    expect(validateBounds(id, 31)).toBeTruthy();
+    expect(validateBounds(id, 200)).toBeNull();
+    expect(validateBounds(id, -101)).toBeTruthy();
+    expect(validateBounds(id, 201)).toBeTruthy();
   });
 });
 

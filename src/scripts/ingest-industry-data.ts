@@ -173,7 +173,12 @@ function bucketMidpoint(rawBucket: string | null): number | null {
 const NACE_LABEL_TO_CLASS: Record<string, string> = {
   "silniční nákladní doprava": "4941",
   "výroba nábytku": "3100",
-  // future entries land here as Excels arrive
+  // v0.3 final cohort data — Data MagnusWeb.xlsx (D-032).
+  // The third entry (wholesale of metal & aluminium) is a mixed group at the
+  // source; we accept the noise and treat it as NACE 46.
+  "pekárenství": "1071",
+  "nákladní doprava": "4941",
+  "velkoobchod s rudami & výroba hliníku": "4672",
 };
 
 /**
@@ -213,11 +218,13 @@ function derivedMetrics(
   fallbackCount: number | null,
   operatingProfitCzk: number | null,
   currentAssetsCzk: number | null,
+  equityCzk: number | null,
 ) {
   let netMargin: number | null = null;
   let revenuePerEmployee: number | null = null;
   let ebitdaMargin: number | null = null;
   let workingCapitalCycle: number | null = null;
+  let roe: number | null = null;
 
   if (revenueCzk !== null && profitCzk !== null && Math.abs(revenueCzk) > 1000) {
     const nm = (profitCzk / revenueCzk) * 100;
@@ -265,7 +272,20 @@ function derivedMetrics(
     if (wcc >= 0 && wcc <= 730) workingCapitalCycle = Math.round(wcc * 100) / 100;
   }
 
-  return { netMargin, revenuePerEmployee, ebitdaMargin, workingCapitalCycle };
+  // ROE: HV za účetní období / Vlastní kapitál × 100.
+  // Plausibility envelope: -100 to +200. Tolerates distressed firms with
+  // tiny equity flips and high-growth firms with outsized returns; clips
+  // pathological cases (e.g. equity ≈ 0 → astronomic percentage).
+  if (
+    profitCzk !== null &&
+    equityCzk !== null &&
+    equityCzk > 1000
+  ) {
+    const r = (profitCzk / equityCzk) * 100;
+    if (r >= -100 && r <= 200) roe = Math.round(r * 10000) / 10000;
+  }
+
+  return { netMargin, revenuePerEmployee, ebitdaMargin, workingCapitalCycle, roe };
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -302,6 +322,7 @@ async function main() {
   let revenuePerEmployeeCount = 0;
   let ebitdaMarginCount = 0;
   let workingCapitalCycleCount = 0;
+  let roeCount = 0;
   let regionMapped = 0;
   let regionUnmapped = 0;
   const sizeBandCounts: Record<string, number> = { S1: 0, S2: 0, S3: 0 };
@@ -353,6 +374,8 @@ async function main() {
     debt_czk: number | null;
     ebitda_margin: number | null;
     working_capital_cycle: number | null;
+    // ROE = HV za účetní období / Vlastní kapitál × 100 (migration 0012).
+    roe: number | null;
     source_file: string;
   };
   const rowsToUpsert: RowToUpsert[] = [];
@@ -499,18 +522,20 @@ async function main() {
     }
 
     // ── Derived metrics ───────────────────────────────────────────────────
-    const { netMargin, revenuePerEmployee, ebitdaMargin, workingCapitalCycle } = derivedMetrics(
+    const { netMargin, revenuePerEmployee, ebitdaMargin, workingCapitalCycle, roe } = derivedMetrics(
       revenueCzk,
       profitCzk,
       employeeCount,
       bucketMidpoint(bucket),
       operatingProfitCzk,
       currentAssetsCzk,
+      equityCzk,
     );
     if (netMargin !== null) netMarginCount++;
     if (revenuePerEmployee !== null) revenuePerEmployeeCount++;
     if (ebitdaMargin !== null) ebitdaMarginCount++;
     if (workingCapitalCycle !== null) workingCapitalCycleCount++;
+    if (roe !== null) roeCount++;
 
     sizeBandCounts[sizeBand]++;
 
@@ -551,6 +576,7 @@ async function main() {
       debt_czk: debtCzk,
       ebitda_margin: ebitdaMargin,
       working_capital_cycle: workingCapitalCycle,
+      roe,
       source_file: path.basename(file),
     });
     ingested++;
@@ -593,6 +619,7 @@ async function main() {
   console.log(`  revenue_per_employee   computed for ${revenuePerEmployeeCount} rows (${pct(revenuePerEmployeeCount, ingested)} %)`);
   console.log(`  ebitda_margin (proxy)  computed for ${ebitdaMarginCount} rows (${pct(ebitdaMarginCount, ingested)} %)`);
   console.log(`  working_capital_cycle  computed for ${workingCapitalCycleCount} rows (${pct(workingCapitalCycleCount, ingested)} %)`);
+  console.log(`  roe                    computed for ${roeCount} rows (${pct(roeCount, ingested)} %)`);
   console.log(`Region coverage: ${regionMapped} rows mapped (${pct(regionMapped, ingested)} %), ${regionUnmapped} unmapped (logged to ${logPath}).`);
   console.log(`Size-band distribution: S1 = ${sizeBandCounts.S1}, S2 = ${sizeBandCounts.S2}, S3 = ${sizeBandCounts.S3}.`);
   if (errorLog.length > 0) {

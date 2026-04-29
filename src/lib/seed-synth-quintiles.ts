@@ -60,12 +60,6 @@ const SYNTH_ROWS: SynthRow[] = [
     q1: -4.0, q2: 0.0, median: 2.5, q3: 5.0, q4: 10.0,
     methodology_note: "2024-2026 sector mostly flat-to-low-single-digit; freight volumes recovered slowly post-2023.",
   },
-  {
-    nace_division: "49", metric_id: "pricing_power",
-    q1: -1.5, q2: -0.5, median: 0.0, q3: 0.5, q4: 1.5,
-    methodology_note: "Tight price-cost dynamic; most firms hold margin within ±1 p.b.",
-  },
-
   // ── NACE 31 — Furniture manufacturing (§5.2) ────────────────────────────────
   {
     nace_division: "31", metric_id: "gross_margin",
@@ -102,12 +96,6 @@ const SYNTH_ROWS: SynthRow[] = [
     q1: -5.0, q2: 0.5, median: 3.0, q3: 5.5, q4: 10.0,
     methodology_note: "2026 furniture demand subdued; positive but low growth typical.",
   },
-  {
-    nace_division: "31", metric_id: "pricing_power",
-    q1: -1.0, q2: -0.3, median: 0.2, q3: 0.7, q4: 1.5,
-    methodology_note: "Modest pricing power; mostly contained ±1 p.b.",
-  },
-
   // ── NACE 25 — Fabricated metal products (§5.3) ──────────────────────────────
   {
     nace_division: "25", metric_id: "gross_margin",
@@ -144,12 +132,6 @@ const SYNTH_ROWS: SynthRow[] = [
     q1: -6.0, q2: 0.0, median: 2.5, q3: 5.0, q4: 9.0,
     methodology_note: "Industrial demand cycle 2024-2026.",
   },
-  {
-    nace_division: "25", metric_id: "pricing_power",
-    q1: -1.2, q2: -0.3, median: 0.1, q3: 0.6, q4: 1.4,
-    methodology_note: "Modest pricing power for metal fabricators.",
-  },
-
   // ── NACE 47 — Retail trade (§5.4) ────────────────────────────────────────────
   {
     nace_division: "47", metric_id: "gross_margin",
@@ -186,12 +168,6 @@ const SYNTH_ROWS: SynthRow[] = [
     q1: -4.0, q2: 1.0, median: 3.5, q3: 6.0, q4: 12.0,
     methodology_note: "Czech consumer demand modest growth.",
   },
-  {
-    nace_division: "47", metric_id: "pricing_power",
-    q1: -1.5, q2: -0.4, median: 0.2, q3: 0.8, q4: 1.8,
-    methodology_note: "Specialty retail has more pricing power than mass.",
-  },
-
   // ── NACE 62 — IT services (§5.5) ─────────────────────────────────────────────
   {
     nace_division: "62", metric_id: "gross_margin",
@@ -228,12 +204,6 @@ const SYNTH_ROWS: SynthRow[] = [
     q1: -3.0, q2: 2.0, median: 6.0, q3: 10.0, q4: 18.0,
     methodology_note: "IT-services growth typically faster than other Czech SMEs.",
   },
-  {
-    nace_division: "62", metric_id: "pricing_power",
-    q1: -1.0, q2: 0.0, median: 0.5, q3: 1.2, q4: 2.5,
-    methodology_note: "Stronger pricing power than industrial sectors.",
-  },
-
   // ── NACE 41 — Construction of buildings (§5.6) ───────────────────────────────
   {
     nace_division: "41", metric_id: "gross_margin",
@@ -270,10 +240,33 @@ const SYNTH_ROWS: SynthRow[] = [
     q1: -12.0, q2: -3.0, median: 1.5, q3: 6.0, q4: 14.0,
     methodology_note: "High variance — project pipeline timing dominates.",
   },
+
+  // ── NACE 10 — Food / bakery (D-032, ROE-only synth fallback) ───────────────
   {
-    nace_division: "41", metric_id: "pricing_power",
-    q1: -2.0, q2: -0.5, median: 0.0, q3: 0.7, q4: 2.0,
-    methodology_note: "Cycle-dependent; tighter band in soft years.",
+    nace_division: "10", metric_id: "roe",
+    q1: 2.0, q2: 5.0, median: 8.0, q3: 12.0, q4: 20.0,
+    methodology_note: "Bakery ROE distribution — calibrated to ČSÚ food-mfg structural data.",
+  },
+
+  // ── NACE 31 — Furniture (D-032, ROE-only synth fallback) ───────────────────
+  {
+    nace_division: "31", metric_id: "roe",
+    q1: 3.0, q2: 7.0, median: 11.0, q3: 16.0, q4: 25.0,
+    methodology_note: "Furniture-mfg ROE — moderate variance; well-capitalised firms cluster mid.",
+  },
+
+  // ── NACE 46 — Wholesale of metal (D-032, ROE-only synth fallback) ──────────
+  {
+    nace_division: "46", metric_id: "roe",
+    q1: 4.0, q2: 8.0, median: 12.0, q3: 18.0, q4: 28.0,
+    methodology_note: "Metal-wholesale ROE — capital-light distributors achieve higher ROE.",
+  },
+
+  // ── NACE 49 — Freight (D-032, ROE-only synth fallback) ─────────────────────
+  {
+    nace_division: "49", metric_id: "roe",
+    q1: 2.0, q2: 5.0, median: 9.0, q3: 14.0, q4: 22.0,
+    methodology_note: "Freight ROE — fleet-asset-heavy firms drag tail; tight middle.",
   },
 ];
 

@@ -127,12 +127,12 @@ export function getFixtureSnapshot(naceSector: string): BenchmarkSnippet {
               is_email_teaser_snippet: false,
             },
             {
-              metric_id: "pricing_power",
-              metric_label: "Cenová síla",
+              metric_id: "roe",
+              metric_label: "ROE",
               quartile_label: "třetí čtvrtina",
               percentile: 59,
               verdict_text:
-                "Vaše cenová síla vás řadí do třetí čtvrtiny výrobců nábytku ve vašem oboru — 59. percentil.",
+                "Vaše ROE vás řadí do třetí čtvrtiny výrobců nábytku ve vašem oboru — 59. percentil.",
               confidence_state: "valid",
               rung_footnote: null,
               is_email_teaser_snippet: false,
@@ -247,8 +247,8 @@ export function getFixtureSnapshot(naceSector: string): BenchmarkSnippet {
             is_email_teaser_snippet: false,
           },
           {
-            metric_id: "pricing_power",
-            metric_label: "Cenová síla",
+            metric_id: "roe",
+            metric_label: "ROE",
             quartile_label: null,
             percentile: null,
             verdict_text: null,

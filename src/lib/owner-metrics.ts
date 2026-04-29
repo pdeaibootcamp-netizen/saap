@@ -107,12 +107,12 @@ const METRIC_META: Record<OwnerMetricId, MetricMeta> = {
     prompt_help_text: "Uveďte prosím meziroční růst vašich tržeb za poslední uzavřený rok.",
     unit_suffix: "%",
   },
-  pricing_power: {
-    label: "Cenová síla",
+  roe: {
+    label: "ROE",
     category_id: "rust-trzni-pozice",
-    unit_note: "percentage points YoY margin delta",
-    prompt_help_text: "Uveďte prosím, o kolik procentních bodů se za poslední rok změnila vaše marže oproti předchozímu roku.",
-    unit_suffix: "p. b.",
+    unit_note: "percent — return on equity",
+    prompt_help_text: "Uveďte prosím vaši ROE (rentabilitu vlastního kapitálu) za poslední uzavřený rok.",
+    unit_suffix: "%",
   },
 };
 
@@ -126,7 +126,7 @@ const METRIC_ORDER: OwnerMetricId[] = [
   "labor_cost_ratio",
   "revenue_growth",
   "working_capital_cycle",
-  "pricing_power",
+  "roe",
 ];
 
 // ─── Czech locale formatting ──────────────────────────────────────────────────
@@ -162,11 +162,13 @@ function formatDisplay(metricId: OwnerMetricId, rawValue: number | null): string
       const formatted = Math.abs(rawValue).toFixed(1).replace(".", ",");
       return `${signPlus(rawValue)}${formatted} %`;
     }
-    case "pricing_power": {
+    case "roe": {
       const formatted = Math.abs(rawValue).toFixed(1).replace(".", ",");
-      // Use Unicode minus U+2212 for negative per schema
-      const sign = rawValue >= 0 ? "+" : "−";
-      return `${sign}${formatted} p. b.`;
+      // ROE displayed as standard percent ("12,4 %"). Unicode minus U+2212
+      // for negatives; positives have no sign prefix (consistent with the
+      // gross/ebitda/net margin formatting above).
+      const sign = rawValue >= 0 ? "" : "−";
+      return `${sign}${formatted} %`;
     }
     default:
       return String(rawValue);
@@ -301,14 +303,14 @@ const FIXTURE_METRICS: Omit<OwnerMetric, "confidence_state" | "quartile_label" |
     unit_suffix: "%",
   },
   {
-    metric_id: "pricing_power",
-    metric_label: "Cenová síla",
+    metric_id: "roe",
+    metric_label: "ROE",
     category_id: "rust-trzni-pozice",
-    raw_value: 0.8,
-    raw_value_display: `+0,8 p. b.`,
-    unit_note: "pp YoY margin delta",
-    prompt_help_text: METRIC_META.pricing_power.prompt_help_text,
-    unit_suffix: "p. b.",
+    raw_value: 12.4,
+    raw_value_display: `12,4 %`,
+    unit_note: "percent — return on equity",
+    prompt_help_text: METRIC_META.roe.prompt_help_text,
+    unit_suffix: "%",
   },
 ];
 
