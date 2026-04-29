@@ -453,8 +453,18 @@ export default async function DashboardPage({
                         briefId={brief.id}
                         title={title}
                         publicationMonth={publicationMonth}
-                        naceCode={brief.nace_sector}
-                        naceName={NACE_LABELS[brief.nace_sector] ?? null}
+                        naceCode={
+                          brief.nace_sectors?.includes(activeNace)
+                            ? activeNace
+                            : brief.nace_sector
+                        }
+                        naceName={
+                          NACE_LABELS[
+                            brief.nace_sectors?.includes(activeNace)
+                              ? activeNace
+                              : brief.nace_sector
+                          ] ?? null
+                        }
                         isNew={isNew}
                       />
                     );
