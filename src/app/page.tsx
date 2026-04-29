@@ -194,7 +194,9 @@ export default async function DashboardPage({
   let briefs: Brief[] = [];
   try {
     briefs = await listPublishedBriefsByNace(activeNace);
-  } catch {
+  } catch (err) {
+    // DB unreachable — render empty state per dashboard-v0-2.md §5.3
+    console.error("[dashboard] briefs fetch failed:", err);
     briefs = [];
   }
 
@@ -343,8 +345,20 @@ export default async function DashboardPage({
           padding-bottom: 48px;
         }
 
+        /* Placeholder blocks */
+        .db-placeholder {
+          border: 1px dashed #e4eaf0;
+          border-radius: 4px;
+          padding: 24px 16px;
+          color: #537090;
+          font-size: 15px;
+          line-height: 1.5;
+          text-align: center;
+        }
+
+        /* Brief list rows — hover/focus/pressed states */
         .bli-row:hover {
-          background-color: #eef0f4 !important;
+          background-color: #e8f0fd !important;
         }
         @media (prefers-reduced-motion: reduce) {
           .bli-row { transition: none !important; }
@@ -354,11 +368,7 @@ export default async function DashboardPage({
           outline-offset: -3px;
         }
         .bli-row:active {
-          background-color: #e4eaf0 !important;
-        }
-
-        .db-brief-list li:last-child {
-          border-bottom: none;
+          background-color: #d6e4fb !important;
         }
 
         .db-brief-empty {

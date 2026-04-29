@@ -39,6 +39,7 @@ const BRIEF_COLUMNS =
 const DELIVERY_COLUMNS =
   "id, brief_id, brief_version, recipient_id, format, delivered_at";
 
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface Brief {
