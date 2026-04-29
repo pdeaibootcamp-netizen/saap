@@ -193,7 +193,7 @@ export default async function DashboardPage({
   // Fail-safe: on DB error, render empty state
   let briefs: Brief[] = [];
   try {
-    briefs = await listPublishedBriefsByNace(DEMO_OWNER_PROFILE.nace_sector);
+    briefs = await listPublishedBriefsByNace(activeNace);
   } catch {
     briefs = [];
   }
