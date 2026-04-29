@@ -259,14 +259,15 @@
       display: flex;
       align-items: center;
       gap: 10px;
-      margin-bottom: 28px;
+      margin-top: 18px;
+      margin-bottom: 0;
       font-size: var(--text-body);
     }
     .pdf-link__main {
-      color: var(--color-blue-band);
-      text-decoration: underline;
-      font-weight: 500;
+      color: var(--color-ink-tertiary);
+      text-decoration: none;
     }
+    .pdf-link__main:hover { text-decoration: underline; }
     .pdf-link__sub {
       color: var(--color-ink-tertiary);
       font-size: 13px;
@@ -275,15 +276,16 @@
       width: 18px;
       height: 18px;
       flex-shrink: 0;
-      color: var(--color-blue-band);
+      color: var(--color-ink-muted);
     }
 
     /* ─── Action box ────────────────────────────────────────────────────── */
     .action-box {
-      background: var(--color-surface);
-      border: 1px solid var(--color-border);
+      background: var(--color-accent-soft);
+      border: 1px solid #f3c8a8;
+      border-left: 4px solid var(--color-accent);
       border-radius: var(--radius-card);
-      padding: 20px 24px 22px;
+      padding: 22px 26px 20px;
       box-shadow: var(--shadow-card);
     }
     .action-box__heading {
@@ -293,30 +295,93 @@
       color: var(--color-ink-primary);
     }
     .action-card {
-      padding: 14px 0;
-      border-top: 1px solid var(--color-border);
+      display: grid;
+      grid-template-columns: 1.5fr 40px 1fr;
+      gap: 0;
+      align-items: stretch;
+      background: var(--color-surface);
+      border: 1px solid #f3c8a8;
+      border-radius: 10px;
+      overflow: hidden;
+      margin-top: 12px;
+    }
+    .action-card:first-of-type { margin-top: 0; }
+    .action-card__finding {
+      background: #fff5ea;
+      padding: 14px 16px 16px;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px;
+      border-right: 1px solid #f3c8a8;
     }
-    .action-card:first-of-type { border-top: 0; padding-top: 4px; }
-    .action-card__horizon {
-      display: inline-block;
-      align-self: flex-start;
-      font-size: 11.5px;
-      font-weight: 700;
-      letter-spacing: 0.03em;
-      padding: 3px 10px;
-      border-radius: var(--radius-pill);
+    .action-card__action {
+      padding: 14px 16px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      background: #ffffff;
+      border-left: 1px solid #f3c8a8;
+    }
+    .action-card__label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
       text-transform: uppercase;
+      color: #9e9e9e;
     }
-    .horizon-short { background: var(--color-pill-green); color: var(--color-pill-green-ink); }
-    .horizon-mid { background: var(--color-pill-blue); color: var(--color-pill-blue-ink); }
-    .horizon-long { background: var(--color-pill-purple); color: var(--color-pill-purple-ink); }
+    .action-card__finding-text {
+      font-size: var(--text-body);
+      font-weight: 500;
+      color: var(--color-ink-primary);
+      line-height: 1.5;
+    }
+    .action-card__action-text {
+      font-size: var(--text-body);
+      font-weight: 700;
+      color: var(--color-blue-band);
+      line-height: 1.5;
+    }
+    .action-card__arrow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--color-accent-soft);
+      color: var(--color-accent);
+      font-size: 22px;
+      font-weight: 700;
+      line-height: 1;
+      user-select: none;
+    }
+    .action-box__expand {
+      display: block;
+      margin: 12px auto 0;
+      background: none;
+      border: 1px solid #f3c8a8;
+      border-radius: 8px;
+      padding: 8px 22px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--color-accent);
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .action-box__expand:hover {
+      background: #fff;
+      border-color: var(--color-accent);
+    }
     .action-card__text {
       color: var(--color-ink-primary);
       font-size: var(--text-body);
       line-height: 1.5;
+    }
+
+    /* Source attribution */
+    .action-box__source {
+      font-size: 12px;
+      color: var(--color-ink-muted);
+      margin-top: 16px;
+      padding-top: 12px;
+      border-top: 1px solid var(--color-border);
     }
 
     /* ─── Brief list (Section 3, for context) ───────────────────────────── */
@@ -327,6 +392,213 @@
       padding: 20px;
       color: var(--color-ink-tertiary);
       font-size: var(--text-body);
+    }
+
+    /* ─── Ranní restart ─────────────────────────────────────────────────── */
+    .section__heading-date {
+      font-size: 14px;
+      font-weight: 400;
+      color: var(--color-ink-tertiary);
+      margin-left: 8px;
+    }
+    .restart-card {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-card);
+      padding: 20px 24px;
+      position: relative;
+    }
+    .restart-card__read-time {
+      position: absolute;
+      top: 16px;
+      right: 20px;
+      font-size: 11px;
+      color: var(--color-ink-muted);
+      font-weight: 500;
+    }
+    .restart-card__text {
+      font-size: var(--text-body);
+      color: var(--color-ink-primary);
+      line-height: 1.65;
+      margin: 0;
+      padding-right: 80px;
+    }
+
+    /* ─── Event card ─────────────────────────────────────────────────────── */
+    .event-card {
+      display: flex;
+      gap: 24px;
+      background: var(--color-surface-card);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-card);
+      padding: 24px;
+      align-items: flex-start;
+      box-shadow: var(--shadow-card);
+    }
+    .event-card__speaker {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      min-width: 110px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+    .event-card__avatar {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background: var(--color-blue-band);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .event-card__speaker-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--color-ink-primary);
+      line-height: 1.3;
+    }
+    .event-card__speaker-role {
+      font-size: 12px;
+      color: var(--color-ink-tertiary);
+      line-height: 1.4;
+    }
+    .event-card__body { flex: 1; }
+    .event-card__title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--color-ink-primary);
+      margin: 0 0 8px;
+      letter-spacing: -0.01em;
+    }
+    .event-card__teaser {
+      font-size: 14px;
+      color: var(--color-ink-secondary);
+      line-height: 1.55;
+      margin: 0 0 16px;
+    }
+    .event-card__meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+    .event-card__date {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--color-ink-primary);
+      background: #f0f4ff;
+      border: 1px solid #c7d7f5;
+      border-radius: 6px;
+      padding: 4px 10px;
+    }
+    .event-card__pill {
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: var(--radius-pill);
+      padding: 3px 10px;
+      background: var(--color-pill-blue);
+      color: var(--color-pill-blue-ink);
+    }
+    .event-card__cta {
+      display: inline-block;
+      background: var(--color-blue-band);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 10px 20px;
+      border-radius: 8px;
+      text-decoration: none;
+      cursor: pointer;
+      border: none;
+      font-family: inherit;
+    }
+    .event-card__cta:hover { opacity: 0.88; }
+    .event-note {
+      margin-top: 12px;
+      font-size: 13px;
+      color: var(--color-ink-tertiary);
+    }
+
+    /* ─── Previous analyses list ────────────────────────────────────────── */
+    .section__heading--minor {
+      font-size: var(--text-h3);
+      color: var(--color-ink-tertiary);
+    }
+    .brief-list { display: flex; flex-direction: column; gap: 10px; }
+    .brief-item {
+      background: var(--color-surface-card);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-card);
+      padding: 16px 20px;
+    }
+    .brief-item__header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 6px;
+    }
+    .brief-item__title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--color-ink-primary);
+    }
+    .brief-item__date {
+      font-size: 12px;
+      color: var(--color-ink-tertiary);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .brief-item__teaser {
+      font-size: 14px;
+      color: var(--color-ink-secondary);
+      line-height: 1.5;
+      margin: 0 0 10px;
+    }
+    .brief-item__body {
+      font-size: 14px;
+      color: var(--color-ink-secondary);
+      line-height: 1.6;
+      margin-bottom: 10px;
+      display: none;
+      border-top: 1px solid var(--color-border);
+      padding-top: 10px;
+      margin-top: 2px;
+    }
+    .brief-item__body.is-open { display: block; }
+    .brief-item__toggle {
+      font-size: 13px;
+      color: var(--color-blue-band);
+      background: none;
+      border: none;
+      padding: 0;
+      cursor: pointer;
+      font-weight: 500;
+      font-family: inherit;
+    }
+    .brief-item__toggle:hover { text-decoration: underline; }
+    .brief-load-more {
+      display: block;
+      margin: 14px auto 0;
+      background: none;
+      border: 1px solid var(--color-border);
+      border-radius: 8px;
+      padding: 10px 28px;
+      font-size: 14px;
+      color: var(--color-ink-secondary);
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .brief-load-more:hover {
+      border-color: var(--color-blue-band);
+      color: var(--color-blue-band);
     }
 
     /* ─── AI disclaimer ─────────────────────────────────────────────────── */
@@ -344,6 +616,12 @@
       .header-band { flex-wrap: wrap; }
       .header-band__spacer { flex-basis: 100%; height: 0; }
       .container { padding: 20px 14px 48px; }
+      .action-card { grid-template-columns: 1fr; }
+      .action-card__finding { border-right: 0; border-bottom: 1px solid #f3c8a8; }
+      .action-card__action { border-left: 0; }
+      .action-card__arrow { padding: 6px 0; font-size: 18px; transform: rotate(90deg); }
+      .event-card { flex-direction: column; }
+      .event-card__speaker { flex-direction: row; min-width: 0; text-align: left; }
     }
   </style>
 </head>
@@ -582,7 +860,64 @@
 
       <!-- Summary text block -->
       <div class="summary">
-        Výroba nábytku v Česku se po rekordním roce 2022 vrátila na stabilnější úroveň — tržby odvětví loni dosáhly necelých 50 mld. Kč a mírně rostou. Klíčovým trendem je rychlý přesun zákazníků do online kanálů: e-commerce roste ročním tempem přes 17 %, zatímco kamenné prodejny téměř stagnují, a průměrná online objednávka je zhruba dvakrát dražší než nákup v prodejně. Zároveň čeští výrobci pokrývají jen asi třetinu domácí spotřeby nábytku, přičemž jejich podíl rok od roku mírně klesá ve prospěch dováženého zboží. Pro firmy v oboru to znamená tlak na marže i na nalezení vlastní pozice mezi levnějšími dovozci a velkými retailery.
+        Výroba nábytku v Česku se po rekordním roce 2022 vrátila na stabilnější úroveň — tržby odvětví loni dosáhly necelých 50 mld. Kč a mírně rostou. Klíčovým trendem je rychlý přesun zákazníků do online kanálů: e-commerce roste ročním tempem přes 17 %, zatímco kamenné prodejny téměř stagnují, a průměrná online objednávka je zhruba dvakrát dražší než nákup v prodejně. Zároveň čeští výrobci pokrývají jen asi třetinu domácí spotřeby nábytku, přičemž jejich podíl rok od roku mírně klesá ve prospěch dováženého zboží.
+      </div>
+
+      <!-- Action box -->
+      <div class="action-box">
+        <h3 class="action-box__heading">Co nám říká trh — a co s tím udělat</h3>
+
+        <div class="action-list">
+          <div class="action-card">
+            <div class="action-card__finding">
+              <span class="action-card__label">Zjištění</span>
+              <div class="action-card__finding-text">
+                Zákazníci nakupující nábytek online utrácejí průměrně dvakrát více než v kamenné prodejně a e-commerce v oboru roste o 18 % ročně. Každý měsíc bez vlastního e-shopu je měsíc, kdy tyto tržby sbírá někdo jiný.
+              </div>
+            </div>
+            <div class="action-card__arrow" aria-hidden="true">→</div>
+            <div class="action-card__action">
+              <span class="action-card__label">Doporučení</span>
+              <div class="action-card__action-text">
+                Otevřete přímý online kanál ještě tento rok.
+              </div>
+            </div>
+          </div>
+
+          <div class="action-card">
+            <div class="action-card__finding">
+              <span class="action-card__label">Zjištění</span>
+              <div class="action-card__finding-text">
+                Vývoz tvoří 73 % hodnoty výroby oboru — větší výrobci primárně prodávají do zahraničí. Pokud vaše tržby závisí jen na domácím trhu, nesete koncentrační riziko, které konkurence už eliminovala.
+              </div>
+            </div>
+            <div class="action-card__arrow" aria-hidden="true">→</div>
+            <div class="action-card__action">
+              <span class="action-card__label">Doporučení</span>
+              <div class="action-card__action-text">
+                Nastavte exportní strategii pro příští rok.
+              </div>
+            </div>
+          </div>
+
+          <div class="action-card">
+            <div class="action-card__finding">
+              <span class="action-card__label">Zjištění</span>
+              <div class="action-card__finding-text">
+                Domácí výrobci drží jen 31 % domácí spotřeby a ten podíl rok od roku klesá. Cenová válka s dovozem z Polska nebo Rumunska je prohraná předem.
+              </div>
+            </div>
+            <div class="action-card__arrow" aria-hidden="true">→</div>
+            <div class="action-card__action">
+              <span class="action-card__label">Doporučení</span>
+              <div class="action-card__action-text">
+                Odlište nabídku od levného dovozu — materiálem, zakázkovou úpravou nebo servisem.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <button class="action-box__expand">Zobrazit další doporučení ↓</button>
       </div>
 
       <!-- PDF link -->
@@ -596,45 +931,86 @@
         <a class="pdf-link__main" href="#">Přečíst celou analýzu (PDF)</a>
         <span class="pdf-link__sub">Ekonomické a strategické analýzy ČS · Q2 2026 · 12 stran</span>
       </div>
+    </section>
 
-      <!-- Action box -->
-      <div class="action-box">
-        <h3 class="action-box__heading">Doporučené kroky</h3>
-
-        <div class="action-card">
-          <span class="action-card__horizon horizon-short">Krátkodobě · 0–3 měsíce</span>
-          <div class="action-card__text">
-            Zkontrolujte, zda vaše firma nabízí přímý prodej online — e-commerce roste o 18 % ročně a zákazníci přes internet nakupují průměrně za 5 100 Kč vs. 2 500 Kč v kamenné prodejně.
-          </div>
-        </div>
-
-        <div class="action-card">
-          <span class="action-card__horizon horizon-mid">Střednědobě · 3–12 měsíců</span>
-          <div class="action-card__text">
-            Zmapujte, která část vašich tržeb pochází od zahraničních zákazníků nebo exportu — vývoz tvoří 73 % hodnoty výroby oboru a je primárním odbytem pro větší výrobce.
-          </div>
-        </div>
-
-        <div class="action-card">
-          <span class="action-card__horizon horizon-long">Dlouhodobě · 1–3 roky</span>
-          <div class="action-card__text">
-            Zvažte, zda je vaše produktová nabídka diferencovaná od levnějšího dováženého zboží — domácí výrobci tvoří jen 31 % spotřeby, a ten podíl klesá.
-          </div>
-        </div>
+    <!-- ─── Section 3: Ranní restart ────────────────────────────────── -->
+    <section class="section">
+      <h2 class="section__heading">Ranní restart <span class="section__heading-date">29. dubna 2026</span></h2>
+      <div class="restart-card">
+        <span class="restart-card__read-time">čte se za 45 s</span>
+        <p class="restart-card__text">Sazby ČNB nejspíš zůstanou beze změny, ale člen bankovní rady Jakub Seidler naznačil, že čím déle potrvá konflikt v Perském zálivu, tím vyšší je pravděpodobnost jejich zvýšení — firmy by měly počítat s tím, že financování zůstane dražší déle, než se čekalo. Klíčové riziko pro podnikatele: historická zkušenost ukazuje, že firmy v inflačním prostředí sklouzávají k navyšování marží nad rámec skutečných nákladů — regulátoři i odběratelé to sledují.</p>
       </div>
     </section>
 
-    <!-- ─── Section 3: Briefs list (slim placeholder) ─────────────────── -->
+    <!-- ─── Section 4: Živé setkání s odborníky ──────────────────────── -->
     <section class="section">
-      <h2 class="section__heading">Analýzy</h2>
-      <div class="brief-list-empty">
-        Pro váš obor zatím nejsou k dispozici žádné přehledy. Jakmile nějaký připravíme, najdete ho zde.
+      <h2 class="section__heading">Živé setkání s odborníky</h2>
+      <div class="event-card">
+        <div class="event-card__speaker">
+          <div class="event-card__avatar">RN</div>
+          <div class="event-card__speaker-name">Mgr. Radek Novák, MBA</div>
+          <div class="event-card__speaker-role">Seniorní analytik · Česká spořitelna</div>
+        </div>
+        <div class="event-card__body">
+          <div class="event-card__title">Stavebnictví 2026: kde jsou marže a kde jsou rizika</div>
+          <p class="event-card__teaser">Radek se věnuje sektorové analýze přes deset let a dříve pracoval na ministerstvu průmyslu a obchodu. Na živém setkání projde klíčové trendy v oboru, ukáže čísla, která nikde jinde neuvidíte, a zodpoví vaše dotazy přímo.</p>
+          <div class="event-card__meta">
+            <span class="event-card__date">18. června 2026 · 10:00–11:30</span>
+            <span class="event-card__pill">Stavebnictví</span>
+            <span class="event-card__pill">Úrokové prostředí</span>
+          </div>
+          <button class="event-card__cta">Rezervovat místo →</button>
+        </div>
       </div>
+      <p class="event-note">Průběžně pořádáme oborové webináře a setkání s analytiky ČS a externími experty, přihlásit se může každý klient Strategy Radaru.</p>
+    </section>
+
+    <!-- ─── Section 5: Předchozí analýzy ─────────────────────────────── -->
+    <section class="section">
+      <h2 class="section__heading section__heading--minor">Další oborové analýzy</h2>
+      <div class="brief-list">
+
+        <div class="brief-item">
+          <div class="brief-item__header">
+            <span class="brief-item__title">Výroba nábytku Q1 2026: pokles zakázek a opatrnost odběratelů</span>
+            <span class="brief-item__date">březen 2026</span>
+          </div>
+          <p class="brief-item__teaser">Zakázky pro B2B odběratele meziročně klesly o 8 %, zejména v segmentu kancelářského nábytku. Poptávka domácností zůstala stabilní, táhne ji e-commerce.</p>
+        </div>
+
+        <div class="brief-item">
+          <div class="brief-item__header">
+            <span class="brief-item__title">Výroba nábytku Q4 2025: úrokové prostředí a bytová výstavba</span>
+            <span class="brief-item__date">prosinec 2025</span>
+          </div>
+          <p class="brief-item__teaser">Pokles zahajování nových bytových projektů o 14 % v roce 2025 se začíná promítat do poptávky po nábytku — efekt se plně projeví v roce 2026.</p>
+        </div>
+
+        <div class="brief-item">
+          <div class="brief-item__header">
+            <span class="brief-item__title">Výroba nábytku Q3 2025: vstupní náklady — přichází stabilizace?</span>
+            <span class="brief-item__date">září 2025</span>
+          </div>
+          <p class="brief-item__teaser">Ceny dřeva a desek se po dvouletém propadu stabilizovaly těsně nad historickým průměrem. Výrobci bez dlouhodobých smluv platí nyní až o 12 % více než loni.</p>
+        </div>
+
+      </div>
+      <button class="brief-load-more">Načíst starší analýzy</button>
     </section>
 
     <div class="ai-disclaimer">Tento prototyp byl vygenerován pomocí AI.</div>
 
   </main>
 
+
+  <script>
+    document.querySelectorAll('.brief-item__toggle').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var body = btn.closest('.brief-item').querySelector('.brief-item__body');
+        var open = body.classList.toggle('is-open');
+        btn.textContent = open ? 'Skrýt ↑' : 'Zobrazit celý přehled ↓';
+      });
+    });
+  </script>
 </body>
 </html>
