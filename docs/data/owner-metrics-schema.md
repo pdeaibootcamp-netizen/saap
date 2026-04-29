@@ -1,6 +1,6 @@
 # Owner-Metrics Schema — v0.3
 
-*Owner: data-engineer · Slug: owner-metrics-schema · Last updated: 2026-04-27*
+*Owner: data-engineer · Slug: owner-metrics-schema · Last updated: 2026-04-29*
 
 The new `owner_metrics` table in the `user_contributed` lane. Replaces the v0.2 in-memory fixture in `src/lib/owner-metrics.ts` (see [dummy-owner-metrics.md](dummy-owner-metrics.md)) with a real, RLS-scoped, consent-trace-carrying row store that holds the eight frozen v0.3 metrics per `user_id`.
 
@@ -20,6 +20,7 @@ This spec is the data shape only — the PATCH/GET API surface and the in-tile U
   - [D-013](../project/decision-log.md) — Supabase Postgres + RLS
   - [D-023](../project/decision-log.md) — real-firm demo owner via IČO switcher
   - [D-024](../project/decision-log.md) — frozen 8-metric set: ROCE → Net margin
+  - [D-032](../project/decision-log.md) — pricing_power → ROE (8th metric swap, v0.3)
 - Companions: [privacy-architecture.md](privacy-architecture.md) §2 four lanes; [cohort-math.md](cohort-math.md) §5 the 8 ratios; [percentile-compute.md](percentile-compute.md) (sibling); [analysis-pipeline-data.md](analysis-pipeline-data.md) (sibling)
 - Replaces: v0.2 in-memory fixture posture in [dummy-owner-metrics.md](dummy-owner-metrics.md) §6 Option (a)
 
@@ -38,7 +39,7 @@ CREATE TABLE IF NOT EXISTS owner_metrics (
 
   -- Numeric raw value. Ratios stored as percent points (e.g. 23.4 for 23,4 %),
   -- monetary values as CZK (revenue_per_employee in thousands of CZK per §3),
-  -- working_capital_cycle in days, revenue_growth + pricing_power in pp / %.
+  -- working_capital_cycle in days, revenue_growth + roe in % (per §3).
   -- Nullable: a row with raw_value IS NULL means "owner has not yet supplied
   -- this metric" — drives the in-tile 'ask' state.
   raw_value          NUMERIC(14,4),
@@ -66,11 +67,13 @@ CREATE TABLE IF NOT EXISTS owner_metrics (
 
   PRIMARY KEY (user_id, metric_id),
 
-  -- Domain check on metric_id matching the v0.3 frozen 8 (D-024).
+  -- Domain check on metric_id matching the v0.3 frozen 8 (D-024 + D-032 swap).
+  -- Migration 0013 swaps 'pricing_power' → 'roe' on this CHECK and DELETEs any
+  -- pre-existing pricing_power rows from owner_metrics + cohort_aggregates.
   CHECK (metric_id IN (
     'gross_margin', 'ebitda_margin', 'labor_cost_ratio',
     'revenue_per_employee', 'working_capital_cycle',
-    'net_margin', 'revenue_growth', 'pricing_power'
+    'net_margin', 'revenue_growth', 'roe'
   ))
 );
 
@@ -95,7 +98,7 @@ The eight IDs below are frozen for v0.3 per [D-024](../project/decision-log.md).
 | 5 | `working_capital_cycle` | Cyklus pracovního kapitálu | days | `62` means `62 dní` | -90 / 365 / 0 | NBSP before `dní` |
 | 6 | `net_margin` | Čistá marže | percent | `5.1` means `5,1 %` | -50 / 60 / 1 | percent rule |
 | 7 | `revenue_growth` | Růst tržeb | percent (YoY) | `3.1` means `+3,1 %` (sign required) | -80 / 200 / 1 | sign-prefixed percent |
-| 8 | `pricing_power` | Cenová síla | percentage points (YoY margin Δ) | `0.8` means `+0,8 p. b.` | -30 / 30 / 1 | sign-prefixed `<n>,<dp1> p. b.` |
+| 8 | `roe` | ROE | percent | `12.4` means `12,4 %` | -100 / 200 / 1 | `<n>,<dp1> %` (decimal comma, NBSP before %); negatives use U+2212 minus; **no `+` prefix on positives** (matches `formatDisplay` 'roe' case in `src/lib/owner-metrics.ts`). |
 
 **Stored vs. displayed.** `raw_value` stores the human-meaningful number, not a 0–1 decimal. `gross_margin = 23.4`, never `0.234`. This intentionally diverges from the v0.2 fixture ([dummy-owner-metrics.md §4](dummy-owner-metrics.md)) which stored `0.234` — the change makes Excel ingestion (where percent values arrive as e.g. `23.4`) and PATCH writes (where the owner types `23,4`) both straightforward. Engineer's normaliser strips Czech comma → period and any thousands separators on write.
 
@@ -104,7 +107,7 @@ The eight IDs below are frozen for v0.3 per [D-024](../project/decision-log.md).
 - Decimal separator: comma `,`.
 - Thousands separator: thin space U+202F.
 - Unit/suffix preceded by a non-breaking space U+00A0.
-- Sign prefix required on `revenue_growth` and `pricing_power` (positive → `+`, negative → `−` (U+2212)).
+- Sign prefix required on `revenue_growth` (positive → `+`, negative → `−` (U+2212)). `roe` uses U+2212 for negatives but **no `+` prefix on positives** per [D-032](../project/decision-log.md).
 
 `raw_value_display` is pre-formatted on write. Read paths render the display string verbatim — there is no client-side Intl formatting in tile components.
 
@@ -224,3 +227,4 @@ Idempotency guarantee: re-submitting the same value is a no-op apart from `updat
 ## Changelog
 
 - 2026-04-27 — initial draft for v0.3. Defines `owner_metrics(user_id, metric_id, …)` in `user_contributed` lane with composite PK for idempotent upsert, frozen 8 metric IDs per D-024, RLS row-scoping to `current_user_id`, `consent_event_id` NOT NULL FK, last-write-wins update semantics, `prepopulated_excel`/`user_entered`/`demo_seed` source enum, and a default-no posture on training and RM visibility. Three OQs logged. — data-engineer
+- 2026-04-29 — v0.3 D-032 swap: replaced `pricing_power` with `roe` in the metric_id CHECK constraint (migration 0013) and in the §3 frozen-8 metric table. `roe` stored as percent (`12.4` → `12,4 %`), bounds -100 / 200 / 1 dp; display rule uses U+2212 for negatives and **no `+` prefix on positives** to match `formatDisplay` in `src/lib/owner-metrics.ts`. — data-engineer

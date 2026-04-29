@@ -292,7 +292,60 @@ Full plan detail — files to modify/create, existing code to reuse, verificatio
 
 Full plan detail — files to modify/create, existing code to reuse, risks, verification criteria — lives in the approved plan-mode artefact at `~/.claude/plans/orchestrator-create-a-build-warm-lerdorf.md`.
 
----
+### 11.6 v0.3 Track C v3 — multi-NACE Anthropic-API rebuild (2026-04-28..29)
+
+Track C went through three architectural shapes during v0.3. §11.4–§11.5 above describe the original API-key workflow (Phase 3.2.C); this section describes what actually shipped on `trial-v0-3`. See [§13. Abandoned approaches](#13-abandoned-approaches) for the intermediate MCP-orchestrator pivot.
+
+**What's live (snapshot 2026-04-29):**
+
+- **n8n Cloud workflow `Strategy Radar — Analyze Publication`** — ~34 nodes, langchain.agent + Anthropic Claude Haiku 4.5 (D-028). Snapshot at [`n8n-workflows/analyze-publication.json`](../../n8n-workflows/analyze-publication.json); README at [`n8n-workflows/README.md`](../../n8n-workflows/README.md).
+- **Topology**: Webhook → Verify HMAC → Fetch File → Extract Text (truncated to 8 000 chars before fan-out) → Layperson Opener → 4 parallel NACE branches (Insights → IF relevant? → Actions → Tag) → **Merge (4 inputs, append mode)** → Compose Bundle → Sign Callback → Send Callback → POST `/api/admin/briefs/from-n8n`. The Merge configuration is load-bearing: the n8n default of 2 inputs silently dropped 2 of the 4 NACE branches until corrected during this session.
+- **Brief data model = Model B** (D-029, migration 0011): one brief per publication; `briefs.nace_sectors text[]` carries the relevance set; per-NACE content lives in `BriefContent.per_nace_content[naceDivision]`. Customer dashboard query uses array containment (`WHERE active_firm_nace = ANY(nace_sectors)`); the dashboard view filters and labels each brief by the *viewer's* active NACE so a multi-NACE brief renders differently for a furniture firm vs. a freight firm.
+- **Per-NACE relevance gate** (D-030): each NACE Insights agent returns `{relevant: bool, insights?, reason?}`. Irrelevant branches skip Actions and emit a tagged-with-reason payload for the Compose Bundle. The bundle's invariant guard fails the run loud if any NACE that passed the gate is dropped before tag — added after a silent-merge-drop bug surfaced during this session.
+- **4-NACE PoC scope** (D-031): NACE 10 (bakery), 31 (furniture), 46 (wholesale of metal), 49 (freight). Driven by the new MagnusWeb cohort Excel covering all four.
+- **Frozen metric set updated** (D-032): `pricing_power` removed, `roe` added (migrations 0012 + 0013). `cohort_companies.roe` is real-derivable via the ingest script; the swap collapsed neatly because pricing_power had only synth-quintile fallback (no real cohort column).
+- **Cohort source = `Data MagnusWeb.xlsx`** (1 443 rows, single sheet). Ingest run 4× (one per `--nace-division`); per-run row counts: 386 / 412 / 81 / 554 (10/31/46/49). ROE coverage 71–95% per NACE. Region coverage = 0 (file has no city column — see OQ-080).
+
+**What this changes vs. §11.4 plan:**
+
+- Track C delegation map's `docs/engineering/n8n-integration.md` shipped against the original API-key narrative; needs a v3 refresh covering multi-NACE callback shape, Merge-input config, autoFix parsers, STRICT_JSON_RULES, body-encoding fix, responseMode=Immediately, rate-limit truncation. Logged for the docs-catch-up gate.
+- Phase 3.2.C's `analysis_jobs` polling table is no longer load-bearing — webhook responds immediately and the brief lands via callback ~30–60 s later. The table remains in the schema for historical compat.
+- Original §11.4 reads "Multi-NACE concurrent rollout — furniture (NACE 31) stays the demo focus." That's reversed by D-031.
+
+### 11.7 v0.3 PoC sign-off
+
+**SHIPPED on `trial-v0-3` (this branch, ready for merge to `main`):**
+
+- v0.1/v0.2 brief authoring + publish flow, unchanged.
+- v0.2 dashboard with 8 metric tiles + brief list, unchanged structurally; with v0.3 swaps:
+  - Metric set updated: pricing_power → roe (D-032).
+  - Brief list filtered by viewer's active NACE (multi-NACE-aware via array containment).
+  - Brief list label uses viewer's NACE when the brief covers multiple sectors.
+- Multi-NACE analysis pipeline (D-028..D-031) — n8n + Anthropic API, four parallel NACE branches, relevance gate, Model B briefs, file-only upload UX at `/admin/publications/new`.
+- Real cohort data (`Data MagnusWeb.xlsx`) ingested for all 4 NACEs; synth-quintile fallback for any sparse cells.
+- ROE column on `cohort_companies` + percentile compute integrated.
+- Demo-switch route reads `roe` from `cohort_companies` and prepopulates `owner_metrics` at firm switch.
+- n8n workflow snapshot committed at `n8n-workflows/analyze-publication.json` for rollback safety.
+- Decision log + open questions current to D-032 + OQ-081.
+
+**DEFERRED (out of scope for v0.3, tracked in `open-questions.md`):**
+
+- Per-NACE rule library for Insights + Actions agents — OQ-077.
+- Multi-NACE brief edit UX — OQ-078.
+- Brief title format for multi-NACE briefs — OQ-079.
+- Region coverage gap (MagnusWeb has no city column) — OQ-080.
+- NACE 24/46 split in the wholesale group — OQ-081.
+- Real onboarding / consent / multi-tenant auth (still demo-only).
+- IČO API for auto-downloading registry / bank data.
+- George Business embedding.
+- Email + PDF polish for the new generated brief shape.
+- Real-time benchmark recompute (page-refresh is fine).
+- ML-based transaction categorisation (Increment 3+).
+
+**KNOWN ISSUES (intentional, monitored):**
+
+- Diagnostic logging in `src/app/api/admin/briefs/from-n8n/route.ts` prints HMAC secret prefixes + body samples on signature failure. Useful in dev; remove before any public deploy.
+- The "Velkoobchod s rudami & Výroba hliníku" group at the source mixes NACE 46.72 wholesale with NACE 24.42 aluminium production; treated as 46. Acceptable noise (OQ-081).
 
 ## 12. Changelog
 
@@ -319,3 +372,24 @@ Full plan detail — files to modify/create, existing code to reuse, risks, veri
 - 2026-04-27 — v0.3 Phase 3.1 spec gate **closed**. 11 specs landed across all four specialists: 2 PM (`docs/product/in-tile-prompts.md`, `docs/product/analysis-automation.md`), 1 PD (`docs/design/in-tile-prompts.md`), 5 DE (`docs/data/owner-metrics-schema.md`, `docs/data/cohort-ingestion.md`, `docs/data/percentile-compute.md`, `docs/data/synthetic-quintile-policy.md`, `docs/data/analysis-pipeline-data.md`), 3 EN (`docs/engineering/owner-metrics-api.md`, `docs/engineering/cohort-runtime.md`, `docs/engineering/n8n-integration.md`). DE's `synthetic-quintile-policy.md` includes concrete sector-plausible q1/median/q3 values for NACE 49 across the 6 metrics not directly computable from the current Excel; recommends pre-seeding synth quintiles for NACE 25, 31, 41, 47, 62 to support cross-NACE demo testing. OQ-067..073 promoted as cross-track items in `open-questions.md`. Two files (`analysis-automation.md`, `analysis-pipeline-data.md`) written by orchestrator because of a filename heuristic guard blocking the agents — content matches the agents' design intent, attribution noted in each file. Phase 3.2 engineer implementation unblocked across all three tracks.
 - 2026-04-27 — v0.3 Phase 3.2 **engineering complete across all three tracks** (parallel background agents). Track A (`4ea33b0`, `41d338a`, `03b92f0`, `4cad907`): owner_metrics migration 0006, read/write API + demo-switch / demo-reset routes, MetricTile ask state, IcoSwitcher component, just-saved pulse via `?saved=<metricId>` query param. Track B (`dbd51d6`, `21cecd5`, `9fef536`, `d2056eb`, `e42e076`): cohort_companies + cohort_aggregates migration 0007, xlsx ingestion script with 151-city CZ region map, Hyndman & Fan type 4 percentile compute, synth quintile seed for NACE 49 + 25/31/41/47/62, getBenchmarkSnapshotAsync with 4-rung degradation. Track C (`f3be6bb`, `dbdd659`, `7328d0a`, `631e508`): analysis_jobs migration 0008, importable n8n workflow JSON (18 nodes, Sonnet 4.6 for both Claude calls), analyst upload UI, upload + polling + draft-write APIs with HMAC-SHA256 signing both directions. 171 tests passing, tsc + build clean (modulo pre-existing puppeteer warning). One cross-track bridge fix landed afterwards (`c888192`): owner-metrics.ts batch-calls Track B's getBenchmarkSnapshotAsync instead of the no-op stub Track A had to ship; DEMO_OWNER_PROFILE.nace_sector aligned from v0.2's "31" to v0.3's "49". Phase 3.3 verification user-gated.
 - 2026-04-28 — v0.3 Track C **redesigned** to Claude-Code-orchestrated multi-NACE (D-026, D-027). Original 18-node API-key workflow stays as `n8n-workflows/analysis-automation.json` (frozen alternative). New 5-node `n8n-workflows/mcp-draft-writer.json` exposes a single `write_draft_brief` MCP tool. Claude Code (Max subscription) reads the publication, generates Czech opener + per-NACE insights/actions via parallel Task-tool sub-agents, calls the MCP tool to persist each draft. Two NACEs in scope (31 + 49); food + aluminium wholesale deferred (OQ-076). Per-NACE rule design deferred (OQ-074). Client-data integration deferred (OQ-075). Plan amendment in `~/.claude/plans/orchestrator-create-a-build-warm-lerdorf.md`. Phase TC-A (n8n tool registration via UI) blocking on user; Phases TC-B/C/D in flight.
+- 2026-04-28 — v0.3 Track C **redesigned again** to n8n + Anthropic API ([D-028](decision-log.md)) after the MCP-orchestrator path hit n8n's `$fromAI` resolution wall (tool args arrived empty regardless of schema). Browser upload UX preserved. Brief data model switches to Model B ([D-029](decision-log.md)): one brief per publication tagged with `nace_sectors text[]`; per-NACE content in `BriefContent.per_nace_content[naceDivision]`. Per-NACE relevance gate ([D-030](decision-log.md)). 4-NACE PoC scope ([D-031](decision-log.md)): 10/31/46/49. Migration 0011 adds `briefs.nace_sectors`. Live workflow `Strategy Radar — Analyze Publication` (~34 nodes); snapshot at `n8n-workflows/analyze-publication.json`. Phases TC-A..F shipped; live multi-NACE briefs verified end-to-end via furniture + bakery test uploads.
+- 2026-04-29 — v0.3 final cohort data + ROE swap ([D-032](decision-log.md)). User delivered `Data MagnusWeb.xlsx` (1 443 rows, 4 NACEs); ingested all 4 in 386/412/81/554 row counts; ROE coverage 71–95% per NACE; region coverage 0% (file lacks city column — OQ-080). Migration 0012 adds `cohort_companies.roe`; migration 0013 swaps `metric_id` CHECK on `owner_metrics` and `cohort_aggregates` to drop `pricing_power` and add `roe`. 17 source files updated for the swap (types, cohort registry, owner-metrics meta, demo-switch, seed, synth quintiles, fixtures, tests). 171/171 tests pass; `tsc --noEmit` clean. Two follow-ups closed in the same session: dashboard now filters/labels briefs by viewer's active NACE (was hardcoded to demo-owner profile NACE); n8n Merge node config bug fixed (was 2 inputs, silently dropped 2 of 4 NACE branches; now 4 inputs in append mode + Compose Bundle invariant guards future drops). Workflow snapshot committed to repo at `n8n-workflows/analyze-publication.json`.
+- 2026-04-29 — v0.3 docs catch-up gate. Decision log updated with D-028..D-032; open-questions extended with OQ-077..081 (per-NACE rule library, multi-NACE edit UX, brief title format, region coverage, NACE 24/46 mix). Build plan amended with §11.6 (Track C v3 realisation), §11.7 (v0.3 PoC sign-off), §13 (Abandoned approaches appendix covering D-026 + the original API-key path). Specialist docs refreshed under data-engineer + engineer in parallel: `docs/data/{cohort-ingestion,percentile-compute,owner-metrics-schema,synthetic-quintile-policy}.md` + `docs/engineering/{n8n-integration,owner-metrics-api,cohort-runtime}.md`. Branch ready for merge to `main`.
+---
+
+## 13. Abandoned approaches
+
+For future readers tracing why a v0.3 commit references "MCP" or "analysis-automation.json": Track C went through three shapes before settling. The two earlier shapes are kept in the repo as historical reference, not running code.
+
+### 13.1 Original Anthropic-API workflow (Phase 3.2.C, week of 2026-04-27)
+
+The original Track C ([§11.4](#114-delegation-map-v03)) shipped an 18-node n8n workflow calling Anthropic's HTTP API directly (`Sonnet 4.6` for both opener + observations). Snapshot at [`n8n-workflows/analysis-automation.json`](../../n8n-workflows/analysis-automation.json). Single-NACE per upload. Per-run cost was budget-acceptable (~$0.50) but the user wanted to use their existing Claude Max subscription rather than fund API spend separately, leading to the D-026 pivot.
+
+### 13.2 MCP-orchestrator pivot (D-026, abandoned 2026-04-28)
+
+[D-026](decision-log.md) tried to flip Track C around so Claude Code ran in the analyst's terminal as the orchestrator, with n8n shrunk to a single-tool MCP persistence layer. Snapshot at [`n8n-workflows/mcp-draft-writer.json`](../../n8n-workflows/mcp-draft-writer.json). The tool-routing model worked at the transport level — Claude Code's `claude mcp list` showed the tool as connected — but n8n's tool nodes (`toolCode`, `toolWorkflow`) require an AI Agent upstream to populate `$fromAI` / `$input`. Without one, tool args arrived as empty strings regardless of how the JSON Schema was authored. Reasonable workarounds (custom Code Tool, Workflow Tool wrapping a workflow trigger) all hit the same routing limitation. After ~half a day of execution-trace work the user opted to fund a small Anthropic API allotment, which unblocked the live design (D-028).
+
+Both files stay in `n8n-workflows/` so a future engineer reading the decision log can see what was tried and why it didn't fit.
+
+---
+

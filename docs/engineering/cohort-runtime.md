@@ -1,6 +1,6 @@
 # Cohort Runtime — Engineering
 
-*Owner: engineer · Slug: cohort-runtime · Last updated: 2026-04-27*
+*Owner: engineer · Slug: cohort-runtime · Last updated: 2026-04-29*
 
 ## 1. Upstream links
 
@@ -9,7 +9,7 @@
 - Data: [docs/data/percentile-compute.md](../data/percentile-compute.md) — **the authoritative algorithm spec; this file does not restate it**
 - Data: [docs/data/cohort-ingestion.md](../data/cohort-ingestion.md) — `cohort_companies` schema and ingestion contract
 - Data: [docs/data/synthetic-quintile-policy.md](../data/synthetic-quintile-policy.md) — `cohort_aggregates` schema and synth values
-- Decisions: [D-013](../project/decision-log.md) (Supabase Postgres), [D-024](../project/decision-log.md) (frozen 8 metrics), [D-025](../project/decision-log.md) (synth fallback)
+- Decisions: [D-013](../project/decision-log.md) (Supabase Postgres), [D-024](../project/decision-log.md) (frozen 8 metrics), [D-025](../project/decision-log.md) (synth fallback), [D-032](../project/decision-log.md) (pricing_power → roe)
 
 ## 2. Architecture overview
 
@@ -123,11 +123,16 @@ The four-rung ladder is implemented inside `getCohortFirmsForCell` — it fires 
 
 The metric-to-column mapping for `cohort_companies`:
 
-| `metricId` | `cohort_companies` column |
-|---|---|
-| `net_margin` | `net_margin` |
-| `revenue_per_employee` | `revenue_per_employee` |
-| All other 6 metrics | No column — real path returns `null`; synth path used. |
+| `metricId` | `cohort_companies` column | Notes |
+|---|---|---|
+| `net_margin` | `net_margin` | Present in all ingested Excels. |
+| `revenue_per_employee` | `revenue_per_employee` | Present in all ingested Excels. |
+| `ebitda_margin` | `ebitda_margin` | Present only where source Excel carries P&L detail (NACE 31; NULL for NACE 49). |
+| `working_capital_cycle` | `working_capital_cycle` | Present only where source Excel carries BS detail (NACE 31). |
+| `roe` | `roe` | Added in migration 0012 (D-032). Computed at ingest from HV za účetní období / Vlastní kapitál × 100. |
+| All other 3 metrics | No column — real path returns `null`; synth path used. | `gross_margin`, `labor_cost_ratio`, `revenue_growth`. |
+
+Floor note: `working_capital_cycle` uses a strict floor of N ≥ 50 (`STRICT_FLOOR_METRIC_IDS`). All other metrics — including `roe` — use the global floor of N ≥ 30 (`GLOBAL_FLOOR`). The strict floor applies only to `working_capital_cycle` (heavy-tail distribution; see `cohort-compute.ts` `STRICT_FLOOR_METRIC_IDS`).
 
 ### 4.3 `src/lib/cohort.ts` — refactored `getBenchmarkSnapshot()`
 
@@ -178,8 +183,9 @@ All tests against `cohort-compute.ts` directly — no DB, no mocking needed.
 
 With the Supabase client mocked (vitest mock of `@supabase/supabase-js`):
 
-- `getCohortFirmsForCell` calls the correct column name for `net_margin` and `revenue_per_employee`.
+- `getCohortFirmsForCell` calls the correct column name for `net_margin`, `revenue_per_employee`, `ebitda_margin`, `working_capital_cycle`, and `roe`.
 - `getCohortFirmsForCell` for `gross_margin` returns `null` (no column on `cohort_companies`).
+- `getCohortFirmsForCell` for `roe` queries the `roe` column added in migration 0012 (D-032).
 - Memoisation: calling `getCohortFirmsForCell` twice with the same arguments within one request fires the DB mock only once.
 
 ### Integration tests (require Supabase local stack)
@@ -202,12 +208,13 @@ import { describe, it, expect } from "vitest";
 import { METRIC_IDS, SOURCE_VALUES } from "../../types/cohort-constants";
 
 describe("cohort_aggregates enum invariants", () => {
-  it("METRIC_IDS matches the frozen 8 per D-024", () => {
+  it("METRIC_IDS matches the frozen 8 per D-024, D-032", () => {
     expect(METRIC_IDS.sort()).toEqual([
       "ebitda_margin", "gross_margin", "labor_cost_ratio",
-      "net_margin", "pricing_power", "revenue_growth",
-      "revenue_per_employee", "working_capital_cycle",
+      "net_margin", "revenue_growth",
+      "revenue_per_employee", "roe", "working_capital_cycle",
     ]);
+    // pricing_power was removed in D-032 (2026-04-29); roe replaces it.
   });
   it("SOURCE_VALUES contains real and synthetic only", () => {
     expect(SOURCE_VALUES.sort()).toEqual(["real", "synthetic"]);
@@ -234,3 +241,4 @@ describe("cohort_aggregates enum invariants", () => {
 
 - 2026-04-27 — initial draft — engineer. Covers Track B: `cohort-compute.ts` pure function spec, `cohort-data.ts` DB helper signatures, `getBenchmarkSnapshot()` refactor plan, per-request memoisation, `USE_REAL_COHORT_DATA` feature flag, full test plan including privacy invariant and migration tests.
 - 2026-04-27 — B1–B4 implementation complete — engineer. All files written, tsc clean, 171 tests passing (33 new in cohort-compute.test.ts, 14 in 0007_cohort_data.test.ts). OQ-EN-B01 resolved: getBenchmarkSnapshotAsync() added as new async function; getBenchmarkSnapshot() kept sync for publish.ts compat — no callers broken. OQ-EN-B02 resolved: cz-city-region-map.json shipped with 150+ city entries (see §deviation notes). Track A compat overload added to computePercentile() so owner-metrics.ts dynamic-import compiles cleanly. xlsx added as production dependency (new dep — see note §escalations-deferred). Spec deviation: getBenchmarkSnapshot() remains sync and routes to fixture only; the real async path is getBenchmarkSnapshotAsync() — separation is cleaner than overloading the sync callers. Commits: dbd51d6 (B1), 21cecd5 (B2), 9fef536 (B3), d2056eb (B4).
+- 2026-04-29 — D-032 ROE swap — engineer. `pricing_power` removed; `roe` added to `METRIC_TO_COLUMN` (maps `roe → roe`, migration 0012). ROE uses `GLOBAL_FLOOR=30` (not strict-50; `STRICT_FLOOR_METRIC_IDS` remains `working_capital_cycle` only). §4.2 metric-to-column table expanded to reflect all 5 real-derivable columns. Migration test METRIC_IDS updated (`pricing_power` → `roe`). `getCohortFirmsForCell` mock coverage updated to include `roe`.

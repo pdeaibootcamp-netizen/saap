@@ -1,6 +1,6 @@
 # Synthetic Quintile Policy — v0.3
 
-*Owner: data-engineer · Slug: synthetic-quintile-policy · Last updated: 2026-04-27*
+*Owner: data-engineer · Slug: synthetic-quintile-policy · Last updated: 2026-04-29*
 
 The synth-fallback per [D-025](../project/decision-log.md). When real industry data does not cover a `(NACE division, metric)` cell, this policy supplies sector-plausible quintile boundaries so the dashboard tile can still render a percentile. The synth row is **explicitly tagged** in `cohort_aggregates` so it is never confused with real data, supersedable cleanly when real data lands, and inspectable by analysts.
 
@@ -36,8 +36,8 @@ CREATE TABLE IF NOT EXISTS cohort_aggregates (
                                       'gross_margin', 'ebitda_margin',
                                       'labor_cost_ratio', 'revenue_per_employee',
                                       'working_capital_cycle', 'net_margin',
-                                      'revenue_growth', 'pricing_power'
-                                    )),
+                                      'revenue_growth', 'roe'
+                                    )),  -- D-032: pricing_power → roe (migration 0013)
 
   -- Five distribution cut-points. Units match owner_metrics-schema.md §3.
   q1                   NUMERIC(14,4) NOT NULL,    -- 20th percentile
@@ -95,7 +95,7 @@ Before the per-NACE table, the per-metric envelope. These are Czech-SME-typical 
 | `working_capital_cycle` | days | -20 – 180 | Negative for cash-business retail; high for project businesses. |
 | `net_margin` | % | -3 – 18 | Compresses tighter than EBITDA after tax + finance cost. |
 | `revenue_growth` (YoY) | % | -15 – 25 | Czech SME 2024–2026 macro envelope; outliers wider. |
-| `pricing_power` (YoY Δ gross margin) | p. b. | -4 – 4 | Most sectors run within ±2 p. b.; ±4 catches genuine power shifts. |
+| `roe` | % | -100 – 200 | Czech-SME spread is wide once near-zero-equity edge cases are clipped (denominator guard `equity_czk > 1000` per [cohort-ingestion.md §4.4](cohort-ingestion.md)); typical solvent firms cluster 2–25 %. Envelope matches `METRIC_BOUNDS.roe` in `src/types/data-lanes.ts`. Added in [D-032](../project/decision-log.md). |
 
 Synth quintiles for any NACE must sit inside these envelopes unless DE writes an explicit per-sector justification.
 
@@ -103,9 +103,11 @@ Synth quintiles for any NACE must sit inside these envelopes unless DE writes an
 
 ## 5. Per-NACE synth quintile values
 
+> **v0.3 scope and ROE swap.** The four NACEs in active v0.3 scope are **10 (Pekárenství), 31 (Výroba nábytku), 46 (Velkoobchod s rudami & Výroba hliníku), 49 (Nákladní doprava)** per [D-031](../project/decision-log.md). Per [D-032](../project/decision-log.md) the 8th frozen metric is now `roe`, not `pricing_power`. Migration 0013 DELETEs all `pricing_power` rows from `cohort_aggregates` and the synth seed (`src/lib/seed-synth-quintiles.ts`) authors fresh `roe` rows for the four in-scope NACEs (NACE 10 + 46 are new entries entirely; NACE 31 + 49 retain their other synth metrics and add `roe`). For NACEs 25 / 47 / 62 / 41 the existing synth rows for the other six metrics remain in place; their `pricing_power` rows are removed and **no `roe` synth is authored** because they are out of v0.3 active scope. The numeric values in this section match `seed-synth-quintiles.ts` byte-for-byte; that script is the single source of truth.
+
 ### 5.1 NACE 49 — Road transport (Doprava silniční nákladní)
 
-The mandatory case. Real Excel data covers `revenue_per_employee` and `net_margin`; the synth values below cover the **other six metrics**. Table values are stored numerics — what `cohort_aggregates.q1`/`q2`/`median`/`q3`/`q4` carry.
+The mandatory case. Real MagnusWeb data covers `revenue_per_employee`, `net_margin`, and `roe` ([D-031](../project/decision-log.md), [D-032](../project/decision-log.md)); the synth values below cover the other five metrics, plus a `roe` synth row that acts as fallback when real-ROE coverage is below the floor. Table values are stored numerics — what `cohort_aggregates.q1`/`q2`/`median`/`q3`/`q4` carry.
 
 | Metric | q1 (P20) | q2 (P40) | median (P50) | q3 (P60) | q4 (P80) | Rationale |
 |---|---|---|---|---|---|---|
@@ -114,9 +116,9 @@ The mandatory case. Real Excel data covers `revenue_per_employee` and `net_margi
 | `labor_cost_ratio` | `22.0` | `27.0` | `30.0` | `33.0` | `38.0` | Driver wages dominate the cost stack. Median ~30 % matches Czech transport sector wage share. |
 | `working_capital_cycle` | `18` | `32` | `42` | `52` | `75` | DSO ~45–60 days from large logistics-buyer customers; DPO partly offsets. Median ~42 days. |
 | `revenue_growth` | `-4.0` | `0.0` | `2.5` | `5.0` | `10.0` | 2024–2026 sector mostly flat-to-low-single-digit; freight volumes recovered slowly post-2023. |
-| `pricing_power` | `-1.5` | `-0.5` | `0.0` | `0.5` | `1.5` | Tight price-cost dynamic; most firms hold margin within ±1 p. b. |
+| `roe` | `2` | `5` | `9` | `14` | `22` | Freight ROE — fleet-asset-heavy firms drag tail; tight middle. Fallback only — real ROE is derived per-firm from MagnusWeb (§6 in [cohort-ingestion.md](cohort-ingestion.md)) and supersedes this synth row when present. |
 
-**Internal consistency check.** A NACE-49 firm at the median across all six synth metrics has gross 18 %, EBITDA 7 %, labour 30 % — i.e. depreciation + fuel + sub-contracting eat ~11 percentage points between gross and EBITDA, which is the expected gap for a fleet-operating road carrier. The synth distribution is internally coherent before the runtime even joins it to real `net_margin` values.
+**Internal consistency check.** A NACE-49 firm at the median across the synth metrics has gross 18 %, EBITDA 7 %, labour 30 % — i.e. depreciation + fuel + sub-contracting eat ~11 percentage points between gross and EBITDA, which is the expected gap for a fleet-operating road carrier. ROE of ~9 % at the median is consistent with a freight firm running 7 % EBITDA against a moderately leveraged fleet balance sheet. The synth distribution is internally coherent before the runtime even joins it to real `net_margin` / `roe` values.
 
 ### 5.2 NACE 31 — Furniture manufacturing (Výroba nábytku)
 
@@ -131,7 +133,7 @@ Pre-seeded so the v0.2 demo carries forward consistently when re-pointed at v0.3
 | `working_capital_cycle` | `35` | `52` | `62` | `72` | `90` | Inventory-heavy; furniture finished goods + customer terms dominate. |
 | `net_margin` | `1.5` | `3.5` | `4.8` | `6.2` | `9.0` | Compresses ~4 p. b. from EBITDA after tax + finance cost. |
 | `revenue_growth` | `-5.0` | `0.5` | `3.0` | `5.5` | `10.0` | 2026 furniture demand subdued; positive but low growth typical. |
-| `pricing_power` | `-1.0` | `-0.3` | `0.2` | `0.7` | `1.5` | Modest pricing power; mostly contained ±1 p. b. |
+| `roe` | `3` | `7` | `11` | `16` | `25` | Furniture-mfg ROE — moderate variance; well-capitalised firms cluster mid. Fallback only — real ROE supersedes when MagnusWeb coverage is sufficient. |
 
 Verification: feed the v0.2 owner's `gross_margin = 23.4` against q1=15, q2=20, median=23, q3=26, q4=32 → interpolation puts owner just above median, around P52 — close to v0.2's hand-seeded P68 but not byte-equal. v0.2 hand-seed is fiction; the v0.3 synth is calibrated. The drift is acceptable and expected.
 
@@ -148,7 +150,8 @@ Demo-relevant — high firm count in Czechia, frequently surfaced in ČS analyse
 | `working_capital_cycle` | `30` | `48` | `58` | `70` | `92` | AR-heavy; B2B customer terms dominate. |
 | `net_margin` | `1.8` | `4.0` | `5.2` | `6.5` | `9.5` | |
 | `revenue_growth` | `-6.0` | `0.0` | `2.5` | `5.0` | `9.0` | Industrial demand cycle 2024–2026. |
-| `pricing_power` | `-1.2` | `-0.3` | `0.1` | `0.6` | `1.4` | |
+
+NACE 25 is **out of v0.3 active scope** ([D-031](../project/decision-log.md)) — the previous `pricing_power` synth row is removed by migration 0013 and **no `roe` synth row is authored** for this NACE at v0.3.
 
 ### 5.4 NACE 47 — Retail trade except motor vehicles (Maloobchod)
 
@@ -163,7 +166,8 @@ Demo-relevant — most-recognised sector for Czech SMEs.
 | `working_capital_cycle` | `-10` | `5` | `15` | `28` | `50` | Cash-business low; B2B-leaning retail higher. Negative band covers fast-turnover discounters. |
 | `net_margin` | `0.5` | `2.5` | `3.5` | `4.8` | `7.5` | Tight retail margin after tax. |
 | `revenue_growth` | `-4.0` | `1.0` | `3.5` | `6.0` | `12.0` | Czech consumer demand modest growth. |
-| `pricing_power` | `-1.5` | `-0.4` | `0.2` | `0.8` | `1.8` | Specialty retail has more pricing power than mass. |
+
+NACE 47 is **out of v0.3 active scope** — the previous `pricing_power` synth row is removed by migration 0013 and no `roe` synth row is authored for this NACE at v0.3.
 
 ### 5.5 NACE 62 — Computer programming, consultancy (IT services)
 
@@ -178,7 +182,8 @@ Demo-relevant — explicitly different metric profile (high gross margin, high r
 | `working_capital_cycle` | `25` | `40` | `52` | `65` | `90` | Project-billing AR is the dominant component. |
 | `net_margin` | `5.0` | `9.0` | `12.0` | `15.0` | `22.0` | Wide spread — strong firms keep most of EBITDA. |
 | `revenue_growth` | `-3.0` | `2.0` | `6.0` | `10.0` | `18.0` | IT-services growth typically faster than other Czech SMEs. |
-| `pricing_power` | `-1.0` | `0.0` | `0.5` | `1.2` | `2.5` | Stronger pricing power than industrial sectors. |
+
+NACE 62 is **out of v0.3 active scope** — the previous `pricing_power` synth row is removed by migration 0013 and no `roe` synth row is authored for this NACE at v0.3.
 
 ### 5.6 NACE 41 — Construction of buildings (Výstavba budov)
 
@@ -193,7 +198,24 @@ Demo-relevant — large NACE, frequently asked-about, distinctive working-capita
 | `working_capital_cycle` | `60` | `90` | `110` | `135` | `170` | Long project cycles; AR dominates working capital. |
 | `net_margin` | `0.5` | `2.0` | `3.0` | `4.2` | `7.0` | |
 | `revenue_growth` | `-12.0` | `-3.0` | `1.5` | `6.0` | `14.0` | High variance — project pipeline timing dominates. |
-| `pricing_power` | `-2.0` | `-0.5` | `0.0` | `0.7` | `2.0` | Cycle-dependent; tighter band in soft years. |
+
+NACE 41 is **out of v0.3 active scope** — the previous `pricing_power` synth row is removed by migration 0013 and no `roe` synth row is authored for this NACE at v0.3.
+
+### 5.7 NACE 10 — Bakery (Pekárenství)
+
+New v0.3 entry per [D-031](../project/decision-log.md). At v0.3 only the `roe` synth row is authored — the other six "synth" metrics for NACE 10 are not in scope here (real-data coverage from MagnusWeb supplies `net_margin`, `revenue_per_employee`, `roe`; the remaining five fall to synth in a future iteration when DE pairs with a ČS food-mfg analyst).
+
+| Metric | q1 | q2 | median | q3 | q4 | Rationale |
+|---|---|---|---|---|---|---|
+| `roe` | `2` | `5` | `8` | `12` | `20` | Bakery ROE distribution — calibrated to ČSÚ food-mfg structural data. |
+
+### 5.8 NACE 46 — Wholesale of metal & aluminium production (Velkoobchod s rudami & Výroba hliníku)
+
+New v0.3 entry per [D-031](../project/decision-log.md). The underlying firms span NACE 46.72 + NACE 24.42; treated as division 46 for the v0.3 PoC ([OQ-081](../project/open-questions.md)). At v0.3 only the `roe` synth row is authored.
+
+| Metric | q1 | q2 | median | q3 | q4 | Rationale |
+|---|---|---|---|---|---|---|
+| `roe` | `4` | `8` | `12` | `18` | `28` | Metal-wholesale ROE — capital-light distributors achieve higher ROE. |
 
 ---
 
@@ -244,3 +266,4 @@ When real industry data lands for a `(naceDivision, metricId)` cell:
 ## Changelog
 
 - 2026-04-27 — initial draft for v0.3 per D-025. Defines `cohort_aggregates(nace_division, metric_id, q1, q2, median, q3, q4, n_proxy, source, generated_at, generated_by, methodology_note)` with composite PK `(nace_division, metric_id, source)` allowing real and synth to coexist; methodology calibrated against MPO Panorama / ČSÚ / Bisnode public references; per-metric Czech-SME envelope; concrete synth quintile values authored for **NACE 49 (road transport, the inaugural case)** plus four further demo-relevant NACEs (31 furniture, 25 metal fabrication, 47 retail, 62 IT services, 41 construction); audit fields `generated_by` + `methodology_note`; replacement path keyed off the source-preference rule in [percentile-compute.md §6](percentile-compute.md). — data-engineer
+- 2026-04-29 — v0.3 D-031 (4-NACE scope) + D-032 (pricing_power → roe) update. §2 schema CHECK swaps `pricing_power` for `roe` (migration 0013). §4 envelope: dropped pricing_power row, added `roe` row with envelope -100..+200 % matching `METRIC_BOUNDS.roe`. §5 intro: documents the four-NACE active scope (10 / 31 / 46 / 49) and the synth-seed source-of-truth (`src/lib/seed-synth-quintiles.ts`). §5.1 (NACE 49) and §5.2 (NACE 31): dropped pricing_power synth rows, added roe synth rows (q1=2/3, q2=5/7, median=9/11, q3=14/16, q4=22/25). §5.3–§5.6 (NACE 25 / 47 / 62 / 41): dropped pricing_power synth rows; flagged out-of-scope at v0.3 with no roe authored. §5.7 (NACE 10 — Pekárenství) and §5.8 (NACE 46 — Velkoobchod s rudami & Výroba hliníku) added as new sections with roe synth rows only (q1=2/4, q2=5/8, median=8/12, q3=12/18, q4=20/28). All values match `seed-synth-quintiles.ts` byte-for-byte. — data-engineer

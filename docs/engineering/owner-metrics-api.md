@@ -1,6 +1,6 @@
 # Owner Metrics API — Engineering
 
-*Owner: engineer · Slug: owner-metrics-api · Last updated: 2026-04-27*
+*Owner: engineer · Slug: owner-metrics-api · Last updated: 2026-04-29*
 
 ## 1. Upstream links
 
@@ -8,7 +8,7 @@
 - Design: `docs/design/in-tile-prompts.md` (not yet drafted at spec time)
 - Data: [docs/data/owner-metrics-schema.md](../data/owner-metrics-schema.md)
 - Identity bypass carried forward: [docs/engineering/v0-2-identity-bypass.md](v0-2-identity-bypass.md)
-- Decisions: [D-010](../project/decision-log.md) (lane identifiers), [D-013](../project/decision-log.md) (Supabase + Vercel), [D-023](../project/decision-log.md) (IČO switcher), [D-024](../project/decision-log.md) (frozen 8 metrics), [D-025](../project/decision-log.md) (synth fallback)
+- Decisions: [D-010](../project/decision-log.md) (lane identifiers), [D-013](../project/decision-log.md) (Supabase + Vercel), [D-023](../project/decision-log.md) (IČO switcher), [D-024](../project/decision-log.md) (frozen 8 metrics), [D-025](../project/decision-log.md) (synth fallback), [D-032](../project/decision-log.md) (pricing_power → roe)
 
 ## 2. Architecture overview
 
@@ -78,8 +78,9 @@ Summary of what this API layer adds:
 
 | Contract point | Detail |
 |---|---|
-| `metric_id` domain check | Validated in API handler before DB write. Frozen 8: `gross_margin`, `ebitda_margin`, `labor_cost_ratio`, `revenue_per_employee`, `working_capital_cycle`, `net_margin`, `revenue_growth`, `pricing_power`. |
-| Plausibility bounds | Per-metric min/max/decimal-places from [in-tile-prompts.md §5](../product/in-tile-prompts.md). PM owns the values; API enforces them server-side. |
+| `metric_id` domain check | Validated in API handler before DB write. Frozen 8 (D-024, D-032): `gross_margin`, `ebitda_margin`, `labor_cost_ratio`, `revenue_per_employee`, `working_capital_cycle`, `net_margin`, `revenue_growth`, `roe`. (`pricing_power` was removed in D-032 — PATCH to that metric_id returns 404.) |
+| Plausibility bounds | Per-metric min/max/decimal-places from [in-tile-prompts.md §5](../product/in-tile-prompts.md) and `src/types/data-lanes.ts` `METRIC_BOUNDS`. PM owns the values; API enforces them server-side. ROE bounds: min -100, max 200, 1 decimal place. Czech error copy: "ROE by měla být mezi -100 a 200 %. Zkontrolujte prosím zadání." |
+| ROE display formatting | ROE displays as a percentage with 1 decimal place. Negatives use U+2212 minus sign (e.g. "−12,4 %"); positives have no "+" prefix (e.g. "12,4 %"). Same formatting group as `gross_margin`, `ebitda_margin`, and `net_margin`. |
 | Czech locale normalisation | PATCH body `raw_value` arrives as a number (client normalises comma→period before POSTing). Server additionally strips any residual thousands separators and validates NUMERIC(14,4) fits. |
 | `raw_value_display` | Formatted server-side on write per `owner-metrics-schema.md §3` display rules; stored in the row; returned verbatim in GET responses. |
 | `consent_event_id` | Resolved per request: latest `grant` event for `DEMO_OWNER_USER_ID`. The API **does not mint** a consent event if none exists — it returns 409 with a structured error. At v0.3 the demo grant is seeded at app boot by the seed script. |
@@ -145,7 +146,23 @@ curl -s -X POST http://localhost:3000/api/owner/demo/reset \
   -H "Cookie: sr_user_id=00000000-5eed-0000-0000-000000000001"
 ```
 
-## 6. MetricTile integration
+## 6. Demo-switch prepopulation (D-032)
+
+The demo-switch route (`src/app/api/owner/demo/switch/route.ts`) reads the following columns from `cohort_companies` on firm switch and seeds `owner_metrics` rows for the demo owner:
+
+| Column read | `owner_metrics.metric_id` | Notes |
+|---|---|---|
+| `revenue_per_employee` | `revenue_per_employee` | Present in all ingested Excels. |
+| `net_margin` | `net_margin` | Present in all ingested Excels. |
+| `ebitda_margin` | `ebitda_margin` | NULL for NACE 49 firms; tile stays in "ask" state. |
+| `working_capital_cycle` | `working_capital_cycle` | NULL for NACE 49 firms; tile stays in "ask" state. |
+| `roe` | `roe` | Added in migration 0012 (D-032). NULL where the source Excel lacked equity detail. |
+
+Columns without a `cohort_companies` equivalent (`gross_margin`, `labor_cost_ratio`, `revenue_growth`) are always seeded as `null` (`demo_seed` source), leaving those tiles in "ask" state. The switch DELETEs all existing `owner_metrics` rows for the demo owner before inserting the 8-row set, so any user-entered values are cleared on firm change (accepted for single-tester demo, per OQ-EN-A02).
+
+The `roe` column is selected with the same graceful-degradation retry as `ebitda_margin` and `working_capital_cycle`: if the DB schema predates migration 0012 (column not present → `42703`), the route retries with a smaller `SELECT` and treats `roe` as null.
+
+## 7. MetricTile integration
 
 The `MetricTile` component (`src/components/dashboard/MetricTile.tsx`) gains a fourth `confidenceState` value: `"ask"` (new at v0.3). The `MetricTileProps` interface must add:
 
@@ -160,12 +177,12 @@ When `confidenceState === "ask"`, the tile renders the prompt + inline numeric i
 
 The existing valid / below-floor / loading states are unchanged.
 
-## 7. Test plan
+## 8. Test plan
 
 ### Unit tests — `src/app/api/owner/__tests__/`
 
 - `plausibility.test.ts` — for each of the 8 metric IDs: boundary value at min, max, min-1, max+1, non-numeric string, empty string. Asserts 200 vs 422 and correct Czech error copy. No DB — mock the upsert.
-- `metric-id-validation.test.ts` — unknown `metric_id` in PATCH returns 404. `roce` (removed per D-024) returns 404.
+- `metric-id-validation.test.ts` — unknown `metric_id` in PATCH returns 404. `roce` (removed per D-024) returns 404. `pricing_power` (removed per D-032) returns 404. `roe` (added per D-032) returns 200 when value is in bounds.
 - `demo-mode-guard.test.ts` — with `DEMO_MODE` unset or `'false'`, POST `/api/owner/demo/switch` and `/reset` return 404.
 - `ico-format.test.ts` — `switch` rejects 7-digit, 9-digit, non-numeric IČO with 422.
 
@@ -181,14 +198,14 @@ The existing valid / below-floor / loading states are unchanged.
 - Assert `owner_metrics.data_lane = 'user_contributed'` on every row written by PATCH — via a post-write SELECT.
 - Assert PATCH handler never writes to `briefs`, `sector_profiles`, or any table not in `user_contributed` lane — enforced by RLS (no grants to other tables) and verified via a RLS-rejection test: attempt a cross-table write using `user_contributed_lane_role` and confirm PostgreSQL raises a permission error.
 
-## 8. Deployment + rollback
+## 9. Deployment + rollback
 
 - **Deploy**: new Supabase migration `0006_owner_metrics.sql` (Track A migration). Adds `owner_metrics` table, RLS policies, and indexes from `owner-metrics-schema.md §2 + §4`. Migration test pattern from `src/supabase/migrations/migrations.test.ts` applied: a `0006_owner_metrics.test.ts` enumerates the new `source` CHECK values and `metric_id` CHECK values as TS constants and asserts they match.
 - **Env vars**: none new for Track A. `DEMO_MODE=true` required for switch/reset endpoints to be active.
 - **Rollback**: drop `owner_metrics` table (no FK references from other tables at v0.3). Dashboard falls back to the v0.2 in-memory fixture path if the `USE_REAL_OWNER_METRICS` feature flag (default true) is set to false.
 - **Feature flag**: `USE_REAL_OWNER_METRICS` (env var, default `true`). When false, `getOwnerMetrics()` in `src/lib/owner-metrics.ts` returns the v0.2 in-memory fixture. This flag exists only during transition; it is removed once Track A is confirmed working in the demo environment.
 
-## 9. Open questions
+## 10. Open questions
 
 | ID | Question | Assumed-for-now | Escalate to |
 |---|---|---|---|
@@ -198,3 +215,4 @@ The existing valid / below-floor / loading states are unchanged.
 ## Changelog
 
 - 2026-04-27 — initial draft — engineer. Covers Track A API surface: GET snapshot, PATCH single metric, demo switch/reset, MetricTile "ask" state extension, migration and rollback plan.
+- 2026-04-29 — D-032 ROE swap — engineer. §4 frozen-8 list: `pricing_power` → `roe`. Plausibility bounds updated: ROE -100..+200, 1 decimal; Czech error "ROE by měla být mezi -100 a 200 %. Zkontrolujte prosím zadání." (from `src/types/data-lanes.ts` `METRIC_BOUNDS`). ROE display formatting noted (percent, 1 decimal, U+2212 minus for negatives, no "+" prefix). New §6 documents demo-switch prepopulation from `cohort_companies.roe` (migration 0012). Test plan updated: `pricing_power` → 404; `roe` → 200. Sections renumbered accordingly.

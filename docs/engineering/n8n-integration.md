@@ -1,14 +1,16 @@
 # n8n Integration — Engineering
 
-*Owner: engineer · Slug: n8n-integration · Last updated: 2026-04-27*
+*Owner: engineer · Slug: n8n-integration · Last updated: 2026-04-29*
 
 ## 1. Upstream links
 
 - Product: `docs/product/analysis-automation.md` (PM Track C — blocked by filename guard at spec time; reference by intended filename)
 - Design: not applicable — no new owner-facing UI; the analyst upload UI and existing edit page are unchanged.
 - Data: `docs/data/analysis-pipeline-data.md` (DE Track C — blocked by filename guard at spec time; reference by intended filename). Owns the in-process payload shape and lane-separation posture for the n8n job.
-- Decisions: [D-013](../project/decision-log.md) (Supabase Postgres + Storage), [D-020](../project/decision-log.md) (`paired_observation_index` additive field), [D-022](../project/decision-log.md) (v0.3 branch scope)
-- Build plan: [docs/project/build-plan.md §11.3 Phase 3.1 Track C](../project/build-plan.md)
+- Decisions: [D-013](../project/decision-log.md) (Supabase Postgres + Storage), [D-020](../project/decision-log.md) (`paired_observation_index` additive field), [D-022](../project/decision-log.md) (v0.3 branch scope), [D-028](../project/decision-log.md) (multi-NACE workflow architecture), [D-029](../project/decision-log.md) (Model B callback shape), [D-030](../project/decision-log.md) (per-NACE relevance gate), [D-031](../project/decision-log.md) (4-NACE PoC scope)
+- Build plan: [docs/project/build-plan.md §11.6–§11.7 Track C](../project/build-plan.md)
+- Live workflow: [`n8n-workflows/analyze-publication.json`](../../n8n-workflows/analyze-publication.json) — importable snapshot of the running n8n workflow (snapshot 2026-04-29)
+- Workflow README: [`n8n-workflows/README.md`](../../n8n-workflows/README.md) — topology diagram, setup steps, troubleshooting table
 
 ## 2. Architecture overview
 
@@ -18,26 +20,40 @@ Analyst browser
   └─ POST /api/admin/publications/upload
        │  multipart: file (PDF/DOCX), naceDivision, jobId (client-generated UUID)
        │  store file → Supabase Storage bucket 'publications/'
-       │  insert analysis_jobs row (status='pending')
+       │  insert analysis_jobs row (status='pending')   [optional — see §6]
        │  generate signed URL (1h TTL) for n8n to fetch
        │  POST → n8n webhook (HMAC-signed)
        └─ 202 { jobId }
 
-n8n Cloud (workspace kappa3)
-  │  fetches publicationFileUrl
-  │  generates: opener_markdown, observations[], closing_actions[]
+n8n Cloud (workspace kappa3) — workflow "Strategy Radar — Analyze Publication"
+  │  Webhook responds 200 immediately (responseMode=Immediately)
+  │  Workflow runs asynchronously:
+  │    Fetch File → Extract Text (truncate to 8000 chars)
+  │    → Layperson Opener (shared AI summary)
+  │    → 4 parallel NACE branches (NACE 10, 31, 46, 49):
+  │        Insights N (langchain.agent + Claude Haiku 4.5)
+  │        → IF relevant? (relevance gate, D-030)
+  │        → Actions N (if relevant) → Tag N
+  │    → Merge (4 inputs, mode=Append)
+  │    → Compose Bundle (builds naceSectors[], perNaceContent map)
+  │    → Sign Callback (HMAC-SHA256 using N8N_CALLBACK_SECRET)
+  │    → Send Callback (HTTP POST, body raw JSON, contentType=raw)
   │
   └─ POST /api/admin/briefs/from-n8n
        │  verify HMAC-SHA256 signature (N8N_CALLBACK_SECRET)
-       │  validate draft shape (Zod schema)
-       │  insert briefs row (publish_state='draft', content = n8n draft)
-       │  update analysis_jobs (status='done', completed_at)
+       │  validate payload shape (manual validation — no zod dependency yet)
+       │  detect v0.3 multi-NACE shape vs v0.1/v0.2 legacy single-NACE shape
+       │  insert briefs row (publish_state='draft', nace_sectors=[...])
+       │  write opener_markdown → BriefContent.opening_summary (NOT publication block)
+       │  update analysis_jobs (status='done', completed_at) — if job row exists
        └─ 200 { briefId }
 
-Analyst browser (polling)
+Analyst browser (polling — still supported but less critical post-v0.3)
   └─ GET /api/admin/publications/jobs/[id]
        └─ 200 { jobId, status, briefId? }
 ```
+
+Key design change from original v0.2 spec: the webhook now responds `200` immediately (n8n `Respond = Immediately`), so `analysis_jobs` is no longer polled as the primary completion signal. The brief lands directly via the callback. See §6 for `analysis_jobs` status.
 
 Privacy boundary: the `ownerMetricSnapshot` field in the webhook payload carries aggregated per-owner metrics (percentile + quartile, not raw values) for context-enrichment in n8n. This is an in-process payload — it is not persisted in `analysis_jobs` in any user-identifying form. Full lane-separation posture is in `docs/data/analysis-pipeline-data.md`.
 
@@ -116,11 +132,55 @@ Content-Type: application/json
 X-Signature-256: sha256=<HMAC-SHA256 of raw body using N8N_CALLBACK_SECRET>
 ```
 
-**Body — success case**:
+### 5a. v0.3 multi-NACE shape (D-029, Model B) — primary
+
+This is the shape emitted by `analyze-publication.json`. The handler detects it when `naceSectors` and `perNaceContent` are both present.
+
 ```typescript
 interface N8nCallbackPayload {
+  jobId: string;                        // UUID or opaque label (e.g. "mcp-...")
+  status: "done" | "failed";
+  error?: string;                       // populated when status = "failed"
+
+  // ── v0.3 multi-NACE fields ──
+  naceSectors: string[];                // 2-digit NACE divisions that passed the relevance gate
+  publicationMonth: string;             // Czech month-year, e.g. "Duben 2026"
+  publicationMonthIso: string;          // ISO month, e.g. "2026-04"
+  title: string;                        // Brief title (no NACE in title for multi-NACE briefs)
+  publication: {
+    heading: string;
+    opener_markdown: string;            // AI layperson opener (written to opening_summary — see handler note)
+    full_text_markdown: string;
+    source: string;
+  };
+  perNaceContent: {
+    [nace: string]: {                   // key = 2-digit NACE division
+      observations: N8nObservation[];   // 3 per NACE
+      closing_actions: N8nClosingAction[];
+    };
+  };
+  diagnostics?: {
+    total: number;                      // total NACE branches run
+    relevant_count: number;
+    dropped: { nace: string; reason: string }[];
+  };
+}
+```
+
+**Handler note — opener routing**: the route writes `publication.opener_markdown` into `BriefContent.opening_summary` (top-level field), NOT into a `publication` block. This is because the admin editor reads `content.opening_summary` via its "Text úvodního přehledu" textarea; writing to `publication.opener_markdown` made the AI opener invisible to the editor. The `publication` block is therefore not populated for v0.3 n8n-generated briefs.
+
+**Compose Bundle invariant**: the Compose Bundle n8n node throws if `passedGates > 0 && naceSectors.length < passedGates`, catching any silent merge drops before the callback is sent.
+
+### 5b. v0.1/v0.2 single-NACE shape — legacy (backward compat)
+
+The handler also accepts the original single-NACE shape for backward compatibility with manual test workflows and the original `analysis-automation.json` workflow (frozen). The handler detects this path when `naceSectors` and `perNaceContent` are absent and falls back to `draft.*`.
+
+```typescript
+// Legacy shape — still accepted but not emitted by the live workflow
+interface N8nCallbackPayloadLegacy {
   jobId: string;
   status: "done" | "failed";
+  naceDivision?: string;                // single NACE; falls back to job row if absent
   draft?: {
     title: string;
     publication_month: string;          // ISO 8601 YYYY-MM
@@ -130,38 +190,31 @@ interface N8nCallbackPayload {
       full_text_markdown: string;
       source: string;
     };
-    observations: {
-      text: string;
-      metric_anchor?: string;           // optional metric_id this observation references
-    }[];
-    closing_actions: {
-      action_text: string;
-      time_horizon: "Okamžitě" | "Do 3 měsíců" | "Do 12 měsíců" | "Více než rok";
-      paired_observation_index?: number; // index into observations[] array; nullable
-    }[];
+    observations: N8nObservation[];
+    closing_actions: N8nClosingAction[];
   };
-  error?: string;                       // populated when status = "failed"
+  error?: string;
 }
 ```
 
-The `draft` shape matches the existing `BriefContent` type in `src/lib/briefs.ts` — specifically the `publication`, `observations`, and `closing_actions` fields that the analyst edit page already loads. No new fields are added to the edit page.
+### 5c. Handler behaviour
 
-**Handler behaviour at `POST /api/admin/briefs/from-n8n`**:
-
-1. Verify HMAC-SHA256 signature using `N8N_CALLBACK_SECRET` → 401 on mismatch.
-2. Parse body and validate against the Zod schema for `N8nCallbackPayload` → 422 on invalid shape.
-3. Lookup `analysis_jobs WHERE id = jobId` → 404 if not found.
-4. If `status === "done"` and `draft` is present:
-   a. Insert a new `briefs` row with `publish_state = 'draft'`, content populated from `draft`.
-   b. Update `analysis_jobs SET status = 'done', completed_at = now(), brief_id = <new brief id>`.
-   c. Return `200 { briefId }`.
-5. If `status === "failed"`:
-   a. Update `analysis_jobs SET status = 'failed', error = payload.error, completed_at = now()`.
+1. Verify HMAC-SHA256 signature using `N8N_CALLBACK_SECRET` → 401 on mismatch. On mismatch the route logs a temporary diagnostic (secret prefix + body sample) to assist debugging — this is intentional and kept in the codebase per explicit decision.
+2. Parse body as JSON → 422 on parse failure.
+3. Validate payload shape (manual validation; zod not yet added — see OQ-C-01) → 422 on invalid shape.
+4. Lookup `analysis_jobs WHERE id = jobId` — optional: non-UUID jobIds (`mcp-...`, `manual-...`) skip the lookup and proceed jobless. If the UUID row is not found, proceed without linking to a job.
+5. If `status === "done"`:
+   a. Build `BriefContent` from the multi-NACE or legacy shape.
+   b. Insert `briefs` row with `publish_state = 'draft'`, `nace_sectors = naceSectors[]`.
+   c. Update `analysis_jobs SET status = 'done', completed_at = now(), brief_id = <new id>` — only if a job row was found.
+   d. Return `200 { briefId }`.
+6. If `status === "failed"`:
+   a. Update `analysis_jobs SET status = 'failed', error = payload.error, completed_at = now()` — only if job row found.
    b. Return `200 {}` (n8n does not retry on 200).
 
-**Example curl (n8n calling back)**:
+**Example curl (v0.3 shape)**:
 ```bash
-BODY='{"jobId":"uuid","status":"done","draft":{...}}'
+BODY='{"jobId":"uuid","status":"done","naceSectors":["31","49"],"publicationMonth":"Duben 2026","publicationMonthIso":"2026-04","title":"Sektorová analýza","publication":{"heading":"...","opener_markdown":"...","full_text_markdown":"...","source":"..."},"perNaceContent":{"31":{...},"49":{...}}}'
 SIG=$(echo -n "$BODY" | openssl dgst -sha256 -hmac "$N8N_CALLBACK_SECRET" | awk '{print $2}')
 curl -s -X POST https://app/api/admin/briefs/from-n8n \
   -H "Content-Type: application/json" \
@@ -169,7 +222,9 @@ curl -s -X POST https://app/api/admin/briefs/from-n8n \
   -d "$BODY"
 ```
 
-## 6. Job-state table — `analysis_jobs`
+## 6. Job-state table — `analysis_jobs` (reduced role in v0.3)
+
+In v0.3 the webhook responds `200` immediately (`Respond = Immediately` on the n8n webhook trigger), so `analysis_jobs` is no longer the primary completion signal. The brief lands via the callback regardless of whether a job row exists. The job row is now optional: the upload route still creates one so the analyst UI can poll job status, but the callback handler works without it (non-UUID jobIds produced by MCP-style triggers skip the job lookup entirely and proceed jobless). The `nace_sectors` column on `briefs` (populated from `naceSectors[]` in the callback) is the canonical record of which NACEs a brief covers.
 
 ```sql
 CREATE TABLE IF NOT EXISTS analysis_jobs (
@@ -209,20 +264,67 @@ Response 200:
 Response 404: { error: "Job not found." }
 ```
 
-The analyst-facing upload UI polls this endpoint every 10 s after submission. Timeout: if `status` is still `pending` after 3 minutes (18 polls), the UI shows a timeout error message. The job row remains in `pending`; the analyst can re-submit. The 3-minute default matches the PM timeout specification in `docs/product/analysis-automation.md`.
+The analyst-facing upload UI polls this endpoint every 10 s after submission. Timeout: if `status` is still `pending` after 3 minutes (18 polls), the UI shows a timeout error message. The job row remains in `pending`; the analyst can re-submit. Note: in v0.3 the webhook responds `200` immediately, so the brief typically arrives before the first poll cycle. The polling path is retained as a fallback completion signal and for analyst UX continuity.
 
-## 8. Failure modes
+## 8. Prompt design
 
-| Failure | Detection | Analyst-visible error |
-|---|---|---|
-| n8n timeout (> 3 min, still pending) | Polling endpoint returns `pending` after timeout threshold | Upload UI shows: "Zpracování trvá příliš dlouho. Zkuste prosím nahrát soubor znovu." |
-| Malformed callback JSON | `JSON.parse` throws → 422 logged | `analysis_jobs.error` updated; polling returns `failed` with the error string. |
-| Signature mismatch on callback | HMAC verify fails → 401 returned to n8n; n8n may retry | If n8n retries and signature is still wrong, the job stays `pending` until timeout. Logged to server stderr. |
-| File not found (n8n cannot fetch URL) | n8n returns `status: 'failed', error: 'file_not_found'` in callback | Polling returns `failed`; analyst re-uploads. |
-| Draft shape invalid (Zod parse fails) | Zod throws → 422; job updated to `failed` | Polling returns `failed` with the Zod error path. |
-| Supabase Storage upload fails | `storageClient.upload()` throws → 500 returned to analyst at upload time | Upload UI shows: "Soubor se nepodařilo nahrát. Zkuste to prosím znovu." |
+Each NACE branch runs two `langchain.agent` calls (Anthropic Claude Haiku 4.5):
 
-## 9. Env vars — additions to `src/.env.example`
+1. **Insights agent** — returns `{ relevant: bool, insights?: [...3], reason?: string }`. The relevance gate (D-030) fires here: if `relevant === false`, the Actions agent is skipped entirely and no content for that NACE is included in the bundle. Relevance prompts include a `PŘÍSNĚ` tightening clause to prevent tangential-mention bleed (e.g., a bakery publication that mentions freight in passing should not pass the NACE 49 freight gate).
+
+2. **Actions agent** — runs only when `relevant === true`. Returns structured closing actions with time-horizon tags.
+
+All 8 output parsers (2 per NACE branch) have `autoFix: true` enabled. System prompts include `STRICT_JSON_RULES` forbidding markdown fences around JSON output.
+
+The publication body is truncated to 8000 chars by the Extract Text node before the fan-out. Reason: 4 parallel branches × a full publication (~30k chars / ~8k tokens) would exceed Tier 1 Anthropic's 50 000 input-tokens-per-minute rate limit. Truncation keeps total throughput under ~30k tokens/minute.
+
+The Layperson Opener is a single shared AI call (before the fan-out) that produces a plain-language summary of the publication — written into `opening_summary` on the brief.
+
+Prompt library tracking: OQ-077 (open-questions.md) tracks the ongoing curation of per-NACE relevance prompts and tightening clauses.
+
+## 9. Troubleshooting — known failure modes from v0.3 build
+
+These issues were hit and resolved during the multi-NACE implementation. Documented here for future maintainers.
+
+| # | Symptom | Root cause | Fix |
+|---|---|---|---|
+| 1 | Brief tagged with fewer NACEs than expected; some NACE branches silently dropped | n8n Merge node default is 2 inputs. With 4 Tag nodes feeding a 2-input Merge, only 2 branches' outputs were merged; the others were silently dropped. | Configure Merge node with exactly 4 input slots, mode = Append. Wire each Tag-N node to a distinct slot. |
+| 2 | Callback body arrives as `{"<json string>":""}` instead of a JSON object | n8n HTTP Request node `specifyBody: "string"` mode double-encodes the body — it wraps the JSON string as a key in a new JSON object. | Set Send Callback HTTP node: Body Content Type = **Raw**, rawContentType = `application/json`. Body expression = `{{ $json.callbackBody }}`. |
+| 3 | 429 from Anthropic mid-run; some branches fail with rate-limit errors | Tier 1 Anthropic rate limit: 50 000 input tokens/minute. 4 branches × full publication body (~8k tokens each) = ~32k tokens/minute base, plus system prompts pushed it over. | Extract Text node truncates `publication_body` to 8000 chars before fan-out, keeping total well under the limit. |
+| 4 | `"Output parser format error"` or `"Model output doesn't fit required format"` | Claude Haiku returned JSON wrapped in markdown fences (` ```json … ``` `). The n8n output parser expected bare JSON and rejected the output. | Set `autoFix: true` on all 8 output parsers. Add `STRICT_JSON_RULES` to all system prompts: "Return ONLY raw JSON. Do not wrap in markdown fences. No ` ```json ``` ` blocks." |
+| 5 | Webhook returns 500 with "circular structure to JSON" in n8n logs | Webhook `responseMode = lastNode` caused n8n to try serialising the Send Callback HTTP response object (Node.js `IncomingMessage`) as JSON at the end of the chain. `IncomingMessage` contains circular references. | Set webhook **Respond** dropdown to **Immediately**. n8n responds 200 to the orchestrator before the chain runs; the chain completes and fires the callback asynchronously. |
+| 6 | 401 "Signature mismatch" on the from-n8n route even when the secret looks correct | Caused by failure mode #2 above: the double-encoded body was being signed in n8n but a different body (the unwrapped version) was being received by the route. The two bodies had different HMAC values. The route logs a diagnostic (secret prefix + body sample) on mismatch — useful for diagnosing this class of issue. | Fix #2 first (raw body mode). The diagnostic logging is intentional and kept in the codebase. |
+
+The `n8n-workflows/README.md` has a companion troubleshooting table focused on operational symptoms (NACE gate tuning, credential setup, etc.). The table above focuses on build-time root causes.
+
+## 10. Workflow shape — source of truth
+
+The live workflow is `n8n-workflows/analyze-publication.json` (snapshot 2026-04-29). It is importable into any n8n workspace to reproduce the running pipeline exactly.
+
+Topology summary:
+
+```
+Webhook (Respond = Immediately)
+  → Verify HMAC
+  → Fetch File (signed Supabase Storage URL)
+  → Extract Text (truncate to 8000 chars)
+  → Layperson Opener (shared Claude Haiku call)
+  → fan-out to 4 parallel NACE branches:
+      [NACE 10 Bakery | NACE 31 Furniture | NACE 46 Wholesale Metal | NACE 49 Freight]
+      each branch: Insights N → IF relevant? → Actions N → Tag N
+  → Merge (4 inputs, mode=Append)
+  → Compose Bundle (builds naceSectors[], perNaceContent map; tag-drop invariant check)
+  → Sign Callback (HMAC-SHA256 using hardcoded N8N_CALLBACK_SECRET)
+  → Send Callback (POST to callbackUrl, body raw JSON, contentType=application/json)
+```
+
+4-NACE PoC scope (D-031): NACE 10 (Pekárenství), NACE 31 (Výroba nábytku), NACE 46 (Velkoobchod s rudami / Výroba hliníku), NACE 49 (Nákladní doprava).
+
+Model: Anthropic Claude Haiku 4.5, shared credential across all 8 langchain.agent nodes.
+
+Setup and credential wiring: see `n8n-workflows/README.md §Setup`.
+
+## 11. Env vars — additions to `src/.env.example`
 
 ```bash
 # n8n Cloud webhook URL (workspace kappa3). POST target for new analysis jobs.
@@ -237,17 +339,19 @@ N8N_WEBHOOK_SECRET=
 N8N_CALLBACK_SECRET=
 ```
 
-## 10. Test plan
+## 12. Test plan
 
 ### Unit tests — `src/app/api/admin/__tests__/`
 
 - `hmac-verify.test.ts`: correct signature → passes; tampered body → fails; wrong secret → fails; missing header → fails.
 - `from-n8n.test.ts` (mocked DB):
-  - Valid `done` payload → inserts `briefs` row in `draft` state, returns 200 + `briefId`.
+  - Valid v0.3 multi-NACE `done` payload (`naceSectors`, `perNaceContent`) → inserts `briefs` row in `draft` state with `nace_sectors` populated, opener in `opening_summary`, returns 200 + `briefId`.
+  - Valid v0.1/v0.2 legacy single-NACE `done` payload (`draft.*`) → inserts `briefs` row in `draft` state, returns 200 + `briefId`.
   - Valid `failed` payload → updates job to `failed`, returns 200.
   - Invalid `status` value → 422.
-  - Unknown `jobId` → 404.
-  - `draft` missing when `status = "done"` → 422.
+  - Non-UUID jobId (e.g. `"mcp-test-001"`) with no job row → proceeds jobless, still inserts brief, returns 200.
+  - `naceSectors` empty array → 422.
+  - `perNaceContent` missing a NACE listed in `naceSectors` → 422.
   - `paired_observation_index` out of range (>= observations.length) → 422.
 - `upload.test.ts` (mocked Storage + DB): confirm `analysis_jobs` row is created with `status = 'pending'` and `data_lane = 'brief'`.
 - `jobs-polling.test.ts` (mocked DB): pending → 200 pending; done with briefId → 200 done + briefId; unknown id → 404.
@@ -259,7 +363,7 @@ N8N_CALLBACK_SECRET=
 
 ### Privacy invariant tests
 
-- Assert `owner_metric_snapshot` in `analysis_jobs` never contains `raw_value` field — Zod schema CHECK + a post-insert SELECT that inspects the JSONB column.
+- Assert `owner_metric_snapshot` in `analysis_jobs` never contains `raw_value` field — manual validation in the upload route + a post-insert SELECT that inspects the JSONB column.
 - Assert `brief_lane_role` cannot SELECT from `owner_metrics` table — attempt SELECT via `brief_lane_role` credentials, confirm PostgreSQL raises permission error.
 - Assert `data_lane = 'brief'` CHECK constraint on `analysis_jobs` — attempt INSERT with `data_lane = 'user_contributed'`, confirm constraint violation.
 
@@ -282,21 +386,23 @@ describe("analysis_jobs enum invariants", () => {
 });
 ```
 
-## 11. Deployment + rollback
+## 13. Deployment + rollback
 
 - **Deploy**: Supabase migration `0008_analysis_jobs.sql` — creates `analysis_jobs` table. Env vars `N8N_WEBHOOK_URL`, `N8N_WEBHOOK_SECRET`, `N8N_CALLBACK_SECRET` must be set in Vercel before the endpoint is live.
 - **Rollback**: if the callback endpoint misbehaves, set `N8N_WEBHOOK_URL` to an empty string — the upload handler will return 503 "Analýza není momentálně k dispozici." immediately after Storage upload, without creating a job row. `analysis_jobs` table and brief rows written by completed jobs are retained.
 - **Feature flag**: none separate — the feature is gated by whether `N8N_WEBHOOK_URL` is set. An empty or absent `N8N_WEBHOOK_URL` disables the upload trigger path.
 
-## 12. Open questions
+## 14. Open questions
 
 | ID | Question | Assumed-for-now | Escalate to |
 |---|---|---|---|
 | OQ-EN-C01 | The `docs/data/analysis-pipeline-data.md` DE spec (Track C, blocked at time of this writing) owns the exact `ownerMetricSnapshot` payload shape and the lane-separation posture for what fields flow to n8n. This spec assumes `{ metric_id, percentile, quartile_label }[]` with no `raw_value`. If DE's spec adds or changes fields, this ADR-N8N-03 and the Zod schema must be updated. | Assumed correct per DE lane-separation principle; update when `analysis-pipeline-data.md` lands. | Orchestrator to cross-check when DE spec is unblocked. |
-| OQ-EN-C02 | n8n workflow ID and trigger URL in workspace kappa3 are not yet confirmed. This spec uses `N8N_WEBHOOK_URL` as an env var so the workflow can be wired up at deploy time without code changes. | Env-var approach decouples code from workflow identity. | User / orchestrator when n8n workspace is ready. |
+| OQ-EN-C02 | n8n workflow ID and trigger URL in workspace kappa3 are not yet confirmed. This spec uses `N8N_WEBHOOK_URL` as an env var so the workflow can be wired up at deploy time without code changes. | Resolved in v0.3: workflow is live at kappa3.app.n8n.cloud as "Strategy Radar — Analyze Publication". `N8N_WEBHOOK_URL` env var is set. No code changes needed. | Closed. |
+| OQ-077 | Per-NACE relevance prompt library: as more NACE codes are added beyond the 4-NACE PoC scope (D-031), each new NACE branch needs a calibrated `PŘÍSNĚ` relevance clause tuned to avoid tangential-mention bleed. Prompt library curation and testing methodology not yet formalised. | Each prompt is manually validated for the 4 PoC NACEs. | Orchestrator to prioritise formalisation before NACE count scales beyond 8. |
 | OQ-EN-C03 | Signed URL expiry after 1h: if n8n takes longer than 1h to fetch the file (queue backlog on the n8n Cloud side), the download will fail. Default n8n timeout is shorter than 1h; the 3-min analyst-facing timeout also enforces a shorter bound. Accepted as a known edge case. | Accepted at v0.3. Increase TTL to 4h or generate a fresh URL on retry if this becomes load-bearing. | Orchestrator if n8n queue delays are observed. |
 
 ## Changelog
 
 - 2026-04-27 — initial draft — engineer. Covers Track C: webhook + callback contracts, `analysis_jobs` table, HMAC-SHA256 posture, Supabase Storage signed URL, polling endpoint, 6 failure modes, 3 new env vars, full test plan including privacy invariant and migration tests.
 - 2026-04-27 — Phase 3.2.C implementation complete — engineer. All six steps shipped: migration 0008, n8n workflow JSON, upload UI, upload API, job-status API, callback endpoint, admin wiring. Status enum aligned with data doc ('queued','running','done','failed'). zod not added (new dependency — see OQ-C-01); manual validation used in callback handler.
+- 2026-04-29 — v0.3 multi-NACE rewrite — engineer. Reflects D-028..D-031 live state. §1: links to live workflow files and D-028..D-031 decisions. §2: architecture updated for multi-NACE topology and immediate-respond webhook. §5: rewritten to Model B (D-029) callback shape with naceSectors/perNaceContent; legacy single-NACE shape documented for backward compat; opener routing to opening_summary (not publication block) explained. §6: `analysis_jobs` reduced-role note added. New §8: prompt design (relevance gate, STRICT_JSON_RULES, truncation). New §9: 6 build-time failure modes with root cause + fix. New §10: workflow shape summary referencing n8n-workflows/. Sections renumbered. Test plan updated for v0.3 payload shapes. OQ-EN-C02 resolved; OQ-077 added.

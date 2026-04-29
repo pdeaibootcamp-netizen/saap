@@ -1,8 +1,8 @@
 # Cohort Ingestion — v0.3
 
-*Owner: data-engineer · Slug: cohort-ingestion · Last updated: 2026-04-27*
+*Owner: data-engineer · Slug: cohort-ingestion · Last updated: 2026-04-29*
 
-The pipeline that ingests an industry-data Excel into Supabase Postgres so the v0.3 percentile-compute path has real per-firm rows to compute against. NACE 49.41 (`Silniční nákladní doprava`, road haulage) is the inaugural ingest; the schema and ingestion script support multiple NACEs side-by-side without code changes.
+The pipeline that ingests an industry-data Excel into Supabase Postgres so the v0.3 percentile-compute path has real per-firm rows to compute against. The live v0.3 source is a single multi-NACE workbook (`Data MagnusWeb.xlsx`, see §1 / [D-031](../project/decision-log.md)) covering four divisions in scope: 10 (Pekárenství), 31 (Výroba nábytku), 46 (Velkoobchod s rudami & Výroba hliníku), and 49 (Nákladní doprava). The schema and ingestion script support multiple NACEs side-by-side without code changes.
 
 This is the data shape and ingestion contract. Percentile computation against this data lives in [percentile-compute.md](percentile-compute.md). The synth-fallback for cells the Excel does not cover lives in [synthetic-quintile-policy.md](synthetic-quintile-policy.md).
 
@@ -20,34 +20,39 @@ This is the data shape and ingestion contract. Percentile computation against th
   - [D-023](../project/decision-log.md) — IČO-driven demo owner switching
   - [D-024](../project/decision-log.md) — frozen 8 metrics (Net margin replaces ROCE)
   - [D-025](../project/decision-log.md) — synthetic per-NACE quintile fallback
-- Source data: `PRD/industry-data/nace-4941-silnicni-nakladni-doprava-2026-02.xlsx` (4 525 rows, single-snapshot 2024 mostly; held local-only per `.gitignore` because the repo is public).
+  - [D-031](../project/decision-log.md) — single multi-NACE source workbook (`Data MagnusWeb.xlsx`)
+  - [D-032](../project/decision-log.md) — pricing_power → ROE (8th metric swap)
+- Source data: `PRD/industry-data/Data MagnusWeb.xlsx` — single sheet, 1 443 rows, 4 NACE divisions in scope (10, 31, 46, 49); held local-only per `.gitignore` because the repo is public. Replaces the prior NACE-specific files (`nace-4941-silnicni-nakladni-doprava-2026-02.xlsx` etc.), which are archived in `PRD/industry-data/_archive/`.
 - Companions: [percentile-compute.md](percentile-compute.md), [synthetic-quintile-policy.md](synthetic-quintile-policy.md), [owner-metrics-schema.md](owner-metrics-schema.md), [cohort-math.md](cohort-math.md), [privacy-architecture.md](privacy-architecture.md).
 
 ---
 
-## 2. Source-data shape (NACE 49.41 audit)
+## 2. Source-data shape (`Data MagnusWeb.xlsx` — multi-NACE)
 
-The Excel has 4 525 firm rows × 10 columns. Header row:
+The Excel has 1 443 firm rows on a single sheet, spanning four NACE divisions in scope (10, 31, 46, 49). Header row:
 
 | Excel column | Type | Notes |
 |---|---|---|
 | `IČO` | string (8-digit) | Czech business registry ID. Primary key candidate. |
 | `Název subjektu` | string | Trade name. **Do not persist** — not needed for cohort math, and persisting names invites confusion about whether this row is `brief` or `user_contributed` lane. |
-| `Obrat` | numeric (CZK) | Annual revenue. Present for ~74 % of rows (engineer audit, build-plan §12 entry 2026-04-27). |
+| `Obrat` | numeric (CZK) | Annual revenue. Drives `net_margin` numerator and `revenue_per_employee`. |
 | `Kategorie obratu` | string bucket | Bucketed revenue band (e.g. `25–50 mil. Kč`). Use as fallback when `Obrat` is null. |
-| `Hospodářský výsledek` | numeric (CZK) | Profit/loss after tax. Present for ~61 %. Drives `net_margin`. |
+| `Hospodářský výsledek za účetní období` | numeric (CZK) | Profit/loss after tax. Drives `net_margin` and (with `Vlastní kapitál`) `roe`. |
+| `Vlastní kapitál` | numeric (CZK) | Book equity. Drives `roe` denominator (§4.4). |
 | `Rok` | integer | Reporting year. Almost always 2024; a small tail of 2023 / 2022. |
 | `Počet zaměstnanců` | numeric | Headcount. Often null (~ 30 % populated as exact integer). |
 | `Kategorie počtu zaměstnanců CZ` | string bucket | E.g. `1-5`, `6-9`, `10-19`, `20-24`, `25-49`, `50-99`. Always populated when headcount is null. |
-| `Obec sídla` | string | City of registered office. Drives `cz_region` via lookup map (§4.2). |
 | `Hlavní NACE` | string (4-digit) | E.g. `49.41`. Drives `nace_class` and (via §4.1) `nace_division`. |
 
-The single-snapshot, no-balance-sheet shape means this Excel directly supports **only two of the eight frozen metrics** without further data:
+> **No city / Obec sídla / Město column.** The MagnusWeb workbook does **not** carry a city-of-registered-office column. Region coverage on ingest is therefore 0 %: `cohort_companies.cz_region` is NULL on every row ingested from this source. The §4.2 city → region lookup is **obsolete** for this file. Downstream consequence: percentile-compute rung 0 (NACE × size × region) and rung 2 (NACE × region) are structurally unreachable; rung 1 (NACE × size) is the lowest reached. Tracked as [OQ-080](../project/open-questions.md).
 
-- `revenue_per_employee` — `Obrat / Počet zaměstnanců` where both present (~ 22 % of rows).
-- `net_margin` — `Hospodářský výsledek / Obrat × 100` where both present (~ 61 %).
+The MagnusWeb workbook supplies enough P&L + equity to derive **three of the eight frozen metrics** directly:
 
-The other six metrics fall to the synthetic fallback in [synthetic-quintile-policy.md](synthetic-quintile-policy.md) per [D-025](../project/decision-log.md).
+- `revenue_per_employee` — `Obrat / Počet zaměstnanců` where both present.
+- `net_margin` — `Hospodářský výsledek za účetní období / Obrat × 100` where both present.
+- `roe` — `Hospodářský výsledek za účetní období / Vlastní kapitál × 100` (§4.4) — observed coverage 71–95 % per NACE in the live ingest. Added per [D-032](../project/decision-log.md).
+
+The other five metrics fall to the synthetic fallback in [synthetic-quintile-policy.md](synthetic-quintile-policy.md) per [D-025](../project/decision-log.md).
 
 ---
 
@@ -77,6 +82,7 @@ CREATE TABLE IF NOT EXISTS cohort_companies (
   -- Raw firm-level inputs (CZK / count). All nullable — coverage gaps are common.
   revenue_czk               NUMERIC(18,2),
   profit_czk                NUMERIC(18,2),
+  equity_czk                NUMERIC(18,2),                  -- "Vlastní kapitál"; ROE denominator (§4.4)
   employee_count            INTEGER,
 
   -- Derived per-firm metric values. Computed at ingest, NULL when inputs missing
@@ -85,6 +91,7 @@ CREATE TABLE IF NOT EXISTS cohort_companies (
   -- (matching owner_metrics units in owner-metrics-schema.md §3).
   net_margin                NUMERIC(8,4),
   revenue_per_employee      NUMERIC(12,2),
+  roe                       NUMERIC(8,4),                   -- migration 0012; partial index below
 
   -- Provenance.
   source_file               TEXT         NOT NULL,
@@ -102,6 +109,11 @@ CREATE INDEX IF NOT EXISTS idx_cohort_companies_division_year
 -- Lookup index for the IČO switcher (in-tile-prompts.md §8).
 CREATE INDEX IF NOT EXISTS idx_cohort_companies_ico
   ON cohort_companies (ico);
+
+-- Partial index for ROE percentile lookup (migration 0012, D-032).
+CREATE INDEX IF NOT EXISTS idx_cohort_companies_roe
+  ON cohort_companies (nace_division, size_band, roe)
+  WHERE roe IS NOT NULL;
 ```
 
 **Why `(ico, year)` as PK.** A firm may appear in multiple yearly snapshots in future ingests; the demo IČO switcher resolves to the latest year present for that IČO. Re-ingesting the same `(ico, year)` is idempotent (§6.2).
@@ -125,7 +137,23 @@ nace_division = first 2 chars of nace_class
 
 E.g. `49.41` → `nace_class = '4941'`, `nace_division = '49'`. If the Excel value is malformed (fewer than 2 digits after stripping), the row is skipped and logged.
 
+**`NACE_LABEL_TO_CLASS` (label → 4-digit class).** When the workbook carries a Czech label rather than a numeric NACE, `src/scripts/ingest-industry-data.ts` resolves it via a fixed lookup. v0.3 entries covering the four scoped divisions:
+
+| Label (lowercased) | `nace_class` | `nace_division` |
+|---|---|---|
+| `silniční nákladní doprava` | `4941` | `49` |
+| `výroba nábytku` | `3100` | `31` |
+| `pekárenství` | `1071` | `10` |
+| `nákladní doprava` | `4941` | `49` |
+| `velkoobchod s rudami & výroba hliníku` | `4672` | `46` |
+
+The bottom three rows are the v0.3 additions for the MagnusWeb workbook ([D-031](../project/decision-log.md), [D-032](../project/decision-log.md)).
+
+The 46 row is a **mixed group** — the underlying firms span NACE 46.72 (wholesale of metal ores) and NACE 24.42 (aluminium production). Per [D-031](../project/decision-log.md) we treat the whole group as division 46 (acceptable noise for the v0.3 PoC); cleanup is tracked as [OQ-081](../project/open-questions.md).
+
 ### 4.2 City → `cz_region`
+
+> **Obsolete for the live v0.3 source.** The MagnusWeb workbook ([D-031](../project/decision-log.md)) has no city / Obec sídla / Město column, so this lookup never runs against it: every ingested row has `cohort_companies.cz_region = NULL`. The lookup remains in the codebase for future workbooks that do carry a city column. See [OQ-080](../project/open-questions.md). The text below is preserved for that future case.
 
 A JSON lookup file at `src/lib/cz-city-region-map.json` maps lowercased Czech city names (with diacritics preserved) to the 8 NUTS-2 region values from [cohort-math.md](cohort-math.md) §2.3. Orchestrator agreed to help fill this; engineer ships the file with at minimum the 50 largest Czech cities pre-populated. Any city not in the map produces `cz_region = NULL` (the row still ingests; it simply does not enter region-scoped cohort cells until the map is extended).
 
@@ -177,11 +205,22 @@ revenue_per_employee = (revenue_czk / employee_count) / 1000 -- in thousand CZK 
                        if both not null
                        and employee_count > 0
                        and result in [100, 100000]           -- plausibility
+
+roe                  = (profit_czk / equity_czk) * 100       -- D-032; profit_czk =
+                       -- "Hospodářský výsledek za účetní období",
+                       -- equity_czk = "Vlastní kapitál"
+                       if both not null
+                       and equity_czk > 1000                 -- avoid astronomic %
+                                                             --  on near-zero equity
+                       and result in [-100, 200]             -- plausibility envelope
+                                                             --  (1 decimal place stored)
+                       -- Floor: GLOBAL_FLOOR = 30 (normal-distribution metric;
+                       -- not on the strict-50 list — see percentile-compute.md §3.2).
 ```
 
-Out-of-envelope values are stored as NULL on the derived column, **not** dropped from the row — the underlying `revenue_czk` / `employee_count` may still feed other future metrics. The plausibility bounds match PM's owner-side bounds ([owner-metrics-schema.md §3](owner-metrics-schema.md)) for symmetry: industry data and owner-supplied data live in the same envelope.
+Out-of-envelope values are stored as NULL on the derived column, **not** dropped from the row — the underlying `revenue_czk` / `equity_czk` / `employee_count` may still feed other future metrics. The plausibility bounds match PM's owner-side bounds ([owner-metrics-schema.md §3](owner-metrics-schema.md)) for symmetry: industry data and owner-supplied data live in the same envelope.
 
-The other six frozen metrics (`gross_margin`, `ebitda_margin`, `labor_cost_ratio`, `working_capital_cycle`, `revenue_growth`, `pricing_power`) are **not derivable from this Excel** and are not added as columns on `cohort_companies` at v0.3 — they live exclusively in the `cohort_aggregates` synth table per [synthetic-quintile-policy.md](synthetic-quintile-policy.md). When richer Excel data lands, the script ALTERs `cohort_companies` to add the missing columns; the schema is intentionally extensible.
+The other five frozen metrics (`gross_margin`, `ebitda_margin`, `labor_cost_ratio`, `working_capital_cycle`, `revenue_growth`) are **not derivable from this Excel** and are not added as columns on `cohort_companies` at v0.3 — they live exclusively in the `cohort_aggregates` synth table per [synthetic-quintile-policy.md](synthetic-quintile-policy.md). When richer Excel data lands, the script ALTERs `cohort_companies` to add the missing columns; the schema is intentionally extensible.
 
 ---
 
@@ -192,13 +231,12 @@ The other six frozen metrics (`gross_margin`, `ebitda_margin`, `labor_cost_ratio
 ### 5.1 Invocation
 
 ```
-npm run ingest-cohort -- \
-  --file PRD/industry-data/nace-4941-silnicni-nakladni-doprava-2026-02.xlsx \
-  --year 2024 \
-  --nace-division 49
+npm run ingest:industry -- \
+  --file PRD/industry-data/Data\ MagnusWeb.xlsx \
+  --year 2024
 ```
 
-`--year` overrides any per-row `Rok` value when present (defends against minor inconsistencies in the source file). `--nace-division` is a sanity check — the script aborts if the file's `Hlavní NACE` rows do not all share the declared division.
+The MagnusWeb workbook is multi-NACE; `--nace-division` is no longer a sanity-check switch (the script resolves division per row from `Hlavní NACE` and the §4.1 label map). `--year` overrides any per-row `Rok` value when present (defends against minor inconsistencies in the source file). For backwards compatibility the script still accepts `--nace-division` against single-NACE archived files.
 
 ### 5.2 Idempotency
 
@@ -208,7 +246,7 @@ Per-`(ico, year)` upsert via `ON CONFLICT (ico, year) DO UPDATE`. Re-running the
 
 - Malformed `IČO` (non-8-digit): skip, log to `ingest.errors.log`.
 - Missing both `Počet zaměstnanců` and `Kategorie počtu zaměstnanců CZ`: skip, log.
-- City unmapped: row still ingests with `cz_region = NULL`; logged to `cz-city-region-map.unmapped.log` (§4.2).
+- City unmapped: row still ingests with `cz_region = NULL`; logged to `cz-city-region-map.unmapped.log` (§4.2). Inactive against MagnusWeb because the workbook has no city column ([OQ-080](../project/open-questions.md)).
 - Plausibility-envelope violation on a derived metric: derived column stored NULL, raw inputs preserved.
 - Anything else: abort the whole ingest, surface error, no partial commit (transactional).
 
@@ -217,13 +255,14 @@ Per-`(ico, year)` upsert via `ON CONFLICT (ico, year) DO UPDATE`. Re-running the
 End-of-run summary (stdout):
 
 ```
-Ingested 4 412 rows out of 4 525 source rows.
-Skipped: 113 (47 malformed IČO, 66 missing both employee fields).
-Coverage:
-  net_margin           computed for 2 691 rows (61 %)
-  revenue_per_employee computed for 1 002 rows (22 %)
-Region coverage: 4 207 rows mapped (95 %), 205 unmapped (logged).
-Size-band distribution: S1 = 3 178, S2 = 819, S3 = 415.
+Ingested ~1 400 rows out of 1 443 source rows (Data MagnusWeb.xlsx).
+Skipped: small tail (malformed IČO, missing both employee fields).
+Coverage (live v0.3, per NACE):
+  net_margin           computed for ~60 % of rows
+  revenue_per_employee computed for ~20–30 % of rows
+  roe                  computed for 71–95 % of rows (per-NACE, see D-032)
+Region coverage: 0 rows mapped — MagnusWeb has no city column (OQ-080).
+Size-band distribution: dominated by S1 (consistent with Czech SME shape).
 ```
 
 The percentages tell PM/orchestrator at a glance whether a NACE is "ready" for real-data percentile compute or stays on synth fallback.
@@ -232,7 +271,7 @@ The percentages tell PM/orchestrator at a glance whether a NACE is "ready" for r
 
 ## 6. Coverage gap handling — which metrics fall to synth
 
-Per [D-025](../project/decision-log.md), every (NACE division, metric) cell that lacks real-data coverage is filled from `cohort_aggregates` with `source = 'synthetic'`. For NACE 49 from the current Excel:
+Per [D-025](../project/decision-log.md), every (NACE division, metric) cell that lacks real-data coverage is filled from `cohort_aggregates` with `source = 'synthetic'`. For the four NACEs in scope (10 / 31 / 46 / 49) from the MagnusWeb workbook:
 
 | Metric | Coverage path at v0.3 | Source |
 |---|---|---|
@@ -243,7 +282,7 @@ Per [D-025](../project/decision-log.md), every (NACE division, metric) cell that
 | `working_capital_cycle` | Synth — no AR / AP / inventory. | `cohort_aggregates`, `source = 'synthetic'` |
 | `net_margin` | **Real** — derived per-firm from `profit_czk / revenue_czk`. | `cohort_companies` |
 | `revenue_growth` | Synth — single-snapshot, no prior-year revenue. | `cohort_aggregates`, `source = 'synthetic'` |
-| `pricing_power` | Synth — needs prior-year gross margin (which is itself synth here). | `cohort_aggregates`, `source = 'synthetic'` |
+| `roe` | **Real** — derived per-firm from `profit_czk / equity_czk` ([D-032](../project/decision-log.md)). Live coverage 71–95 % per NACE. | `cohort_companies` |
 
 The runtime percentile compute treats both sources uniformly ([percentile-compute.md](percentile-compute.md) §6); the source is logged for audit and surfaced in any analyst debug view but never in owner-facing copy.
 
@@ -262,3 +301,4 @@ The runtime percentile compute treats both sources uniformly ([percentile-comput
 ## Changelog
 
 - 2026-04-27 — initial draft for v0.3. Defines `cohort_companies(ico, year, nace_class, nace_division, cz_region, size_band, revenue_czk, profit_czk, employee_count, net_margin, revenue_per_employee, source_file, ingested_at)` with `(ico, year)` PK for per-snapshot upsert; NACE 4-digit → 2-digit derivation; city → NUTS-2 lookup via `src/lib/cz-city-region-map.json`; size-band translation collapsing 1-24 into S1 per orchestrator brief; per-firm `net_margin` and `revenue_per_employee` derivation with plausibility envelopes matching owner-side bounds; idempotent `(ico, year)` upsert; explicit coverage table flagging six metrics as falling to D-025 synth. — data-engineer
+- 2026-04-29 — v0.3 D-031 + D-032 update. §1 source: now `Data MagnusWeb.xlsx`, 1 443 rows, 4 NACE divisions in scope (10, 31, 46, 49); prior NACE-specific files archived under `PRD/industry-data/_archive/`. §2 column table: dropped `Obec sídla` (the new workbook has no city column → `cz_region` NULL on every row, [OQ-080](../project/open-questions.md)); added `Vlastní kapitál` for the ROE denominator. §3 schema: added `equity_czk` and `roe NUMERIC(8,4)` columns plus partial index `(nace_division, size_band, roe) WHERE roe IS NOT NULL` (migration 0012). §4.1: added the `NACE_LABEL_TO_CLASS` table including the three new MagnusWeb entries; flagged the NACE 46 mixed-group caveat ([OQ-081](../project/open-questions.md)). §4.2 marked obsolete for MagnusWeb. §4.4: added the `roe = (profit_czk / equity_czk) * 100` derivation with the equity > 1000 CZK guard, [-100, 200] envelope, and GLOBAL_FLOOR=30. §6 coverage table: dropped `pricing_power` row, added `roe` row. — data-engineer

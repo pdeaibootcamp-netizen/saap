@@ -1,6 +1,6 @@
 # Percentile Compute — v0.3
 
-*Owner: data-engineer · Slug: percentile-compute · Last updated: 2026-04-27*
+*Owner: data-engineer · Slug: percentile-compute · Last updated: 2026-04-29*
 
 The pure-function spec for `computePercentile()` — the v0.3 replacement for the v0.2 hand-seeded `getBenchmarkSnapshot()` fixture in `src/lib/cohort.ts`. Same return shape (so the dashboard and brief tile components are unchanged), real computation underneath.
 
@@ -29,7 +29,7 @@ export interface PercentileInput {
   metricId:
     | "gross_margin" | "ebitda_margin" | "labor_cost_ratio"
     | "revenue_per_employee" | "working_capital_cycle"
-    | "net_margin" | "revenue_growth" | "pricing_power";
+    | "net_margin" | "revenue_growth" | "roe";
   ownerValue: number;          // already-validated, in same unit as cohort_companies (§3 of owner-metrics-schema.md)
   naceDivision: string;        // 2-digit, e.g. "49"
   sizeBand: "S1" | "S2" | "S3";
@@ -63,6 +63,8 @@ The function is **deterministic given the DB state** — running it twice in the
 
 When `cohort_companies` has rows for `(naceDivision, …)` with the requested `metricId` populated, the function takes the real-data path. It is the standard percentile-rank with mid-rank tie handling.
 
+> **Live v0.3 caveat — region is structurally unreachable.** With the MagnusWeb data source ([D-031](../project/decision-log.md), [cohort-ingestion.md](cohort-ingestion.md) §2 / §4.2), the `cohort_companies.cz_region` column is NULL on every row — the source file has no city / Obec sídla column. Rung 0 (NACE × size × region) and rung 2 (NACE × region) are therefore unreachable in practice; the lowest reached rung is rung 1 (NACE × size). See [OQ-080](../project/open-questions.md). The algorithm and floor logic below are unchanged — they simply never select rung 0 / 2 against the current cohort table.
+
 ### 3.1 Cohort selection (rung 0)
 
 ```sql
@@ -74,14 +76,14 @@ WHERE nace_division = $1
   AND <metric_column> IS NOT NULL;
 ```
 
-`<metric_column>` is the column on `cohort_companies` matching `metricId` ([cohort-ingestion.md §3](cohort-ingestion.md)). At v0.3 this is `net_margin` or `revenue_per_employee`; the other six metrics never reach this branch (they fall to §6 synth).
+`<metric_column>` is the column on `cohort_companies` matching `metricId` ([cohort-ingestion.md §3](cohort-ingestion.md)). At v0.3 this is `net_margin`, `revenue_per_employee`, or `roe` (added in [D-032](../project/decision-log.md)); the other five metrics never reach this branch (they fall to §6 synth).
 
 ### 3.2 Floor check
 
 Per [cohort-math.md](cohort-math.md) §3.1 + §3.2:
 
-- **Global floor:** `n >= 30`.
-- **Stricter per-metric floor:** `n >= 50` for `working_capital_cycle` and `pricing_power`.
+- **Global floor:** `n >= 30`. `roe` (the 8th metric per [D-032](../project/decision-log.md)) is a normal-distribution metric and uses this global floor.
+- **Stricter per-metric floor:** `n >= 50` for `working_capital_cycle` only. (Pre-D-032 this list also included `pricing_power`; that metric is removed from the frozen 8.)
 
 These rules are reused verbatim from `cohort-math.md`; this file does not redefine them.
 
@@ -151,7 +153,7 @@ Reused **verbatim** from [cohort-math.md](cohort-math.md) §4.1. The function ap
 
 | Rung | Cohort scope | Floor check | `footnote` (canonical Czech) |
 |---|---|---|---|
-| 0 | `(naceDivision, sizeBand, region)` | global N≥30; metric-strict N≥50 for working_capital_cycle / pricing_power | `null` |
+| 0 | `(naceDivision, sizeBand, region)` | global N≥30; metric-strict N≥50 for working_capital_cycle | `null` |
 | 1 — drop region | `(naceDivision, sizeBand)` | same floors | `"Srovnání s českými firmami vaší velikosti v oboru — bez regionálního rozlišení."` |
 | 2 — drop size | `(naceDivision, region)` | same floors | `"Srovnání s firmami ve vašem regionu a oboru — napříč velikostmi."` |
 | 3 — drop both | `(naceDivision)` | same floors | `"Srovnání s českými firmami ve vašem oboru."` |
@@ -298,3 +300,4 @@ The function is a candidate for `analyst_aggregate_role` SECURITY DEFINER wrappi
 ## Changelog
 
 - 2026-04-27 — initial draft for v0.3. Specifies `computePercentile()` pure-function contract: input/output types, real-data path with Hyndman & Fan type 4 mid-rank percentile and 1st/99th winsorization, floor enforcement reusing cohort-math.md §3.1–§3.3 verbatim, four-rung degradation ladder with canonical Czech footnotes, synth-fallback path via piecewise-linear interpolation across stored quintile boundaries with `n_proxy = 200` uniformly, deterministic-on-DB-state guarantee, and three open questions logged. — data-engineer
+- 2026-04-29 — v0.3 D-032 swap + MagnusWeb caveat. §2 metricId union: removed `pricing_power`, added `roe`. §3.2 floor table simplified — strict N≥50 list narrowed to `working_capital_cycle` only (pricing_power dropped); `roe` uses GLOBAL_FLOOR=30 as a normal-distribution metric. §3 prelude flags that with the MagnusWeb data source `cohort_companies.cz_region` is NULL on every row, so rungs 0 and 2 are structurally unreachable; lowest reached rung is rung 1. References [D-031](../project/decision-log.md), [D-032](../project/decision-log.md), [OQ-080](../project/open-questions.md). — data-engineer
