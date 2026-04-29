@@ -386,6 +386,148 @@ export default async function DashboardPage({
           margin: 0;
           line-height: 1.5;
         }
+
+        /* ── Pulz oboru / Ranní restart / Živé setkání (hardcoded demo) ── */
+        .db-section-block {
+          padding-top: 24px;
+        }
+        .db-section-heading-date {
+          font-size: 14px;
+          font-weight: 400;
+          color: #666;
+          margin-left: 8px;
+        }
+        .db-restart-card {
+          background: #ffffff;
+          border: 1px solid #e4eaf0;
+          border-radius: 12px;
+          padding: 20px 24px;
+          position: relative;
+        }
+        .db-restart-card-time {
+          position: absolute;
+          top: 16px;
+          right: 20px;
+          font-size: 11px;
+          color: #888;
+          font-weight: 500;
+        }
+        .db-restart-card-text {
+          font-size: 15px;
+          color: #1a1a1a;
+          line-height: 1.65;
+          margin: 0;
+          padding-right: 80px;
+        }
+        .db-event-card {
+          display: flex;
+          gap: 24px;
+          background: #fafafa;
+          border: 1px solid #e4eaf0;
+          border-radius: 12px;
+          padding: 24px;
+          align-items: flex-start;
+          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+        }
+        .db-event-speaker {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 10px;
+          min-width: 110px;
+          text-align: center;
+          flex-shrink: 0;
+        }
+        .db-event-avatar {
+          width: 72px;
+          height: 72px;
+          border-radius: 50%;
+          background: #1F4FB6;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #ffffff;
+          font-size: 22px;
+          font-weight: 700;
+          letter-spacing: -0.02em;
+        }
+        .db-event-speaker-name {
+          font-size: 13px;
+          font-weight: 600;
+          color: #1a1a1a;
+          line-height: 1.3;
+        }
+        .db-event-speaker-role {
+          font-size: 12px;
+          color: #666;
+          line-height: 1.4;
+        }
+        .db-event-body { flex: 1; }
+        .db-event-title {
+          font-size: 18px;
+          font-weight: 700;
+          color: #1a1a1a;
+          margin: 0 0 8px;
+          letter-spacing: -0.01em;
+        }
+        .db-event-teaser {
+          font-size: 14px;
+          color: #333;
+          line-height: 1.55;
+          margin: 0 0 16px;
+        }
+        .db-event-meta {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-wrap: wrap;
+          margin-bottom: 18px;
+        }
+        .db-event-date {
+          font-size: 13px;
+          font-weight: 600;
+          color: #1a1a1a;
+          background: #f0f4ff;
+          border: 1px solid #c7d7f5;
+          border-radius: 6px;
+          padding: 4px 10px;
+        }
+        .db-event-pill {
+          font-size: 11px;
+          font-weight: 600;
+          border-radius: 999px;
+          padding: 3px 10px;
+          background: #E8F0FF;
+          color: #2256C9;
+        }
+        .db-event-cta {
+          display: inline-block;
+          background: #1F4FB6;
+          color: #ffffff;
+          font-size: 14px;
+          font-weight: 600;
+          padding: 10px 20px;
+          border-radius: 8px;
+          text-decoration: none;
+          cursor: pointer;
+          border: none;
+          font-family: inherit;
+        }
+        .db-event-cta:hover { opacity: 0.88; }
+        .db-event-note {
+          margin-top: 12px;
+          font-size: 13px;
+          color: #666;
+        }
+        .db-pulz-empty {
+          border: 1px dashed #d0d6dc;
+          border-radius: 12px;
+          padding: 32px 16px;
+          color: #888;
+          font-size: 13px;
+          text-align: center;
+          background: #fafafa;
+        }
       `;
 
   return (
@@ -430,7 +572,73 @@ export default async function DashboardPage({
 
             <hr className="db-divider" aria-hidden="true" />
 
-            {/* Section 2 — Briefs list */}
+            {/* Section 2 — Pulz oboru (placeholder, intentionally empty) */}
+            <section className="db-section-block" aria-labelledby="pulz-section-heading">
+              <h2 id="pulz-section-heading" className="db-section-heading">
+                Pulz oboru
+              </h2>
+              <div className="db-pulz-empty">Sekce Pulz oboru — obsah bude doplněn.</div>
+            </section>
+
+            <hr className="db-divider" aria-hidden="true" />
+
+            {/* Section 3 — Ranní restart (hardcoded demo content) */}
+            <section className="db-section-block" aria-labelledby="restart-section-heading">
+              <h2 id="restart-section-heading" className="db-section-heading">
+                Ranní restart
+                <span className="db-section-heading-date">29. dubna 2026</span>
+              </h2>
+              <div className="db-restart-card">
+                <span className="db-restart-card-time">čte se za 45 s</span>
+                <p className="db-restart-card-text">
+                  Sazby ČNB nejspíš zůstanou beze změny, ale člen bankovní rady Jakub Seidler
+                  naznačil, že čím déle potrvá konflikt v Perském zálivu, tím vyšší je
+                  pravděpodobnost jejich zvýšení — firmy by měly počítat s tím, že financování
+                  zůstane dražší déle, než se čekalo. Klíčové riziko pro podnikatele: historická
+                  zkušenost ukazuje, že firmy v inflačním prostředí sklouzávají k navyšování
+                  marží nad rámec skutečných nákladů — regulátoři i odběratelé to sledují.
+                </p>
+              </div>
+            </section>
+
+            <hr className="db-divider" aria-hidden="true" />
+
+            {/* Section 4 — Živé setkání s odborníky (hardcoded demo content) */}
+            <section className="db-section-block" aria-labelledby="event-section-heading">
+              <h2 id="event-section-heading" className="db-section-heading">
+                Živé setkání s odborníky
+              </h2>
+              <div className="db-event-card">
+                <div className="db-event-speaker">
+                  <div className="db-event-avatar">RN</div>
+                  <div className="db-event-speaker-name">Mgr. Radek Novák, MBA</div>
+                  <div className="db-event-speaker-role">Seniorní analytik · Česká spořitelna</div>
+                </div>
+                <div className="db-event-body">
+                  <div className="db-event-title">Stavebnictví 2026: kde jsou marže a kde jsou rizika</div>
+                  <p className="db-event-teaser">
+                    Radek se věnuje sektorové analýze přes deset let a dříve pracoval na
+                    ministerstvu průmyslu a obchodu. Na živém setkání projde klíčové trendy
+                    v oboru, ukáže čísla, která nikde jinde neuvidíte, a zodpoví vaše dotazy
+                    přímo.
+                  </p>
+                  <div className="db-event-meta">
+                    <span className="db-event-date">18. června 2026 · 10:00–11:30</span>
+                    <span className="db-event-pill">Stavebnictví</span>
+                    <span className="db-event-pill">Úrokové prostředí</span>
+                  </div>
+                  <button type="button" className="db-event-cta">Rezervovat místo →</button>
+                </div>
+              </div>
+              <p className="db-event-note">
+                Průběžně pořádáme oborové webináře a setkání s analytiky ČS a externími
+                experty, přihlásit se může každý klient Strategy Radaru.
+              </p>
+            </section>
+
+            <hr className="db-divider" aria-hidden="true" />
+
+            {/* Section 5 — Briefs list */}
             <section className="db-brief-section" aria-labelledby="brief-section-heading">
               <h2 id="brief-section-heading" className="db-section-heading" style={{ marginTop: "24px" }}>
                 Analýzy
