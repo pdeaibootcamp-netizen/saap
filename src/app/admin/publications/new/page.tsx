@@ -48,6 +48,7 @@ export default function PublicationUploadPage() {
   const router = useRouter();
 
   const [file, setFile] = useState<File | null>(null);
+  const [primaryNace, setPrimaryNace] = useState<string>("");
 
   const [status, setStatus] = useState<UploadStatus>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -160,6 +161,10 @@ export default function PublicationUploadPage() {
       setErrorMessage("Vyberte prosím soubor ke zpracování.");
       return;
     }
+    if (!primaryNace) {
+      setErrorMessage("Vyberte prosím primární obor publikace.");
+      return;
+    }
     const fileErr = validateFile(file);
     if (fileErr) {
       setErrorMessage(fileErr);
@@ -173,6 +178,7 @@ export default function PublicationUploadPage() {
 
     const formData = new FormData();
     formData.append("file", file);
+    formData.append("primary_nace", primaryNace);
 
     // n8n's webhook responseMode='lastNode' means the POST blocks until the
     // WHOLE pipeline finishes (~30-60s with 4 NACE branches). When the upload
@@ -432,6 +438,47 @@ export default function PublicationUploadPage() {
               )}
             </div>
 
+            {/* Primary NACE picker — analyst tags the topic of the publication */}
+            <div style={{ marginBottom: "20px" }}>
+              <label
+                htmlFor="primary-nace"
+                style={{
+                  display: "block",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  marginBottom: "6px",
+                }}
+              >
+                Primární obor publikace
+              </label>
+              <select
+                id="primary-nace"
+                value={primaryNace}
+                onChange={(e) => setPrimaryNace(e.target.value)}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  padding: "8px 10px",
+                  fontSize: "14px",
+                  border: "1px solid #d0d0d0",
+                  borderRadius: "4px",
+                  backgroundColor: "#fff",
+                  fontFamily: "inherit",
+                }}
+              >
+                <option value="">— vyberte obor —</option>
+                <option value="10">10 — Výroba potravin / pekárenství</option>
+                <option value="31">31 — Výroba nábytku</option>
+                <option value="46">46 — Velkoobchod kovy</option>
+                <option value="49">49 — Pozemní nákladní doprava</option>
+              </select>
+              <p style={{ fontSize: "12px", color: "#666", marginTop: "4px" }}>
+                Hlavní téma publikace. Pulz oboru se zobrazí klientům v tomto oboru;
+                ostatní obory mohou být přidány automaticky systémem analýzy
+                relevance, pokud je to vhodné.
+              </p>
+            </div>
+
             {/* Error (form-level) */}
             {errorMessage && (
               <div
@@ -454,16 +501,16 @@ export default function PublicationUploadPage() {
             <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
               <button
                 type="submit"
-                disabled={!file}
+                disabled={!file || !primaryNace}
                 style={{
                   padding: "12px 24px",
-                  backgroundColor: file ? "#1a1a1a" : "#999",
+                  backgroundColor: file && primaryNace ? "#1a1a1a" : "#999",
                   color: "#fff",
                   border: "none",
                   borderRadius: "4px",
                   fontSize: "14px",
                   fontWeight: "bold",
-                  cursor: file ? "pointer" : "not-allowed",
+                  cursor: file && primaryNace ? "pointer" : "not-allowed",
                 }}
               >
                 Generovat návrh přehledu

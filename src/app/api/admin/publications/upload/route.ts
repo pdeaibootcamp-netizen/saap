@@ -52,6 +52,7 @@ function computeHmac(body: string, secret: string): string {
 
 const MAX_BYTES = 10 * 1024 * 1024;
 const ALLOWED_EXTENSIONS = [".pdf", ".docx", ".doc", ".md", ".txt"];
+const ALLOWED_PRIMARY_NACES = ["10", "31", "46", "49"];
 
 // ── Handler ───────────────────────────────────────────────────────────────────
 
@@ -67,6 +68,16 @@ export async function POST(req: NextRequest) {
   }
 
   const file = formData.get("file");
+  const primaryNaceRaw = formData.get("primary_nace");
+
+  // ── Validate primary_nace ──
+  const primaryNace = typeof primaryNaceRaw === "string" ? primaryNaceRaw : "";
+  if (!ALLOWED_PRIMARY_NACES.includes(primaryNace)) {
+    return NextResponse.json(
+      { error: "Vyberte prosím primární obor publikace." },
+      { status: 400 }
+    );
+  }
 
   // ── Validate file ──
   if (!file || typeof file === "string") {
@@ -144,12 +155,14 @@ export async function POST(req: NextRequest) {
 
   // ── Build n8n webhook payload ──
   // v0.3 minimal shape: { jobId, callbackUrl, publicationFileUrl }.
-  // No naceDivision (multi-NACE fan-out is automatic per D-029/D-030).
+  // v0.4 (D-033): + primaryNace — analyst-tagged main topic. n8n echoes it
+  // back in the callback so from-n8n can write briefs.primary_nace.
   // No ownerMetricSnapshot (deferred per OQ-075).
   const webhookPayload = {
     jobId,
     callbackUrl,
     publicationFileUrl,
+    primaryNace,
   };
 
   // ── Fire n8n webhook ──

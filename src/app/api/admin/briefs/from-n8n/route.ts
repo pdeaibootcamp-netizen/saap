@@ -124,6 +124,13 @@ interface N8nCallbackPayload {
    * Customer dashboard filter: `WHERE active_firm_nace = ANY(naceSectors)`.
    */
   naceSectors?: string[];
+  /**
+   * v0.4 (D-033) primary-NACE tag — analyst-chosen main topic of the
+   * publication. n8n echoes it back from the upload webhook payload so
+   * from-n8n can write briefs.primary_nace. When absent, falls back to
+   * naceSectors[0] (best-effort for legacy n8n workflows).
+   */
+  primaryNace?: string;
   /** Czech month-year string like "Duben 2026". */
   publicationMonth?: string;
   /** ISO month like "2026-04". */
@@ -382,6 +389,18 @@ export async function POST(req: NextRequest) {
     : [(job?.nace_division ?? payload.naceDivision ?? "31")];
   const naceDivision = naceSectors[0]; // legacy column = first (or only) NACE
 
+  // v0.4 (D-033): primary-NACE tag from upload-time analyst pick.
+  // Resolution: callback payload → naceSectors[0] fallback. Must be in the
+  // relevance set or DB CHECK constraint will reject the insert; if the
+  // analyst's pick somehow dropped out of the relevance gate, fall back.
+  const primaryNaceCandidate =
+    typeof payload.primaryNace === "string" && payload.primaryNace.length > 0
+      ? payload.primaryNace
+      : naceDivision;
+  const primaryNace = naceSectors.includes(primaryNaceCandidate)
+    ? primaryNaceCandidate
+    : naceDivision;
+
   // ── Handle failed status ──
   if (payload.status === "failed") {
     if (job) {
@@ -486,6 +505,7 @@ export async function POST(req: NextRequest) {
       .insert({
         nace_sector: naceDivision,
         nace_sectors: naceSectors,
+        primary_nace: primaryNace,
         author_id: "n8n-generated",
         content_sections: [contentSection],
         publish_state: "draft",
