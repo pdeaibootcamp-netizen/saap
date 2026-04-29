@@ -289,12 +289,12 @@ function buildSampleBenchmarkSnippet() {
             is_email_teaser_snippet: false,
           },
           {
-            metric_id: "pricing_power",
-            metric_label: "Cenová síla",
+            metric_id: "roe",
+            metric_label: "ROE",
             quartile_label: "druhá čtvrtina",
             percentile: 52,
             verdict_text:
-              "Vaše cenová síla vás řadí do druhé čtvrtiny firem ve vašem oboru — 52. percentil.",
+              "Vaše ROE vás řadí do druhé čtvrtiny firem ve vašem oboru — 52. percentil.",
             confidence_state: "valid",
             rung_footnote: null,
             is_email_teaser_snippet: false,
@@ -433,7 +433,7 @@ function buildPlaceholderBenchmarkSnippet() {
         category_label: "Růst a tržní pozice",
         metrics: [
           minMetric("revenue_growth", "Růst tržeb"),
-          minMetric("pricing_power", "Cenová síla"),
+          minMetric("roe", "ROE"),
         ],
       },
     ],
@@ -686,7 +686,7 @@ function buildFurnitureBenchmarkSnippet() {
         category_label: "Růst a tržní pozice",
         metrics: [
           belowFloor("revenue_growth", "Růst tržeb"),
-          belowFloor("pricing_power", "Cenová síla"),
+          belowFloor("roe", "ROE"),
         ],
       },
     ],
@@ -1055,6 +1055,172 @@ async function seedFurnitureBrief(summary: SeedSummary): Promise<string | null> 
   return inserted.id as string;
 }
 
+// ─── v0.3 Demo owner — owner_metrics seed ────────────────────────────────────
+
+/**
+ * The demo owner UUID — matches DEMO_OWNER_USER_ID in src/lib/demo-owner.ts.
+ */
+const DEMO_OWNER_USER_ID_SEED = "00000000-5eed-0000-0000-000000000001";
+
+/**
+ * Demo IČOs for NACE 49.41 (Silniční nákladní doprava).
+ * These are plausible 8-digit Czech IČOs; reconciled with actual ingested
+ * IČOs from the NACE 49.41 Excel once Track B's ingest runs.
+ *
+ * Default firm (cookie-default) = DEMO_ICO_MISSING_DATA — the PoC's central
+ * probe is the in-tile prompt UX; a happy-path first impression undersells
+ * the give-to-get mechanic (in-tile-prompts.md §9.2 last para).
+ *
+ * Selection criteria (in-tile-prompts.md §9.2):
+ *   DEMO_ICO_MISSING_DATA  — large firm; most data missing → 6 ask tiles
+ *   DEMO_ICO_NO_EMPLOYEES  — mid-size; employee count missing → ask on Tržby/zam
+ *   DEMO_ICO_NO_PROFIT     — mid-size; profit missing → ask on Čistá marže
+ *   DEMO_ICO_FULL_DATA     — small firm; all available data present (happy path)
+ *
+ * IČO reconciliation: update these constants to real IČOs from the NACE 49.41
+ * Excel after Track B's ingestion script has run and committed cohort_companies rows.
+ */
+const DEMO_ICO_MISSING_DATA  = "27195855"; // Default — large NACE 49.41; most data missing
+const DEMO_ICO_NO_EMPLOYEES  = "45786553"; // Mid-size; employee count missing
+const DEMO_ICO_NO_PROFIT     = "25514697"; // Mid-size; hospodářský výsledek missing
+const DEMO_ICO_FULL_DATA     = "63999498"; // Small; all available data present (happy path)
+
+const FROZEN_METRIC_IDS = [
+  "gross_margin", "ebitda_margin", "net_margin", "labor_cost_ratio",
+  "revenue_per_employee", "working_capital_cycle", "revenue_growth", "roe",
+] as const;
+
+/**
+ * Pre-populated values for the default demo firm (DEMO_ICO_MISSING_DATA).
+ * Seed 2 values (gross_margin + revenue_growth) so the dashboard cold-loads
+ * with 2 valid + 6 ask tiles — matching the design intent.
+ *
+ * Rationale for choice: gross_margin and revenue_growth are the highest-priority
+ * metrics from in-tile-prompts.md §7 order. Having 2 valid tiles proves the
+ * data read path works while leaving 6 ask tiles as the PoC's primary probe.
+ *
+ * Values are plausible for a large NACE 49.41 freight transport firm.
+ */
+const DEFAULT_FIRM_SEED_VALUES: Record<string, { raw_value: number; raw_value_display: string }> = {
+  gross_margin: { raw_value: 18.2, raw_value_display: "18,2 %" },
+  revenue_growth: { raw_value: 4.1, raw_value_display: "+4,1 %" },
+};
+
+interface V03SeedSummary {
+  demoConsentCreated: boolean;
+  ownerMetricsCreated: number;
+  ownerMetricsExisted: number;
+}
+
+async function seedV03DemoOwner(): Promise<V03SeedSummary> {
+  const result: V03SeedSummary = {
+    demoConsentCreated: false,
+    ownerMetricsCreated: 0,
+    ownerMetricsExisted: 0,
+  };
+
+  console.log(`\n[seed] v0.3 demo owner (${DEMO_OWNER_USER_ID_SEED})...`);
+  console.log(`  Default demo IČO: ${DEMO_ICO_MISSING_DATA} (large NACE 49.41; 2 values seeded, 6 ask)`);
+  console.log(`  Other demo IČOs: ${DEMO_ICO_NO_EMPLOYEES}, ${DEMO_ICO_NO_PROFIT}, ${DEMO_ICO_FULL_DATA}`);
+
+  // Step 1: Ensure a grant consent event exists for the demo owner.
+  // The owner_metrics table requires a NOT NULL consent_event_id FK.
+  const { data: existingConsent, error: existingConsentError } = await supabase
+    .from("consent_events")
+    .select("consent_event_id")
+    .eq("user_id", DEMO_OWNER_USER_ID_SEED)
+    .eq("event_type", "grant")
+    .order("ts", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (existingConsentError) {
+    console.error("[seed] Error checking demo owner consent:", existingConsentError.message);
+    return result;
+  }
+
+  let consentEventId: string;
+
+  if (existingConsent) {
+    consentEventId = existingConsent.consent_event_id;
+    console.log(`  [seed] Demo owner consent event exists (${consentEventId})`);
+  } else {
+    const { data: newConsent, error: consentError } = await supabase
+      .from("consent_events")
+      .insert({
+        user_id: DEMO_OWNER_USER_ID_SEED,
+        event_type: "grant",
+        consent_copy_version: "v1.0-2026-04",
+        lanes_covered: ["brief", "user_contributed", "rm_visible", "credit_risk"],
+        surface: "onboarding-screen",
+        channel: "rm-referred-george-embed",
+        prior_event_id: null,
+        captured_text_hash: "placeholder-hash-demo-owner-v0.3",
+        ip_prefix: null,
+      })
+      .select("consent_event_id")
+      .single();
+
+    if (consentError || !newConsent) {
+      console.error("[seed] Error creating demo owner consent:", consentError?.message);
+      return result;
+    }
+
+    consentEventId = newConsent.consent_event_id;
+    result.demoConsentCreated = true;
+    console.log(`  [seed] Demo owner consent event created (${consentEventId})`);
+  }
+
+  // Step 2: Seed owner_metrics rows for the default demo firm.
+  // 8 rows total: 2 with values (demo_seed for the default firm), 6 with null raw_value.
+  // The null rows drive the "ask" CTA tiles on cold-load.
+  //
+  // Note: owner_metrics PK is (user_id, metric_id) — not per-IčO.
+  // Switching firms via the IčO switcher does NOT clear these rows; it reuses them.
+  // This is the v0.3 design (OQ-OM-03 in owner-metrics-schema.md) — per-firm scoping
+  // is a v0.4 concern.
+
+  for (const metricId of FROZEN_METRIC_IDS) {
+    const { data: existing } = await supabase
+      .from("owner_metrics")
+      .select("metric_id, raw_value")
+      .eq("user_id", DEMO_OWNER_USER_ID_SEED)
+      .eq("metric_id", metricId)
+      .maybeSingle();
+
+    if (existing) {
+      result.ownerMetricsExisted++;
+      continue;
+    }
+
+    // Insert row: seeded metrics get values, others get null raw_value
+    const seedValue = DEFAULT_FIRM_SEED_VALUES[metricId];
+    const { error: insertError } = await supabase
+      .from("owner_metrics")
+      .insert({
+        user_id: DEMO_OWNER_USER_ID_SEED,
+        metric_id: metricId,
+        raw_value: seedValue?.raw_value ?? null,
+        raw_value_display: seedValue?.raw_value_display ?? null,
+        source: "demo_seed",
+        consent_event_id: consentEventId,
+        data_lane: "user_contributed",
+      });
+
+    if (insertError) {
+      console.error(`  [seed] Error inserting owner_metrics ${metricId}:`, insertError.message);
+    } else {
+      result.ownerMetricsCreated++;
+      const label = seedValue
+        ? `value=${seedValue.raw_value_display}`
+        : "null (ask state)";
+      console.log(`  [seed] owner_metrics ${metricId}: ${label}`);
+    }
+  }
+
+  return result;
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -1092,6 +1258,10 @@ async function main() {
   console.log("[seed] Seeding furniture brief (NACE 31, v0.2 with publication block)...");
   const furnitureBriefId = await seedFurnitureBrief(summary);
 
+  // v0.3 demo owner — owner_metrics seed (Phase 3.2.A5)
+  console.log("[seed] Seeding v0.3 demo owner metrics (owner_metrics table)...");
+  const v03Summary = await seedV03DemoOwner();
+
   // Summary
   console.log("\n=== Seed summary ===");
   console.log(`Analyst:           env-var based (set ADMIN_PASSWORD_HASH=test in .env.local)`);
@@ -1113,6 +1283,12 @@ async function main() {
     console.log(`View at:            http://localhost:3000/brief/${furnitureBriefId}`);
     console.log(`  Expected render:   Sektorová analýza opener → "Číst celou analýzu" → 3 paired obs+action cards`);
   }
+  console.log("\n--- v0.3 Demo owner ---");
+  console.log(`Demo consent event: ${v03Summary.demoConsentCreated ? "created" : "already existed"}`);
+  console.log(`Owner metrics:      created=${v03Summary.ownerMetricsCreated}, already existed=${v03Summary.ownerMetricsExisted}`);
+  console.log(`  Default demo IČO: ${DEMO_ICO_MISSING_DATA} (2 seeded values: gross_margin + revenue_growth)`);
+  console.log(`  Dashboard cold-load: 2 valid tiles + 6 ask tiles`);
+  console.log(`  Other demo IČOs: ${DEMO_ICO_NO_EMPLOYEES} (no employees), ${DEMO_ICO_NO_PROFIT} (no profit), ${DEMO_ICO_FULL_DATA} (happy path)`);
   console.log("\nDone. Safe to re-run — all operations are idempotent.");
 }
 

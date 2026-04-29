@@ -59,7 +59,7 @@ const CATEGORY_METRICS: Record<string, { id: string; label: string }[]> = {
   ],
   "rust-trzni-pozice": [
     { id: "revenue_growth", label: "Růst tržeb" },
-    { id: "pricing_power", label: "Cenová síla" },
+    { id: "roe", label: "ROE" },
   ],
 };
 

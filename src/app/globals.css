@@ -9,19 +9,20 @@
   ─── GDS token mapping ────────────────────────────────────────────────────────
   SCSS source → CSS var → used in
 
-  $color-blue-300 / $color-ui-blue   (#135ee2) → --gds-color-primary   → header bg, "Nový" pill, "Zobrazit" link, quartile-top border color
+  $color-blue-300 / $color-ui-blue   (#135ee2) → --gds-color-primary   → header bg, "Nový" pill, "Zobrazit" link
   $color-blue-400                     (#0a285c) → --gds-heading-color   → section headings
   $color-gray-100                     (#eef0f4) → --gds-page-bg         → page background
   $color-gray-100                     (#eef0f4) → --gds-surface-secondary → NACE badge bg
   $color-gray-200                     (#e4eaf0) → --gds-border-default  → card border, dividers
+  $color-gray-300                     (#a3b5c9) → --gds-border-interactive → button outlines, focused inputs
   $color-gray-400                     (#537090) → --gds-text-secondary  → NACE badge text, dates, sub-labels
   $color-white                        (#ffffff) → --gds-surface-card    → metric tile / list item bg
-  $color-ui-green                     (#057f19) → --gds-quartile-third  → 3rd quartile (50–75 %)
-  $color-ui-red                       (#cf2a1e) → --gds-quartile-bottom → bottom quartile (0–25 %)
-  $color-carrot                       (#ff6130) → --gds-quartile-second → 2nd quartile (25–50 %); closest GDS warm-orange to #E65100
-  $color-gray-400                     (#537090) → --gds-quartile-nodata → no-data state; closest GDS blue-gray to #455A64
   (no direct GDS match for #9E9E9E)             → --gds-text-muted     → fallback #9e9e9e (used in footer, percentile sub-label)
   (no direct GDS match for #1A1A1A)             → --gds-text-body      → fallback #1a1a1a (tile values, body text)
+
+  Quintile band colours (5 percentile bands) live as inline hex in
+  components/dashboard/MetricTile.tsx — CSS vars are not reliable inside
+  inline style objects, so the renderer hardcodes Material Design hex.
 
   Font: Inter Variable — loaded via @font-face from local GDS toolkit dist.
   Font family: 'Inter var', Inter, sans-serif (matches $theme-font-body in _typography.scss).
@@ -74,17 +75,17 @@
   /* Muted text (footer, percentile) — no direct GDS token; design spec value */
   --gds-text-muted: #9e9e9e;
 
-  /* Quartile colour system */
-  /* horní čtvrtina  (top 25 %)   — $color-blue-300 / $color-ui-blue */
-  --gds-quartile-top:    #135ee2;
-  /* třetí čtvrtina (50–75 %)    — $color-ui-green */
-  --gds-quartile-third:  #057f19;
-  /* druhá čtvrtina (25–50 %)    — $color-carrot (closest GDS warm-orange to #E65100) */
-  --gds-quartile-second: #ff6130;
-  /* spodní čtvrtina (0–25 %)    — $color-ui-red */
-  --gds-quartile-bottom: #cf2a1e;
-  /* no data                      — $color-gray-400 (closest GDS blue-gray to #455A64) */
-  --gds-quartile-nodata: #537090;
+  /* Interactive border (button outlines, focused inputs) — $color-gray-300 */
+  --gds-border-interactive: #a3b5c9;
+
+  /* Card border-radius — GDS design decision: 12px (not 8px) */
+  --gds-radius-card: 12px;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
 }
 
 *,
@@ -122,6 +123,154 @@ a[role="button"],
   min-width: 44px;
 }
 
+/* GDS primary button — filled blue pill (button-system.md) */
+.gds-btn-primary {
+  background-color: var(--gds-color-primary);
+  color: #ffffff;
+  border: 2px solid var(--gds-color-primary);
+  border-radius: 9999px;
+  padding: 5px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  min-height: 32px;
+  transition: filter 0.1s ease;
+}
+.gds-btn-primary:hover {
+  filter: brightness(0.9);
+}
+.gds-btn-primary:focus-visible {
+  outline: 3px solid #1a1a1a;
+  outline-offset: 2px;
+}
+.gds-btn-primary:active {
+  transform: scale(0.97);
+}
+.gds-btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+@media (prefers-reduced-motion: reduce) {
+  .gds-btn-primary:active { transform: none; }
+}
+
+/* GDS input group — rounded rectangle with inline unit suffix (button-system.md)
+   8px radius: rounded but not pill — matches design reference, distinct from pill buttons */
+.gds-input-group {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--gds-border-interactive);
+  border-radius: 8px;
+  background: var(--gds-surface-card);
+  overflow: hidden;
+  height: 40px;
+  box-sizing: border-box;
+}
+.gds-input-group input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  padding: 0 16px;
+  font-size: 16px;
+  font-family: inherit;
+  background: transparent;
+  color: var(--gds-text-body);
+  box-sizing: border-box;
+}
+.gds-input-group__unit {
+  display: flex;
+  align-items: center;
+  padding: 0 14px 0 12px;
+  border-left: 1px solid var(--gds-border-interactive);
+  font-size: 13px;
+  color: var(--gds-text-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+/* Right-side interactive slot — mirrors __unit divider but is clickable.
+   Used by IcoSwitcher (Přepnout) and any future inline submit affordance. */
+.gds-input-group__action {
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  border: none;
+  border-left: 1px solid var(--gds-border-interactive);
+  background: transparent;
+  color: var(--gds-color-primary);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  white-space: nowrap;
+  flex-shrink: 0;
+  cursor: pointer;
+  min-height: 0;
+  min-width: 0;
+}
+.gds-input-group__action:hover { filter: brightness(0.9); }
+.gds-input-group__action:active { transform: scale(0.97); }
+.gds-input-group__action:focus-visible {
+  outline: 2px solid var(--gds-color-primary);
+  outline-offset: -2px;
+}
+.gds-input-group__action:disabled { opacity: 0.6; cursor: not-allowed; }
+@media (prefers-reduced-motion: reduce) {
+  .gds-input-group__action:active { transform: none; }
+}
+.gds-input-group:focus-within {
+  border-color: var(--gds-color-primary);
+  border-width: 2px;
+}
+.gds-input-group--error {
+  border-color: #c62828;
+  border-width: 2px;
+}
+.gds-input-group--error .gds-input-group__unit,
+.gds-input-group--error .gds-input-group__action {
+  border-left-color: #c62828;
+}
+/* Compact variant — 32px height, tighter padding, 14px text. Used in
+   contexts with limited vertical space (e.g. IcoSwitcher in 56px header). */
+.gds-input-group--compact { height: 32px; }
+.gds-input-group--compact input,
+.gds-input-group--compact .gds-input-group__action {
+  padding: 0 12px;
+  font-size: 14px;
+}
+.gds-input-group--compact .gds-input-group__unit {
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+/* GDS secondary button — white pill with interactive border (button-system.md) */
+.gds-btn-secondary {
+  background-color: var(--gds-surface-card);
+  color: var(--gds-color-primary);
+  border: 2px solid var(--gds-border-interactive);
+  border-radius: 9999px;
+  padding: 5px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  min-height: 32px; /* GDS spec: 32px — overrides global button 44px floor intentionally */
+  transition: border-color 0.1s ease, filter 0.1s ease;
+}
+.gds-btn-secondary:hover {
+  border-color: var(--gds-color-primary);
+}
+.gds-btn-secondary:focus-visible {
+  outline: 3px solid #1a1a1a;
+  outline-offset: 2px;
+}
+.gds-btn-secondary:active {
+  transform: scale(0.97);
+}
+@media (prefers-reduced-motion: reduce) {
+  .gds-btn-secondary:active { transform: none; }
+}
+
 /* Utility: visually hidden (for accessibility, not display:none) */
 .sr-only {
   position: absolute;
@@ -134,3 +283,87 @@ a[role="button"],
   white-space: nowrap;
   border-width: 0;
 }
+
+/* ─── MetricTile — just-saved pulse (v0.3 in-tile-prompts.md §4.2) ──────────
+   Applied server-side via ?saved=<metricId> query param on post-PATCH reload.
+   in-tile-prompts.md (design) §4.2: 1s ease-out box-shadow pulse.
+   Hardcoded hex — CSS vars not guaranteed to resolve in all server-rendered
+   contexts (see Visual style rules in engineer agent spec).
+   ─────────────────────────────────────────────────────────────────────────── */
+@keyframes mt-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(21, 101, 192, 0.35); }
+  50%  { box-shadow: 0 0 0 6px rgba(21, 101, 192, 0.12); }
+  100% { box-shadow: 0 0 0 0 rgba(21, 101, 192, 0.00); }
+}
+
+.mt-just-saved {
+  animation: mt-pulse 1s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mt-just-saved {
+    animation: none;
+    /* Static blue ring instead of animation per design spec */
+    box-shadow: 0 0 0 2px #1565C0;
+  }
+}
+
+/* ─── GDS Snackbar (POC error toast) ─────────────────────────────────────────
+   Floats bottom-right, slides in, dark navy bg + red icon + light text.
+   Used by IcoSwitcher (header) where inline errors fall on the boundary of
+   the coloured stripe and white content area and become illegible.
+   ─────────────────────────────────────────────────────────────────────────── */
+.gds-snackbar {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--gds-heading-color);
+  color: #ffffff;
+  border-radius: 12px;
+  padding: 14px 16px;
+  max-width: 480px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  animation: gds-snackbar-in 200ms ease-out;
+}
+.gds-snackbar__icon {
+  display: flex;
+  flex-shrink: 0;
+}
+.gds-snackbar__text {
+  flex: 1;
+  font-size: 15px;
+  line-height: 1.4;
+}
+.gds-snackbar__close {
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 8px;
+  margin: -4px -8px -4px 0;
+  min-height: 0;
+  min-width: 0;
+  font-family: inherit;
+}
+.gds-snackbar__close:hover {
+  opacity: 0.8;
+}
+.gds-snackbar__close:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+@keyframes gds-snackbar-in {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gds-snackbar { animation: none; }
+}
+

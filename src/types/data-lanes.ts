@@ -120,3 +120,120 @@ export const TIME_HORIZON = {
 } as const;
 
 export type TimeHorizon = (typeof TIME_HORIZON)[keyof typeof TIME_HORIZON];
+
+/**
+ * Frozen owner-metric IDs — D-024 (8 metrics; ROCE → net_margin).
+ * These values mirror the metric_id CHECK constraint in 0006_owner_metrics.sql.
+ * PM owns the values; do NOT add or remove without a new decision-log entry.
+ *
+ * The eight IDs in recommended-ask order (in-tile-prompts.md §7):
+ *   gross_margin, ebitda_margin, net_margin, revenue_per_employee,
+ *   labor_cost_ratio, revenue_growth, working_capital_cycle, roe
+ *
+ * D-032 (2026-04-29): pricing_power → roe. The new ROE metric is sourced
+ * from cohort_companies.roe (migration 0012); pricing_power had no real
+ * cohort column and is removed entirely.
+ */
+export const OWNER_METRIC_ID = {
+  GROSS_MARGIN: "gross_margin",
+  EBITDA_MARGIN: "ebitda_margin",
+  LABOR_COST_RATIO: "labor_cost_ratio",
+  REVENUE_PER_EMPLOYEE: "revenue_per_employee",
+  WORKING_CAPITAL_CYCLE: "working_capital_cycle",
+  NET_MARGIN: "net_margin",
+  REVENUE_GROWTH: "revenue_growth",
+  ROE: "roe",
+} as const;
+
+export type OwnerMetricId = (typeof OWNER_METRIC_ID)[keyof typeof OWNER_METRIC_ID];
+
+/**
+ * Source enum for owner_metrics rows — mirrors the CHECK constraint in 0006_owner_metrics.sql.
+ *   user_entered       — PATCH from in-tile prompt by the owner
+ *   prepopulated_excel — ingested from cohort_companies at activation
+ *   demo_seed          — fixture written by the seed script for demo firms
+ */
+export const OWNER_METRIC_SOURCE = {
+  USER_ENTERED: "user_entered",
+  PREPOPULATED_EXCEL: "prepopulated_excel",
+  DEMO_SEED: "demo_seed",
+} as const;
+
+export type OwnerMetricSource = (typeof OWNER_METRIC_SOURCE)[keyof typeof OWNER_METRIC_SOURCE];
+
+/**
+ * Plausibility bounds for each metric — PM-owned values from in-tile-prompts.md §5.
+ * Enforced server-side in the PATCH handler; also used by client-side validation.
+ * Keys match OWNER_METRIC_ID values exactly.
+ *
+ * DO NOT widen bounds here without returning to PM for re-spec (in-tile-prompts.md §5 note).
+ */
+export interface MetricBound {
+  min: number;
+  max: number;
+  /** Decimal places accepted on input */
+  decimalPlaces: number;
+  /** Whether negative values are permitted */
+  allowNegative: boolean;
+  /** Per-metric Czech error string when value is out of bounds */
+  errorCopy: string;
+}
+
+export const METRIC_BOUNDS: Record<OwnerMetricId, MetricBound> = {
+  gross_margin: {
+    min: -50,
+    max: 100,
+    decimalPlaces: 1,
+    allowNegative: true,
+    errorCopy: "Tato hodnota se zdá být mimo obvyklý rozsah. Zkontrolujte prosím zadání.",
+  },
+  ebitda_margin: {
+    min: -50,
+    max: 60,
+    decimalPlaces: 1,
+    allowNegative: true,
+    errorCopy: "Tato hodnota se zdá být mimo obvyklý rozsah. Zkontrolujte prosím zadání.",
+  },
+  labor_cost_ratio: {
+    min: 0,
+    max: 90,
+    decimalPlaces: 1,
+    allowNegative: false,
+    errorCopy: "Podíl nákladů by měl být mezi 0 a 90 %. Zkontrolujte prosím zadání.",
+  },
+  revenue_per_employee: {
+    min: 100,
+    max: 100_000,
+    decimalPlaces: 0,
+    allowNegative: false,
+    errorCopy: "Tato hodnota se zdá být mimo obvyklý rozsah (uveďte prosím v tisících Kč).",
+  },
+  working_capital_cycle: {
+    min: -90,
+    max: 365,
+    decimalPlaces: 0,
+    allowNegative: true,
+    errorCopy: "Cyklus by měl být mezi -90 a 365 dny. Zkontrolujte prosím zadání.",
+  },
+  net_margin: {
+    min: -50,
+    max: 60,
+    decimalPlaces: 1,
+    allowNegative: true,
+    errorCopy: "Tato hodnota se zdá být mimo obvyklý rozsah. Zkontrolujte prosím zadání.",
+  },
+  revenue_growth: {
+    min: -80,
+    max: 200,
+    decimalPlaces: 1,
+    allowNegative: true,
+    errorCopy: "Růst tržeb by měl být mezi -80 a 200 %. Zkontrolujte prosím zadání.",
+  },
+  roe: {
+    min: -100,
+    max: 200,
+    decimalPlaces: 1,
+    allowNegative: true,
+    errorCopy: "ROE by měla být mezi -100 a 200 %. Zkontrolujte prosím zadání.",
+  },
+};

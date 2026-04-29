@@ -9,24 +9,53 @@
  * checked via a read-only SELECT on consent_events (permitted by RLS).
  */
 
-import { sql } from "./db";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { PublishState, DeliveryFormat } from "../types/data-lanes";
 
-// Service-role client for read queries — bypasses RLS (direct postgres blocked
-// in some network environments; HTTPS/PostgREST always reachable).
-function getSupabaseAdmin() {
+// ─── Supabase REST client ────────────────────────────────────────────────────
+// Replaces the postgres TCP library because the developer's network blocks
+// outbound 5432/6543 to the Supabase pooler. Same constraint we worked around
+// in scripts/ingest-industry-data.ts and app/api/admin/briefs/from-n8n/route.ts.
+// Service role key bypasses RLS, which is fine because all callers here are
+// either admin-authenticated routes or the server-rendered owner dashboard
+// running under the demo-owner bypass (lane separation enforced at the route
+// boundary, not at the connection level).
+
+let _client: SupabaseClient | null = null;
+function db(): SupabaseClient {
+  if (_client) return _client;
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error("Supabase env vars missing");
-  return createClient(url, key, { auth: { persistSession: false } });
+  if (!url || !key) {
+    throw new Error("[briefs] NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY must be set");
+  }
+  _client = createClient(url, key, { auth: { persistSession: false } });
+  return _client;
 }
+
+const BRIEF_COLUMNS =
+  "id, nace_sector, nace_sectors, publish_state, version, author_id, created_at, published_at, content_sections, benchmark_snippet";
+
+const DELIVERY_COLUMNS =
+  "id, brief_id, brief_version, recipient_id, format, delivered_at";
+
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface Brief {
   id: string;
+  /**
+   * Legacy single-NACE field. Always equals `nace_sectors[0]`. Kept for
+   * backward compatibility with v0.1/v0.2 callers; new code should use
+   * `nace_sectors` for filter / display logic. (Migration 0011.)
+   */
   nace_sector: string;
+  /**
+   * v0.3+ multi-NACE field. Full list of NACE divisions this brief covers.
+   * The customer-facing dashboard filter is `WHERE active_firm_nace = ANY(nace_sectors)`.
+   * For v0.1/v0.2 briefs this is `[nace_sector]`. (Migration 0011, Model B.)
+   */
+  nace_sectors: string[];
   publish_state: PublishState;
   version: number;
   author_id: string;
@@ -108,6 +137,17 @@ export interface BriefPublication {
   source: string;               // attribution line
 }
 
+/**
+ * Per-NACE insights + actions bundle (v0.3, D-029, Model B).
+ * One entry per NACE division this brief covers. The brief page renders
+ * `per_nace_content[active_firm_nace]` for the customer; the analyst edit
+ * page (v0.4) will render all entries side-by-side.
+ */
+export interface PerNaceContent {
+  observations: Observation[];
+  closing_actions: ClosingAction[];
+}
+
 /** Structured content model stored in content_sections */
 export interface BriefContent {
   title: string;
@@ -119,8 +159,25 @@ export interface BriefContent {
    * opening_summary (if present) then the observations/actions section.
    */
   publication?: BriefPublication;
+  /**
+   * Top-level observations array (v0.1/v0.2 single-NACE briefs).
+   * For v0.3+ multi-NACE briefs (D-029), this is set to the FIRST NACE's
+   * observations as a backward-compat fallback; the per-NACE map is the
+   * authoritative source.
+   */
   observations: Observation[];
+  /**
+   * Top-level closing actions (v0.1/v0.2 single-NACE briefs).
+   * Same v0.3+ fallback semantics as `observations`.
+   */
   closing_actions: ClosingAction[];
+  /**
+   * v0.3+ multi-NACE content map (D-029, Model B). When present and the
+   * customer's active NACE is a key, the brief page renders these instead
+   * of the top-level `observations`/`closing_actions` arrays. Absent on
+   * v0.1/v0.2 briefs.
+   */
+  per_nace_content?: Record<string, PerNaceContent>;
   benchmark_categories: BenchmarkCategory[];
   pdf_footer_text: string; // For the Zápatí section
   email_teaser_observation_index: number; // index into observations array
@@ -139,86 +196,86 @@ export interface BriefDelivery {
 
 /** List all briefs, most recent first. Analyst dashboard. */
 export async function listBriefs(): Promise<Brief[]> {
-  const rows = await sql<Brief[]>`
-    SELECT
-      id,
-      nace_sector,
-      publish_state,
-      version,
-      author_id,
-      created_at,
-      published_at,
-      content_sections,
-      benchmark_snippet
-    FROM briefs
-    ORDER BY created_at DESC
-  `;
-  return rows;
+  const { data, error } = await db()
+    .from("briefs")
+    .select(BRIEF_COLUMNS)
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(`[briefs] listBriefs: ${error.message}`);
+  return (data ?? []) as unknown as Brief[];
 }
 
 /** Get a single brief by ID. Returns null if not found. */
 export async function getBriefById(id: string): Promise<Brief | null> {
-  const { data, error } = await getSupabaseAdmin()
+  const { data, error } = await db()
     .from("briefs")
-    .select("id,nace_sector,publish_state,version,author_id,created_at,published_at,content_sections,benchmark_snippet")
+    .select(BRIEF_COLUMNS)
     .eq("id", id)
-    .limit(1)
-    .single();
-  if (error) return null;
-  return data as Brief;
+    .maybeSingle();
+  if (error) throw new Error(`[briefs] getBriefById: ${error.message}`);
+  return (data ?? null) as unknown as Brief | null;
 }
 
 /** Get the most recently published brief for a given NACE sector. */
 export async function getPublishedBriefByNace(naceSector: string): Promise<Brief | null> {
-  const { data, error } = await getSupabaseAdmin()
+  const { data, error } = await db()
     .from("briefs")
-    .select("id,nace_sector,publish_state,version,author_id,created_at,published_at,content_sections,benchmark_snippet")
-    .eq("nace_sector", naceSector)
+    .select(BRIEF_COLUMNS)
+    .contains("nace_sectors", [naceSector])
     .eq("publish_state", "published")
     .order("published_at", { ascending: false })
-    .limit(1)
-    .single();
-  if (error) return null;
-  return data as Brief;
+    .limit(1);
+  if (error) throw new Error(`[briefs] getPublishedBriefByNace: ${error.message}`);
+  return ((data ?? [])[0] ?? null) as unknown as Brief | null;
 }
 
 /**
  * List all published briefs for a given NACE sector, ordered most-recent first.
  * Lane: brief (ADR-0002-C). Capped at 20 results for safety.
  * Used by the v0.2 dashboard briefs list (dashboard-v0-2.md §7).
+ *
+ * v0.3 (D-029, Model B): filters on `nace_sectors @> ARRAY[naceSector]` so
+ * multi-NACE briefs surface for any covered NACE. v0.1/v0.2 single-NACE briefs
+ * still match because migration 0011 backfilled `nace_sectors` from
+ * `nace_sector` for those rows.
  */
 export async function listPublishedBriefsByNace(naceSector: string): Promise<Brief[]> {
-  const { data, error } = await getSupabaseAdmin()
+  const { data, error } = await db()
     .from("briefs")
-    .select("id,nace_sector,publish_state,version,author_id,created_at,published_at,content_sections,benchmark_snippet")
-    .eq("nace_sector", naceSector)
+    .select(BRIEF_COLUMNS)
+    .contains("nace_sectors", [naceSector])
     .eq("publish_state", "published")
     .order("published_at", { ascending: false })
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })
     .limit(20);
-  if (error) return [];
-  return (data ?? []) as Brief[];
+  if (error) throw new Error(`[briefs] listPublishedBriefsByNace: ${error.message}`);
+  return (data ?? []) as unknown as Brief[];
 }
 
-/** Create a new brief draft. Returns the new brief. */
+/**
+ * Create a new brief draft. Returns the new brief.
+ *
+ * v0.3 (D-029, Model B): also populates `nace_sectors` with `[nace_sector]`
+ * so the legacy single-NACE manual-create path produces rows discoverable
+ * via the new array-containment filter.
+ */
 export async function createDraftBrief(params: {
   nace_sector: string;
   author_id: string;
 }): Promise<Brief> {
-  const rows = await sql<Brief[]>`
-    INSERT INTO briefs (nace_sector, author_id, content_sections, publish_state)
-    VALUES (
-      ${params.nace_sector},
-      ${params.author_id},
-      ${sql.json([] as unknown as never)}::jsonb,
-      'draft'
-    )
-    RETURNING
-      id, nace_sector, publish_state, version, author_id,
-      created_at, published_at, content_sections, benchmark_snippet
-  `;
-  return rows[0];
+  const { data, error } = await db()
+    .from("briefs")
+    .insert({
+      nace_sector: params.nace_sector,
+      nace_sectors: [params.nace_sector],
+      author_id: params.author_id,
+      content_sections: [],
+      publish_state: "draft",
+    })
+    .select(BRIEF_COLUMNS)
+    .single();
+  if (error || !data) throw new Error(`[briefs] createDraftBrief: ${error?.message ?? "no row"}`);
+  return data as unknown as Brief;
 }
 
 /** Update a brief's content sections. Increments version. */
@@ -227,19 +284,29 @@ export async function updateBriefContent(
   content_sections: ContentSection[],
   benchmark_snapshot?: BenchmarkSnippet
 ): Promise<Brief> {
-  const rows = await sql<Brief[]>`
-    UPDATE briefs
-    SET
-      content_sections = ${sql.json(content_sections as unknown as never)}::jsonb,
-      benchmark_snippet = COALESCE(${benchmark_snapshot ? sql.json(benchmark_snapshot as unknown as never) : null}::jsonb, benchmark_snippet),
-      version = version + 1
-    WHERE id = ${id}
-    RETURNING
-      id, nace_sector, publish_state, version, author_id,
-      created_at, published_at, content_sections, benchmark_snippet
-  `;
-  if (!rows[0]) throw new Error(`Brief ${id} not found`);
-  return rows[0];
+  // Read current version + benchmark_snippet (REST has no atomic increment / COALESCE)
+  const { data: cur, error: curErr } = await db()
+    .from("briefs")
+    .select("version, benchmark_snippet")
+    .eq("id", id)
+    .maybeSingle();
+  if (curErr) throw new Error(`[briefs] updateBriefContent (read): ${curErr.message}`);
+  if (!cur) throw new Error(`Brief ${id} not found`);
+  const update: Record<string, unknown> = {
+    content_sections,
+    version: (cur as { version: number }).version + 1,
+  };
+  if (benchmark_snapshot !== undefined) {
+    update.benchmark_snippet = benchmark_snapshot;
+  }
+  const { data, error } = await db()
+    .from("briefs")
+    .update(update)
+    .eq("id", id)
+    .select(BRIEF_COLUMNS)
+    .single();
+  if (error || !data) throw new Error(`[briefs] updateBriefContent (write): ${error?.message ?? "no row"}`);
+  return data as unknown as Brief;
 }
 
 /** Mark a brief as published. Sets published_at and publish_state. */
@@ -249,10 +316,8 @@ export async function publishBriefRecord(
   checklist_affirmed_by: string,
   checklist_version: string
 ): Promise<Brief> {
-  // content_sections is a JSONB array; append a metadata element rather than
-  // using jsonb_set with a string path (which errors on arrays — the path
-  // element at position 1 must be an integer index, not a key name).
-  const publishMetaSection = {
+  // Append a publish-meta section to content_sections (REST has no || operator).
+  const publishMetaSection: ContentSection = {
     section_id: "_publish_meta",
     heading: "_publish_meta",
     body: JSON.stringify({
@@ -263,22 +328,36 @@ export async function publishBriefRecord(
     order: 9999,
   };
 
-  const rows = await sql<Brief[]>`
-    UPDATE briefs
-    SET
-      publish_state = 'published',
-      published_at = now(),
-      benchmark_snippet = ${sql.json(benchmarkSnapshot as unknown as never)}::jsonb,
-      version = version + 1,
-      content_sections = content_sections || ${sql.json([publishMetaSection] as unknown as never)}::jsonb
-    WHERE id = ${id}
-      AND publish_state = 'draft'
-    RETURNING
-      id, nace_sector, publish_state, version, author_id,
-      created_at, published_at, content_sections, benchmark_snippet
-  `;
-  if (!rows[0]) throw new Error(`Brief ${id} not found or already published`);
-  return rows[0];
+  // Read current content_sections + version + state
+  const { data: cur, error: curErr } = await db()
+    .from("briefs")
+    .select("version, publish_state, content_sections")
+    .eq("id", id)
+    .maybeSingle();
+  if (curErr) throw new Error(`[briefs] publishBriefRecord (read): ${curErr.message}`);
+  if (!cur) throw new Error(`Brief ${id} not found`);
+  const curRow = cur as { version: number; publish_state: string; content_sections: ContentSection[] };
+  if (curRow.publish_state !== "draft") {
+    throw new Error(`Brief ${id} not found or already published`);
+  }
+
+  const newSections = [...(curRow.content_sections ?? []), publishMetaSection];
+
+  const { data, error } = await db()
+    .from("briefs")
+    .update({
+      publish_state: "published",
+      published_at: new Date().toISOString(),
+      benchmark_snippet: benchmarkSnapshot,
+      version: curRow.version + 1,
+      content_sections: newSections,
+    })
+    .eq("id", id)
+    .eq("publish_state", "draft")
+    .select(BRIEF_COLUMNS)
+    .single();
+  if (error || !data) throw new Error(`[briefs] publishBriefRecord (write): ${error?.message ?? "no row"}`);
+  return data as unknown as Brief;
 }
 
 // ─── Brief Deliveries ────────────────────────────────────────────────────────
@@ -290,33 +369,39 @@ export async function recordDelivery(params: {
   recipient_id: string;
   format: DeliveryFormat;
 }): Promise<BriefDelivery> {
-  const rows = await sql<BriefDelivery[]>`
-    INSERT INTO brief_deliveries (brief_id, brief_version, recipient_id, format)
-    VALUES (${params.brief_id}, ${params.brief_version}, ${params.recipient_id}, ${params.format})
-    RETURNING id, brief_id, brief_version, recipient_id, format, delivered_at
-  `;
-  return rows[0];
+  const { data, error } = await db()
+    .from("brief_deliveries")
+    .insert({
+      brief_id: params.brief_id,
+      brief_version: params.brief_version,
+      recipient_id: params.recipient_id,
+      format: params.format,
+    })
+    .select(DELIVERY_COLUMNS)
+    .single();
+  if (error || !data) throw new Error(`[briefs] recordDelivery: ${error?.message ?? "no row"}`);
+  return data as unknown as BriefDelivery;
 }
 
 /** List all deliveries for a brief. */
 export async function listDeliveriesForBrief(brief_id: string): Promise<BriefDelivery[]> {
-  return sql<BriefDelivery[]>`
-    SELECT id, brief_id, brief_version, recipient_id, format, delivered_at
-    FROM brief_deliveries
-    WHERE brief_id = ${brief_id}
-    ORDER BY delivered_at DESC
-  `;
+  const { data, error } = await db()
+    .from("brief_deliveries")
+    .select(DELIVERY_COLUMNS)
+    .eq("brief_id", brief_id)
+    .order("delivered_at", { ascending: false });
+  if (error) throw new Error(`[briefs] listDeliveriesForBrief: ${error.message}`);
+  return (data ?? []) as unknown as BriefDelivery[];
 }
 
 /** Check whether a web delivery record exists for this brief+recipient. */
 export async function hasWebDelivery(brief_id: string, recipient_id: string): Promise<boolean> {
-  const rows = await sql<{ count: string }[]>`
-    SELECT COUNT(*)::text AS count
-    FROM brief_deliveries
-    WHERE brief_id = ${brief_id}
-      AND recipient_id = ${recipient_id}
-      AND format = 'web'
-    LIMIT 1
-  `;
-  return parseInt(rows[0]?.count ?? "0", 10) > 0;
+  const { count, error } = await db()
+    .from("brief_deliveries")
+    .select("id", { count: "exact", head: true })
+    .eq("brief_id", brief_id)
+    .eq("recipient_id", recipient_id)
+    .eq("format", "web");
+  if (error) throw new Error(`[briefs] hasWebDelivery: ${error.message}`);
+  return (count ?? 0) > 0;
 }

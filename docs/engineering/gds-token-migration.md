@@ -100,6 +100,7 @@ Full mapping from GDS SCSS source to CSS var to usage:
 | `$color-gray-100` | `#eef0f4` | `--gds-page-bg` | Body bg, `.db-page` bg, bli-row hover state |
 | `$color-gray-100` | `#eef0f4` | `--gds-surface-secondary` | NACE badge bg |
 | `$color-gray-200` | `#e4eaf0` | `--gds-border-default` | Card border, dividers, tile 1px border, section hr |
+| `$color-gray-300` | `#a3b5c9` | `--gds-border-interactive` | Secondary button outline, interactive element borders |
 | `$color-white` | `#ffffff` | `--gds-surface-card` | Metric tile bg, BriefListItem bg, brief page bg, screen bg |
 | `$color-gray-400` | `#537090` | `--gds-text-secondary` | NACE badge text, publication month, obs body text, sub-labels |
 | — (design spec) | `#1a1a1a` | `--gds-text-body` | Tile values (26px bold), title text, action text; no direct GDS token for near-black |
@@ -109,12 +110,22 @@ Full mapping from GDS SCSS source to CSS var to usage:
 | `$color-carrot` | `#ff6130` | `--gds-quartile-second` | druhá čtvrtina (25–50 %) top-border + badge; closest GDS warm-orange to target #E65100 (ADR-GDS-003) |
 | `$color-ui-red` | `#cf2a1e` | `--gds-quartile-bottom` | spodní čtvrtina (0–25 %) top-border + badge |
 | `$color-gray-400` | `#537090` | `--gds-quartile-nodata` | No-data tile top-border; closest GDS blue-gray to target #455A64 (ADR-GDS-004) |
+| — (design decision) | `12px` | `--gds-radius-card` | MetricTile card `borderRadius` — 12px, not 8px (ADR-GDS-005) |
 
 **Time-horizon pill colours** in `brief/[id]/page.tsx` are intentionally kept as semantic hardcoded values (not GDS tokens). They carry meaning that maps to external semantic conventions (red = immediate, blue = medium-term, green = long-term, purple = multi-year). Replacing them with GDS tokens would require GDS tokens for each semantic state; no such mapping exists in the current token set.
 
+### ADR-GDS-005 — Card border-radius is 12px, not 8px
+
+- **Date**: 2026-04-27
+- **Context**: MetricTile was initialised with `borderRadius: "8px"`. Visual review on v0.3 branch confirmed 8px looks insufficiently rounded compared to the target GDS card appearance.
+- **Decision**: Use `12px` for all card containers. Codified as `--gds-radius-card: 12px` in globals.css `:root`. Component code uses the hardcoded value `"12px"` in inline styles (CSS vars unreliable in dangerouslySetInnerHTML / inline style contexts — ADR-GDS-001 rationale applies).
+- **Consequences**: Cards are more rounded. `collapsedTileStyle` in MetricTile inherits via object spread — no second change needed.
+- **Rejected alternatives**: 8px — confirmed visually too tight. 16px — too rounded, card loses its rectangular character.
+
 ## 8. Open questions
 
-None blocking. Two token gaps noted above do not require resolution before the v0.2 demo (ADR-GDS-003, ADR-GDS-004).
+None blocking. Three token gaps noted above do not require resolution before v0.3 demo (ADR-GDS-003, ADR-GDS-004, ADR-GDS-005).
 
 ## Changelog
+- 2026-04-27 — ADR-GDS-005: card border-radius 12px; token --gds-radius-card — engineer
 - 2026-04-23 — initial draft — engineer

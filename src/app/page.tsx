@@ -1,23 +1,30 @@
 /**
- * Root page — v0.2 customer-testing PoC dashboard scaffold.
+ * Root page — v0.3 customer-testing PoC dashboard.
  *
- * Phase 2.2.a + 2.2.c implementation:
- *   - Server component.
- *   - On first visit (no sr_user_id cookie), sets sr_user_id=DEMO_OWNER_USER_ID
- *     so subsequent navigations to /brief/[id] are recognised as the demo owner.
- *   - Renders the header band, tile-section placeholder (Phase 2.2.b), and
- *     the real brief list (Phase 2.2.c).
+ * v0.3 changes from v0.2:
+ *   - getOwnerMetrics() now reads from owner_metrics DB table
+ *     (when USE_REAL_OWNER_METRICS=true) instead of the v0.2 fixture.
+ *   - MetricTile gains "ask" state for null owner metrics.
+ *   - IcoSwitcher is rendered in the header band (right side, moderator-only).
+ *   - ?saved=<metricId> query param drives the just-saved pulse class on
+ *     the matching tile (design/in-tile-prompts.md §4.2).
  *
  * Copy: docs/product/dashboard-v0-2.md §5 (canonical).
  * Layout tokens: docs/design/dashboard-v0-2/layout.md §5 + §6.
  * Identity bypass: docs/engineering/v0-2-identity-bypass.md §3–§5.
- * Brief list spec: docs/design/dashboard-v0-2/brief-list-item.md
+ * In-tile prompts: docs/design/in-tile-prompts.md + docs/product/in-tile-prompts.md.
+ *
+ * ?saved mechanic (OQ-073 / design §9 Q-TBD-ITP-003):
+ *   The MetricTile "ask" form submits via fetch PATCH, then calls
+ *   router.push("/?saved=<metricId>") on success. On page reload, this
+ *   server component reads searchParams.saved, finds the matching tile, and
+ *   passes justSaved=true to it. MetricTile applies the "mt-just-saved" CSS
+ *   class from globals.css (1 s box-shadow pulse). There is no client JS
+ *   to strip the class after 1.5 s; the CSS animation is one-shot (forwards)
+ *   and self-terminates. The param remains in the URL until the user navigates,
+ *   but the tile no longer pulses (animation is done). This is the simplest
+ *   correct approach; a Server Action redirect would not carry the param.
  */
-
-// Cookie-setting moved to src/middleware.ts — Next.js 14 App Router forbids
-// cookies().set() from a server component (it's only allowed in Server Actions
-// and Route Handlers). The middleware runs before this page renders and sets
-// sr_user_id=DEMO_OWNER_USER_ID if it's missing.
 
 import { listPublishedBriefsByNace } from "@/lib/briefs";
 import type { Brief, BriefContent } from "@/lib/briefs";
@@ -25,14 +32,23 @@ import {
   BriefListItem,
   formatPublicationMonth,
 } from "@/components/dashboard/BriefListItem";
-import { DEMO_OWNER_USER_ID, isDemoOwner, DEMO_OWNER_PROFILE } from "@/lib/demo-owner";
+import {
+  DEMO_OWNER_USER_ID,
+  isDemoOwner,
+  DEMO_OWNER_PROFILE,
+  DEMO_ACTIVE_ICO_COOKIE,
+  DEMO_DEFAULT_ICO,
+  DEMO_ICO_NAMES,
+} from "@/lib/demo-owner";
 import { getOwnerMetrics } from "@/lib/owner-metrics";
 import MetricTile from "@/components/dashboard/MetricTile";
 import type { MetricTileProps } from "@/components/dashboard/MetricTile";
+import IcoSwitcher from "@/components/dashboard/IcoSwitcher";
+import { cookies } from "next/headers";
+import { METRIC_BOUNDS, type OwnerMetricId } from "@/types/data-lanes";
 
 // ─── Tile helpers ─────────────────────────────────────────────────────────────
 
-// Canonical D-015 / D-011 category order — layout.md §7.2.
 const CATEGORY_ORDER = [
   "ziskovost",
   "naklady-produktivita",
@@ -40,7 +56,6 @@ const CATEGORY_ORDER = [
   "rust-trzni-pozice",
 ] as const;
 
-/** Map D-011 category_id to frozen Czech label for the tile Row A badge. */
 function categoryLabelFor(categoryId: string): string {
   const labels: Record<string, string> = {
     "ziskovost": "Ziskovost",
@@ -53,9 +68,9 @@ function categoryLabelFor(categoryId: string): string {
 
 // ─── Brief helpers ────────────────────────────────────────────────────────────
 
-/** NACE 31 display label — brief-list-item.md §6.1 (Q-TBD-D-008 resolved: include it) */
 const NACE_LABELS: Record<string, string> = {
   "31": "Výroba nábytku",
+  "49": "Silniční nákladní doprava",
 };
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
@@ -73,21 +88,51 @@ function extractTitle(brief: Brief): string {
   }
 }
 
-export default async function DashboardPage() {
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams?: Record<string, string | string[] | undefined>;
+}) {
   // ── Identity (v0-2-identity-bypass.md §4.4) ───────────────────────────────
-  // DEMO_OWNER_USER_ID is always used at PoC; userId is retained for the
-  // isDemoOwner guard that short-circuits getProfileByUserId.
   const userId = DEMO_OWNER_USER_ID;
-  // Suppress unused-variable warning — isDemoOwner is used as type-guard below.
-  void isDemoOwner;
+  void isDemoOwner; // used as type-guard elsewhere
 
-  // ── Metric tiles (Phase 2.2.b) ────────────────────────────────────────────
-  // Joins OwnerMetric fixture with getBenchmarkSnapshot('31') on metric_id.
-  // Returns [] for non-demo userId; never throws.
-  const ownerMetrics = await getOwnerMetrics(userId);
+  // ── Active IČO cookie (v0.3 IčO switcher, ADR-OM-02) ────────────────────
+  const cookieStore = cookies();
+  const activeIco = cookieStore.get(DEMO_ACTIVE_ICO_COOKIE)?.value ?? DEMO_DEFAULT_ICO;
 
-  // Sort into D-011 category order (fixture is already ordered; this is
-  // defensive against future fixture reordering).
+  // ── Active firm's cohort cell (set by /api/owner/demo/switch) ────────────
+  // When the moderator switches firms, the demo/switch route writes these
+  // cookies so the dashboard can compute percentiles against the firm's
+  // actual NACE × size × region cell. If unset, fall back to DEMO_OWNER_PROFILE.
+  const activeNace =
+    cookieStore.get("sr_active_nace")?.value || DEMO_OWNER_PROFILE.nace_sector;
+  const activeSize =
+    cookieStore.get("sr_active_size")?.value || DEMO_OWNER_PROFILE.size_band;
+  const activeRegion =
+    cookieStore.get("sr_active_region")?.value || DEMO_OWNER_PROFILE.region;
+
+  // Active firm name — set by /api/owner/demo/switch (URL-encoded so non-ASCII
+  // chars survive cookie transport). Falls back to the static DEMO_ICO_NAMES
+  // map if the switcher hasn't run yet (cold-load before re-ingest with
+  // migration 0009 has populated cohort_companies.name).
+  const rawNameCookie = cookieStore.get("sr_active_name")?.value;
+  const cookieName = rawNameCookie ? decodeURIComponent(rawNameCookie) : "";
+  const activeName = cookieName || DEMO_ICO_NAMES[activeIco] || "";
+
+  // ── just-saved metric ID (from ?saved=<metricId> post-PATCH redirect) ────
+  // Used to apply the mt-just-saved CSS pulse class to the matching tile.
+  const savedParam = searchParams?.saved;
+  const justSavedMetricId = typeof savedParam === "string" ? savedParam : null;
+
+  // ── Metric tiles ────────────────────────────────────────────────────────────
+  // Reads from owner_metrics DB table (when USE_REAL_OWNER_METRICS=true).
+  // Falls back to fixture on DB error. Never throws.
+  const ownerMetrics = await getOwnerMetrics(userId, activeNace, activeSize, activeRegion);
+
+  // Sort into D-011 category order
   const sortedMetrics = [...ownerMetrics].sort((a, b) => {
     const ai = CATEGORY_ORDER.indexOf(
       a.category_id as (typeof CATEGORY_ORDER)[number]
@@ -98,28 +143,57 @@ export default async function DashboardPage() {
     return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
   });
 
-  const tileProps: MetricTileProps[] = sortedMetrics.map((m) => ({
-    metricId: m.metric_id,
-    metricLabel: m.metric_label,
-    categoryLabel: categoryLabelFor(m.category_id),
-    rawValue: m.raw_value_display,
-    quartileLabel:
-      (m.quartile_label as MetricTileProps["quartileLabel"]) ?? null,
-    percentile: m.percentile,
-    confidenceState:
-      m.confidence_state === "valid"
-        ? "valid"
-        : m.confidence_state === "below-floor"
-        ? "below-floor"
-        : "empty",
-  }));
+  const tileProps: MetricTileProps[] = sortedMetrics.map((m) => {
+    const metricId = m.metric_id as OwnerMetricId;
+    const bounds = METRIC_BOUNDS[metricId];
 
-  // ── Briefs (Phase 2.2.c) ──────────────────────────────────────────────────
-  // Fetch published briefs for the demo owner's NACE sector.
-  // Fail-safe: on DB error, render empty state rather than crash.
+    // Map OwnerMetric confidence_state to MetricTileProps confidenceState.
+    // "ask" is the new v0.3 state — null owner value.
+    let confidenceState: MetricTileProps["confidenceState"];
+    if (m.confidence_state === "valid") {
+      confidenceState = "valid";
+    } else if (m.confidence_state === "below-floor") {
+      confidenceState = "below-floor";
+    } else if (m.confidence_state === "ask") {
+      confidenceState = "ask";
+    } else {
+      confidenceState = "empty";
+    }
+
+    const isJustSaved = justSavedMetricId === m.metric_id;
+
+    const baseProps: MetricTileProps = {
+      metricId: m.metric_id,
+      metricLabel: m.metric_label,
+      categoryLabel: categoryLabelFor(m.category_id),
+      rawValue: m.raw_value_display ?? null,
+      quartileLabel: (m.quartile_label as MetricTileProps["quartileLabel"]) ?? null,
+      percentile: m.percentile,
+      confidenceState,
+      justSaved: isJustSaved,
+    };
+
+    // Add ask-state props for tiles in "ask" state
+    if (confidenceState === "ask" && bounds) {
+      return {
+        ...baseProps,
+        promptHelpText: m.prompt_help_text,
+        unitSuffix: m.unit_suffix,
+        plausibilityMin: bounds.min,
+        plausibilityMax: bounds.max,
+        plausibilityDecimals: bounds.decimalPlaces,
+        errorCopyOutOfBounds: bounds.errorCopy,
+      };
+    }
+
+    return baseProps;
+  });
+
+  // ── Briefs ─────────────────────────────────────────────────────────────────
+  // Fail-safe: on DB error, render empty state
   let briefs: Brief[] = [];
   try {
-    briefs = await listPublishedBriefsByNace(DEMO_OWNER_PROFILE.nace_sector);
+    briefs = await listPublishedBriefsByNace(activeNace);
   } catch (err) {
     // DB unreachable — render empty state per dashboard-v0-2.md §5.3
     console.error("[dashboard] briefs fetch failed:", err);
@@ -128,18 +202,10 @@ export default async function DashboardPage() {
 
   const now = Date.now();
 
-  // ── Layout ───────────────────────────────────────────────────────────────────
-  // Tokens from docs/design/dashboard-v0-2/layout.md §5.
-  // Breakpoints applied via inline style + media queries in a <style> tag.
+  // ── Layout ────────────────────────────────────────────────────────────────
 
-  // Inline stylesheet is injected via dangerouslySetInnerHTML to sidestep a
-  // React hydration mismatch: when a <style>{`...`}</style> contains straight
-  // quotes, the server-rendered HTML encodes them as &quot; while the client
-  // decodes them on hydration, and React flags the delta. dangerouslySetInnerHTML
-  // makes React skip the child-content comparison.
   const dashboardCss = `
-        /* Dashboard layout — v0.2 PoC */
-        /* docs/design/dashboard-v0-2/layout.md §4.2 max-width + breakpoints */
+        /* Dashboard layout — v0.3 */
         /* GDS hex values inlined — globals.css vars not reliable in inline <style> */
 
         .db-page {
@@ -149,7 +215,7 @@ export default async function DashboardPage() {
           color: #1a1a1a;
         }
 
-        /* Header band — layout.md §6; GDS primary blue bg per screenshot */
+        /* Header band — GDS primary blue bg */
         .db-header {
           height: 48px;
           background: #135ee2;
@@ -162,30 +228,60 @@ export default async function DashboardPage() {
         @media (min-width: 601px) {
           .db-header { height: 56px; padding: 0 24px; }
         }
+        @media (max-width: 600px) {
+          .db-header {
+            justify-content: space-between;
+            height: auto;
+            min-height: 48px;
+            padding: 8px 16px;
+            gap: 8px;
+          }
+        }
 
-        /* Wordmark: white text on primary blue */
         .db-wordmark {
           font-size: 17px;
           font-weight: 700;
           color: #ffffff;
           line-height: 1.3;
           margin: 0;
+          display: flex;
+          align-items: center;
+          gap: 8px;
         }
 
-        /* Close button — absolutely positioned right */
-        .db-header-close {
+        .db-demo-badge {
+          display: inline-block;
+          font-size: 10px;
+          font-weight: 700;
+          color: #E65100;
+          background-color: #FFF3E0;
+          border-radius: 999px;
+          padding: 2px 6px;
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
+          vertical-align: middle;
+          line-height: 1.4;
+        }
+
+        /* IčO switcher wrapper — absolute right in header */
+        .db-ico-switcher-wrap {
           position: absolute;
           right: 16px;
-          color: #ffffff;
-          font-size: 15px;
-          cursor: pointer;
-          background: none;
-          border: none;
-          padding: 0;
-          line-height: 1;
+          top: 50%;
+          transform: translateY(-50%);
+          display: flex;
+          align-items: center;
+        }
+        @media (min-width: 601px) {
+          .db-ico-switcher-wrap { right: 24px; }
+        }
+        @media (max-width: 600px) {
+          .db-ico-switcher-wrap {
+            position: static;
+            transform: none;
+          }
         }
 
-        /* Content container — layout.md §4.2 */
         .db-content {
           width: 100%;
           max-width: 100%;
@@ -200,7 +296,6 @@ export default async function DashboardPage() {
           .db-content { max-width: 960px; padding: 0; }
         }
 
-        /* Section headings — layout.md §7.1, §8.1; dark navy per screenshot */
         .db-section-heading {
           font-size: 22px;
           font-weight: 700;
@@ -209,39 +304,42 @@ export default async function DashboardPage() {
           line-height: 1.35;
         }
 
-        /* Tile section — layout.md §7 */
         .db-tile-section {
           padding-top: 24px;
           padding-bottom: 32px;
         }
 
-        /* Tile grid — layout.md §7.2 */
+        /* Tile grid — mobile-first responsive
+           xs (<500 px):    1 sloupec — full-width karty na úzkých phonech
+           medium (500–899): 2 sloupce — wide phone / tablet portrait
+           large (≥900):    4 sloupce — tablet landscape + desktop
+           xl (≥1025):      4 sloupce + větší gap */
         .db-tile-grid {
           display: grid;
-          grid-template-columns: repeat(2, 1fr);
+          grid-template-columns: 1fr;
           gap: 12px;
         }
-        @media (min-width: 601px) {
+        @media (min-width: 500px) {
+          .db-tile-grid {
+            grid-template-columns: repeat(2, 1fr);
+          }
+        }
+        @media (min-width: 900px) {
           .db-tile-grid {
             grid-template-columns: repeat(4, 1fr);
             gap: 16px;
           }
         }
         @media (min-width: 1025px) {
-          .db-tile-grid {
-            grid-template-columns: repeat(4, 1fr);
-            gap: 20px;
-          }
+          .db-tile-grid { gap: 20px; }
         }
 
-        /* Section divider — layout.md §4.3 */
         .db-divider {
           border: none;
           border-top: 1px solid #e4eaf0;
           margin: 0;
         }
 
-        /* Briefs list section — layout.md §8 */
         .db-brief-section {
           padding-top: 24px;
           padding-bottom: 48px;
@@ -273,14 +371,13 @@ export default async function DashboardPage() {
           background-color: #d6e4fb !important;
         }
 
-        /* Empty state — brief-list-item.md §4.3 */
         .db-brief-empty {
           padding: 24px 0;
         }
         .db-brief-empty-heading {
           font-size: 15px;
           font-weight: 600;
-          color: var(--gds-text-body);
+          color: #1a1a1a;
           margin: 0 0 8px 0;
         }
         .db-brief-empty-body {
@@ -297,28 +394,25 @@ export default async function DashboardPage() {
 
       <div className="db-page">
 
-        {/* Header band — D-018: "Strategy Radar" centred, close button right */}
-        {/* layout.md §6: wordmark centred, Zavřít × absolutely positioned right */}
+        {/* Header band — wordmark centred, DEMO badge inline, IčO switcher absolute right */}
         <header role="banner" className="db-header">
-          {/* Accessible h1 per layout.md §6 accessibility note */}
-          <h1
-            className="db-wordmark"
-            aria-label="Strategy Radar"
-          >
+          <h1 className="db-wordmark" aria-label="Strategy Radar — demo prostředí">
             Strategy Radar
+            <span className="db-demo-badge" aria-hidden="true">DEMO</span>
           </h1>
-          <span className="db-header-close" aria-label="Zavřít" style={{display:'inline-flex', alignItems:'center', gap:'5px'}}>Zavřít <span style={{fontSize: '20px', lineHeight: 1, display:'flex', alignItems:'center'}}>✕</span></span>
+
+          <div className="db-ico-switcher-wrap">
+            <IcoSwitcher activeIco={activeIco} activeName={activeName} />
+          </div>
         </header>
 
         <main>
           <div className="db-content">
 
-            {/* Section 1 — Tile grid (Phase 2.2.b) */}
-            {/* Copy: dashboard-v0-2.md §5.2; heading from PM canonical copy */}
-            {/* Layout: layout.md §7.2; tile states: tile-states.md */}
+            {/* Section 1 — Tile grid */}
             <section className="db-tile-section" aria-labelledby="tile-section-heading">
               <h2 id="tile-section-heading" className="db-section-heading">
-                Vaše pozice v kohortě
+                Vaše pozice v kohortě{activeName ? ` – ${activeName}` : ""}
               </h2>
 
               {tileProps.length > 0 ? (
@@ -328,25 +422,21 @@ export default async function DashboardPage() {
                   ))}
                 </div>
               ) : (
-                /* Defensive empty state — should not occur for demo owner */
                 <p style={{ color: "#888", fontSize: "15px" }}>
                   Pro váš obor zatím nejsou k dispozici žádné ukazatele.
                 </p>
               )}
             </section>
 
-            {/* Section divider — layout.md §4.3 */}
             <hr className="db-divider" aria-hidden="true" />
 
-            {/* Section 2 — Briefs list (Phase 2.2.c) */}
-            {/* Copy: dashboard-v0-2.md §5.3; heading "Analýzy" per D-019 */}
+            {/* Section 2 — Briefs list */}
             <section className="db-brief-section" aria-labelledby="brief-section-heading">
               <h2 id="brief-section-heading" className="db-section-heading" style={{ marginTop: "24px" }}>
                 Analýzy
               </h2>
 
               {briefs.length === 0 ? (
-                /* Empty state — dashboard-v0-2.md §5.3, brief-list-item.md §4.3 */
                 <div className="db-brief-empty">
                   <p className="db-brief-empty-heading">Zatím žádné přehledy</p>
                   <p className="db-brief-empty-body">
@@ -355,7 +445,6 @@ export default async function DashboardPage() {
                   </p>
                 </div>
               ) : (
-                /* Brief list — brief-list-item.md §4.1 */
                 <ul
                   role="list"
                   className="db-brief-list"
@@ -374,8 +463,18 @@ export default async function DashboardPage() {
                         briefId={brief.id}
                         title={title}
                         publicationMonth={publicationMonth}
-                        naceCode={brief.nace_sector}
-                        naceName={NACE_LABELS[brief.nace_sector] ?? null}
+                        naceCode={
+                          brief.nace_sectors?.includes(activeNace)
+                            ? activeNace
+                            : brief.nace_sector
+                        }
+                        naceName={
+                          NACE_LABELS[
+                            brief.nace_sectors?.includes(activeNace)
+                              ? activeNace
+                              : brief.nace_sector
+                          ] ?? null
+                        }
                         isNew={isNew}
                       />
                     );
@@ -386,6 +485,9 @@ export default async function DashboardPage() {
 
           </div>
         </main>
+
+        {/* AI disclaimer is rendered globally v app/layout.tsx — nikoli zde,
+            aby nedocházelo k duplikaci na dashboard route. */}
 
       </div>
     </>

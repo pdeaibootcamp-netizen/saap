@@ -1,0 +1,431 @@
+{
+  "meta": {
+    "instanceId": "strategy-radar-analysis-automation",
+    "templateCredsSetupCompleted": false,
+    "description": "Strategy Radar v0.3 — Analysis Automation Pipeline\n\nThis workflow receives an uploaded publication (PDF or DOCX) from the Strategy Radar app, extracts its text, calls the Anthropic Claude API twice to generate a layperson opener and structured observations+actions, then posts the assembled draft back to the app's callback endpoint.\n\nSETUP INSTRUCTIONS:\n1. Create an 'Anthropic' credential in n8n (Settings → Credentials → New → Anthropic). Paste your Anthropic API key.\n2. Add two workflow-level Static Data variables (or environment variables in the n8n workspace if available):\n   - N8N_WEBHOOK_SECRET: the shared HMAC-SHA256 secret that the app sends in X-Signature-256 (must match N8N_WEBHOOK_SECRET in the app's .env.local).\n   - N8N_CALLBACK_SECRET: the HMAC-SHA256 secret this workflow uses when signing the callback request to /api/admin/briefs/from-n8n (must match N8N_CALLBACK_SECRET in the app).\n3. Activate the workflow. Copy the production webhook URL shown on the Webhook node, then paste it into the app's .env.local as N8N_WEBHOOK_URL.\n\nFree-trial note: n8n Cloud free tier does not expose environment variables. Set both secrets as expressions referencing n8n's built-in Static Data (see Code node 'Verify HMAC' for the pattern), or hardcode them in the Code nodes for PoC use only — rotate before any external exposure.\n\nPrivacy posture: The ownerMetricSnapshot field in the incoming payload contains only (metric_id, percentile, quartile_label) — no raw financial values, no IČO, no user_id. This workflow must not persist any field from the input payload after the workflow execution completes. n8n Cloud's execution logs may retain input/output for debugging; ensure the workspace retention policy is set appropriately before customer testing."
+  },
+  "name": "Strategy Radar — Analysis Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "analysis-automation",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "node-webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "analysis-automation"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Verify HMAC-SHA256 signature from the Strategy Radar app.\n// Header: X-Signature-256: sha256=<hex>\n// Secret: N8N_WEBHOOK_SECRET (set as Static Data or hardcoded for PoC)\n\nconst crypto = require('crypto');\n\n// Retrieve secret from n8n Static Data (workflow-level).\n// For PoC: replace $getWorkflowStaticData('global').N8N_WEBHOOK_SECRET\n// with the literal secret string if Static Data is not available on your plan.\nconst workflowData = $getWorkflowStaticData('global');\nconst secret = workflowData.N8N_WEBHOOK_SECRET || process.env.N8N_WEBHOOK_SECRET || '';\n\nif (!secret) {\n  throw new Error('N8N_WEBHOOK_SECRET is not configured. Set it in workflow Static Data.');\n}\n\nconst body = $input.first().json.body;\nconst rawBody = typeof body === 'string' ? body : JSON.stringify(body);\nconst sigHeader = $input.first().headers['x-signature-256'] || '';\n\n// sigHeader format: 'sha256=<hexdigest>'\nconst expectedPrefix = 'sha256=';\nif (!sigHeader.startsWith(expectedPrefix)) {\n  throw new Error('Missing or malformed X-Signature-256 header');\n}\nconst receivedSig = sigHeader.slice(expectedPrefix.length);\n\nconst computedSig = crypto\n  .createHmac('sha256', secret)\n  .update(rawBody, 'utf8')\n  .digest('hex');\n\n// Constant-time comparison\nif (!crypto.timingSafeEqual(Buffer.from(receivedSig, 'hex'), Buffer.from(computedSig, 'hex'))) {\n  throw new Error('HMAC signature mismatch — request rejected');\n}\n\n// Extract and validate required fields\nconst payload = typeof body === 'string' ? JSON.parse(body) : body;\nconst required = ['jobId', 'callbackUrl', 'publicationFileUrl', 'naceDivision'];\nfor (const field of required) {\n  if (!payload[field]) throw new Error(`Missing required field: ${field}`);\n}\n\nreturn [{ json: payload }];"
+      },
+      "id": "node-verify-hmac",
+      "name": "Verify HMAC",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.publicationFileUrl }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          },
+          "redirect": {
+            "redirect": {
+              "followRedirects": true,
+              "maxRedirects": 3
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "node-fetch-file",
+      "name": "Fetch Publication File",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Detect file type from the URL and route accordingly.\n// Returns: { isPdf: boolean, isDocx: boolean, fileUrl: string, ...passthrough }\nconst input = $input.first().json;\nconst fileUrl = input.publicationFileUrl || '';\nconst lowerUrl = fileUrl.toLowerCase().split('?')[0]; // strip query params\n\nconst isPdf = lowerUrl.endsWith('.pdf');\nconst isDocx = lowerUrl.endsWith('.docx') || lowerUrl.endsWith('.doc');\n\nif (!isPdf && !isDocx) {\n  throw new Error(`Unsupported file type in URL: ${fileUrl}. Expected .pdf or .docx`);\n}\n\nreturn [{\n  json: {\n    ...input,\n    isPdf,\n    isDocx,\n  }\n}];"
+      },
+      "id": "node-detect-type",
+      "name": "Detect File Type",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "pdf-branch",
+              "leftValue": "={{ $json.isPdf }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node-branch-type",
+      "name": "PDF or DOCX?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract plain text from a PDF binary.\n// n8n Cloud does not bundle a native PDF extraction node by default.\n// This implementation uses the binary data from the Fetch node and\n// calls a lightweight text extraction approach.\n//\n// IMPORTANT: This Code node receives the binary output from 'Fetch Publication File'.\n// n8n passes binary data as a Buffer accessible via $binary.\n// We use a simple regex-based text extraction that works for text-based PDFs.\n// For scanned PDFs (image-only), this returns empty text — acceptable for PoC.\n\nconst binaryData = $input.first().binary?.data;\nconst payload = $input.first().json;\n\nlet extractedText = '';\n\nif (binaryData) {\n  // Get the buffer\n  const buf = Buffer.from(binaryData, 'base64');\n  const raw = buf.toString('latin1');\n  \n  // Extract text streams from PDF (works for text-based PDFs)\n  // Pattern: content between BT (begin text) and ET (end text) markers\n  const streams = [];\n  const streamRegex = /stream[\\r\\n]([\\s\\S]*?)[\\r\\n]endstream/g;\n  let match;\n  while ((match = streamRegex.exec(raw)) !== null) {\n    streams.push(match[1]);\n  }\n  \n  // Extract printable ASCII text from each stream\n  const textParts = [];\n  for (const stream of streams) {\n    // Pull out text between parentheses (PDF text operators)\n    const textInParens = stream.match(/\\(([^)]{3,})\\)/g) || [];\n    for (const t of textInParens) {\n      const cleaned = t.slice(1, -1)\n        .replace(/\\\\n/g, ' ')\n        .replace(/\\\\r/g, ' ')\n        .replace(/\\\\t/g, ' ')\n        .replace(/\\\\\\\\/g, '\\\\')\n        .replace(/\\\\\\(/g, '(')\n        .replace(/\\\\\\)/g, ')')\n        .trim();\n      if (cleaned.length > 2) textParts.push(cleaned);\n    }\n  }\n  extractedText = textParts.join(' ');\n}\n\n// Limit to ~50k characters to stay within model context\nif (extractedText.length > 50000) {\n  extractedText = extractedText.slice(0, 50000) + '\\n\\n[Dokument byl zkrácen — zobrazena první část.]';\n}\n\nif (!extractedText || extractedText.trim().length < 50) {\n  extractedText = '[Extrakce textu se nezdařila — dokument může být skenovaný nebo v nevhodném formátu. Vygeneruj přehled na základě NACE sektoru bez specifického textu publikace.]';\n}\n\nreturn [{\n  json: {\n    ...payload,\n    extractedText,\n    extractionMethod: 'pdf-stream-parse',\n  }\n}];"
+      },
+      "id": "node-extract-pdf",
+      "name": "Extract PDF Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 160]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract plain text from a DOCX binary.\n// DOCX files are ZIP archives containing word/document.xml.\n// This implementation extracts XML content and strips tags.\n\nconst binaryData = $input.first().binary?.data;\nconst payload = $input.first().json;\n\nlet extractedText = '';\n\nif (binaryData) {\n  const buf = Buffer.from(binaryData, 'base64');\n  \n  // DOCX is a ZIP. Look for the document.xml content in the raw bytes.\n  // Simple approach: find XML text between <w:t> tags.\n  const raw = buf.toString('utf8', 0, Math.min(buf.length, 2000000)); // 2MB cap\n  \n  // Extract all <w:t> text runs (standard DOCX text element)\n  const textRuns = raw.match(/<w:t[^>]*>([^<]+)<\\/w:t>/g) || [];\n  const parts = textRuns.map(t => {\n    const inner = t.replace(/<[^>]+>/g, '');\n    return inner;\n  }).filter(t => t.trim().length > 0);\n  \n  extractedText = parts.join(' ');\n}\n\n// Limit to ~50k characters\nif (extractedText.length > 50000) {\n  extractedText = extractedText.slice(0, 50000) + '\\n\\n[Dokument byl zkrácen — zobrazena první část.]';\n}\n\nif (!extractedText || extractedText.trim().length < 50) {\n  extractedText = '[Extrakce textu se nezdařila — DOCX dokument nelze přečíst. Vygeneruj přehled na základě NACE sektoru bez specifického textu publikace.]';\n}\n\nreturn [{\n  json: {\n    ...payload,\n    extractedText,\n    extractionMethod: 'docx-wt-parse',\n  }\n}];"
+      },
+      "id": "node-extract-docx",
+      "name": "Extract DOCX Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 440]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge the two extraction branches back into a single item.\n// Both branches (PDF and DOCX) produce the same output shape.\nreturn $input.all();"
+      },
+      "id": "node-merge-extraction",
+      "name": "Merge Extraction",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": []
+        },
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"claude-sonnet-4-6-20250514\",\n  \"max_tokens\": 1024,\n  \"system\": \"Jsi analytik České spořitelny, který píše průvodní texty sektorových analýz pro majitele malých a středních firem. Tvůj text musí být:\\n- V českém formálním jazyce (vykání)\\n- 200–400 slov\\n- Srozumitelný pro majitele firmy bez ekonomického vzdělání — žádná statistická notace, žádné zkratky bez vysvětlení\\n- Zaměřený na nejdůležitější zjištění z publikace a jejich praktický dopad na podnikatele\\n- Napsán v ich-formě třetí osoby (\\\"Zpráva ukazuje…\\\", \\\"Sektor zaznamenal…\\\") nebo majitelské perspektivě (\\\"Pokud podnikáte v tomto oboru…\\\")\\n- Bez statistické notace (σ, p-hodnota, percentil ve tvaru \\\"p=\\\")\\n- Produkuj POUZE samotný text úvodu, bez záhlaví ani metadat\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Napiš 200–400 slov dlouhý laický úvod (Sektorová analýza) pro majitele firmy v NACE sektoru {{ $json.naceDivision }}.\\n\\nText publikace:\\n{{ $json.extractedText.slice(0, 30000) }}\\n\\nÚvod musí být v češtině, formální, bez statistické notace, zaměřený na praktické dopady pro majitele firmy.\"\n    }\n  ]\n}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "node-claude-opener",
+      "name": "Claude Call 1 — Generate Opener",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1780, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "anthropic-api-key",
+          "name": "Anthropic API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract the opener text from Claude's API response and attach to payload.\nconst claudeResponse = $input.first().json;\nconst prevData = $('Merge Extraction').first().json;\n\nlet openerMarkdown = '';\nif (claudeResponse.content && claudeResponse.content.length > 0) {\n  openerMarkdown = claudeResponse.content[0].text || '';\n}\n\nif (!openerMarkdown) {\n  throw new Error('Claude Call 1 returned empty opener text');\n}\n\nreturn [{\n  json: {\n    ...prevData,\n    openerMarkdown,\n  }\n}];"
+      },
+      "id": "node-extract-opener",
+      "name": "Extract Opener",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2000, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"claude-sonnet-4-6-20250514\",\n  \"max_tokens\": 2048,\n  \"system\": \"Jsi analytik České spořitelny. Tvojí úlohou je vygenerovat strukturovaný JSON výstup se třemi pozorováními a třemi doporučenými kroky pro sektorovou analýzu. Každé pozorování musí mít přiřazen odpovídající doporučený krok (paired_observation_index).\\n\\nPravidla:\\n- Vše v češtině, formální vykání\\n- Žádná statistická notace (σ, p-hodnota, percentil ve tvaru \\\"p=\\\")\\n- Každé pozorování: 60–100 slov, konkrétní zjištění z publikace nebo sektoru\\n- Každý doporučený krok: 40–80 slov, začíná slovesem, obsahuje kontext a časový horizont\\n- time_horizon musí být přesně jedno z: \\\"Okamžitě\\\", \\\"Do 3 měsíců\\\", \\\"Do 12 měsíců\\\", \\\"Více než rok\\\"\\n- category musí být přesně jedno z: \\\"ziskovost\\\", \\\"naklady-produktivita\\\", \\\"efektivita-kapitalu\\\", \\\"rust-trzni-pozice\\\"\\n- Pokud je k dispozici ownerMetricSnapshot, alespoň jedno pozorování musí odkazovat na pozici majitele v rámci oboru (např. \\\"Vaše marže patří do třetí čtvrtiny oboru\\\"). Pokud snapshot není k dispozici nebo je null, použij pouze sektorové framing.\\n- Produkuj POUZE validní JSON bez dalšího textu, záhlaví ani vysvětlení.\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Vygeneruj JSON s pozorováními a doporučenými kroky pro NACE sektor {{ $json.naceDivision }}.\\n\\nText publikace (zkrácen na 20 000 znaků):\\n{{ $json.extractedText.slice(0, 20000) }}\\n\\nSnapshot metrik majitele (percentily + kvartily; null = data chybí):\\n{{ JSON.stringify($json.ownerMetricSnapshot || null) }}\\n\\nVrať POUZE tento JSON (bez dalšího textu):\\n{\\n  \\\"observations\\\": [\\n    {\\n      \\\"headline\\\": \\\"<krátký nadpis pozorování, max 10 slov>\\\",\\n      \\\"body\\\": \\\"<60–100 slov česky>\\\",\\n      \\\"time_horizon\\\": \\\"<Okamžitě|Do 3 měsíců|Do 12 měsíců|Více než rok>\\\",\\n      \\\"is_email_teaser\\\": <true pro první, false pro ostatní>\\n    }\\n  ],\\n  \\\"closing_actions\\\": [\\n    {\\n      \\\"action_text\\\": \\\"<40–80 slov, začíná slovesem>\\\",\\n      \\\"time_horizon\\\": \\\"<Okamžitě|Do 3 měsíců|Do 12 měsíců|Více než rok>\\\",\\n      \\\"category\\\": \\\"<ziskovost|naklady-produktivita|efektivita-kapitalu|rust-trzni-pozice>\\\",\\n      \\\"paired_observation_index\\\": <0, 1, nebo 2>\\n    }\\n  ]\\n}\\n\\nPiš v češtině, formální vykání. observations musí mít přesně 3 prvky. closing_actions musí mít přesně 3 prvky. paired_observation_index musí být 0, 1, nebo 2 (každý index použit právě jednou).\"\n    }\n  ],\n  \"tools\": [\n    {\n      \"name\": \"structured_brief_content\",\n      \"description\": \"Returns structured brief observations and closing actions as validated JSON\",\n      \"input_schema\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"observations\": {\n            \"type\": \"array\",\n            \"minItems\": 3,\n            \"maxItems\": 3,\n            \"items\": {\n              \"type\": \"object\",\n              \"properties\": {\n                \"headline\": { \"type\": \"string\" },\n                \"body\": { \"type\": \"string\" },\n                \"time_horizon\": { \"type\": \"string\", \"enum\": [\"Okamžitě\", \"Do 3 měsíců\", \"Do 12 měsíců\", \"Více než rok\"] },\n                \"is_email_teaser\": { \"type\": \"boolean\" }\n              },\n              \"required\": [\"headline\", \"body\", \"time_horizon\", \"is_email_teaser\"]\n            }\n          },\n          \"closing_actions\": {\n            \"type\": \"array\",\n            \"minItems\": 3,\n            \"maxItems\": 3,\n            \"items\": {\n              \"type\": \"object\",\n              \"properties\": {\n                \"action_text\": { \"type\": \"string\" },\n                \"time_horizon\": { \"type\": \"string\", \"enum\": [\"Okamžitě\", \"Do 3 měsíců\", \"Do 12 měsíců\", \"Více než rok\"] },\n                \"category\": { \"type\": \"string\", \"enum\": [\"ziskovost\", \"naklady-produktivita\", \"efektivita-kapitalu\", \"rust-trzni-pozice\"] },\n                \"paired_observation_index\": { \"type\": \"integer\", \"minimum\": 0, \"maximum\": 2 }\n              },\n              \"required\": [\"action_text\", \"time_horizon\", \"category\", \"paired_observation_index\"]\n            }\n          }\n        },\n        \"required\": [\"observations\", \"closing_actions\"]\n      }\n    }\n  ],\n  \"tool_choice\": { \"type\": \"tool\", \"name\": \"structured_brief_content\" }\n}",
+        "options": {
+          "timeout": 90000
+        }
+      },
+      "id": "node-claude-structured",
+      "name": "Claude Call 2 — Generate Observations + Actions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2220, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "anthropic-api-key",
+          "name": "Anthropic API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract structured output from Claude's tool_use response.\n// When tool_choice: { type: 'tool' } is set, Claude returns a tool_use block.\nconst claudeResponse = $input.first().json;\nconst prevData = $('Extract Opener').first().json;\n\nlet observations = [];\nlet closingActions = [];\n\n// Find the tool_use content block\nconst content = claudeResponse.content || [];\nconst toolBlock = content.find(b => b.type === 'tool_use' && b.name === 'structured_brief_content');\n\nif (toolBlock && toolBlock.input) {\n  observations = toolBlock.input.observations || [];\n  closingActions = toolBlock.input.closing_actions || [];\n} else {\n  // Fallback: try to parse the text content as JSON\n  const textBlock = content.find(b => b.type === 'text');\n  if (textBlock && textBlock.text) {\n    try {\n      const parsed = JSON.parse(textBlock.text.trim());\n      observations = parsed.observations || [];\n      closingActions = parsed.closing_actions || [];\n    } catch {\n      throw new Error('Claude Call 2: could not extract structured output from tool_use or text response');\n    }\n  } else {\n    throw new Error('Claude Call 2: no tool_use block and no text block in response');\n  }\n}\n\n// Validate counts\nif (observations.length !== 3) {\n  throw new Error(`Expected 3 observations, got ${observations.length}`);\n}\nif (closingActions.length !== 3) {\n  throw new Error(`Expected 3 closing_actions, got ${closingActions.length}`);\n}\n\n// Validate time_horizon values\nconst validHorizons = ['Okamžitě', 'Do 3 měsíců', 'Do 12 měsíců', 'Více než rok'];\nfor (const obs of observations) {\n  if (!validHorizons.includes(obs.time_horizon)) {\n    throw new Error(`Invalid time_horizon in observation: ${obs.time_horizon}`);\n  }\n}\nfor (const action of closingActions) {\n  if (!validHorizons.includes(action.time_horizon)) {\n    throw new Error(`Invalid time_horizon in action: ${action.time_horizon}`);\n  }\n  if (action.paired_observation_index < 0 || action.paired_observation_index > 2) {\n    throw new Error(`paired_observation_index out of range: ${action.paired_observation_index}`);\n  }\n}\n\nreturn [{\n  json: {\n    ...prevData,\n    observations,\n    closingActions,\n  }\n}];"
+      },
+      "id": "node-extract-structured",
+      "name": "Extract Structured Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2440, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Compose the final draft payload per the n8n callback contract.\n// docs/engineering/n8n-integration.md §5\n\nconst data = $input.first().json;\n\n// Build filename stem from file_path for the source attribution\nconst filePath = data.file_path || data.publicationFileUrl || '';\nconst fileNameStem = filePath.split('/').pop()?.split('?')[0]?.replace(/\\.[^.]+$/, '') || 'publikace';\n\n// Build Czech month-year string\nconst now = new Date();\nconst czechMonths = ['Leden','Únor','Březen','Duben','Květen','Červen','Červenec','Srpen','Září','Říjen','Listopad','Prosinec'];\nconst publicationMonth = `${czechMonths[now.getMonth()]} ${now.getFullYear()}`;\n\n// ISO month for the callback contract field\nconst isoMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;\n\nconst draft = {\n  title: `Sektorová analýza — NACE ${data.naceDivision} — ${publicationMonth}`,\n  publication_month: isoMonth,\n  publication: {\n    heading: 'Sektorová analýza',\n    opener_markdown: data.openerMarkdown,\n    full_text_markdown: data.extractedText || '',\n    source: `Ekonomické a strategické analýzy České spořitelny — ${fileNameStem}, ${publicationMonth}`,\n  },\n  observations: data.observations,\n  closing_actions: data.closingActions,\n};\n\nconst callbackPayload = {\n  jobId: data.jobId,\n  status: 'done',\n  draft,\n};\n\nreturn [{\n  json: {\n    callbackUrl: data.callbackUrl,\n    callbackPayload,\n    jobId: data.jobId,\n  }\n}];"
+      },
+      "id": "node-compose-draft",
+      "name": "Compose Draft",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2660, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Sign the callback payload with HMAC-SHA256 using N8N_CALLBACK_SECRET.\n// Produces the X-Signature-256 header value.\nconst crypto = require('crypto');\n\nconst workflowData = $getWorkflowStaticData('global');\nconst secret = workflowData.N8N_CALLBACK_SECRET || process.env.N8N_CALLBACK_SECRET || '';\n\nif (!secret) {\n  throw new Error('N8N_CALLBACK_SECRET is not configured. Set it in workflow Static Data.');\n}\n\nconst data = $input.first().json;\nconst bodyStr = JSON.stringify(data.callbackPayload);\nconst sig = crypto.createHmac('sha256', secret).update(bodyStr, 'utf8').digest('hex');\n\nreturn [{\n  json: {\n    callbackUrl: data.callbackUrl,\n    callbackBody: bodyStr,\n    signatureHeader: `sha256=${sig}`,\n    jobId: data.jobId,\n  }\n}];"
+      },
+      "id": "node-sign-callback",
+      "name": "Sign Callback",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2880, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.callbackUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Signature-256",
+              "value": "={{ $json.signatureHeader }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "={{ $json.callbackBody }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "node-send-callback",
+      "name": "Send Callback",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3100, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"received\": true }",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "node-respond-200",
+      "name": "Respond 200",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [3320, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Error handler — fires when any upstream node throws.\n// Attempts to send a failure callback to the app so the job can be marked failed.\nconst crypto = require('crypto');\n\nconst workflowData = $getWorkflowStaticData('global');\nconst secret = workflowData.N8N_CALLBACK_SECRET || process.env.N8N_CALLBACK_SECRET || '';\n\n// Try to recover the original payload to get callbackUrl and jobId\nlet callbackUrl = '';\nlet jobId = '';\ntry {\n  // Walk back through available node data to find the webhook payload\n  const webhookData = $('Verify HMAC').first()?.json;\n  callbackUrl = webhookData?.callbackUrl || '';\n  jobId = webhookData?.jobId || '';\n} catch {\n  // Cannot recover — log and exit\n  console.error('[error-handler] Could not recover callbackUrl or jobId from upstream nodes');\n  return [{ json: { handled: false, reason: 'could not recover callback context' } }];\n}\n\nif (!callbackUrl || !jobId) {\n  return [{ json: { handled: false, reason: 'missing callbackUrl or jobId' } }];\n}\n\nconst errorMessage = $input.first()?.json?.error?.message || 'Unknown error in n8n workflow';\n\nconst failPayload = {\n  jobId,\n  status: 'failed',\n  error: errorMessage,\n};\n\nconst bodyStr = JSON.stringify(failPayload);\nlet signatureHeader = '';\nif (secret) {\n  const sig = crypto.createHmac('sha256', secret).update(bodyStr, 'utf8').digest('hex');\n  signatureHeader = `sha256=${sig}`;\n}\n\nreturn [{\n  json: {\n    callbackUrl,\n    callbackBody: bodyStr,\n    signatureHeader,\n  }\n}];"
+      },
+      "id": "node-error-handler",
+      "name": "Error Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1780, 560]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.callbackUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Signature-256",
+              "value": "={{ $json.signatureHeader }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "string",
+        "body": "={{ $json.callbackBody }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "node-send-failure-callback",
+      "name": "Send Failure Callback",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2000, 560]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [{ "node": "Verify HMAC", "type": "main", "index": 0 }]
+      ]
+    },
+    "Verify HMAC": {
+      "main": [
+        [{ "node": "Fetch Publication File", "type": "main", "index": 0 }]
+      ]
+    },
+    "Fetch Publication File": {
+      "main": [
+        [{ "node": "Detect File Type", "type": "main", "index": 0 }]
+      ]
+    },
+    "Detect File Type": {
+      "main": [
+        [{ "node": "PDF or DOCX?", "type": "main", "index": 0 }]
+      ]
+    },
+    "PDF or DOCX?": {
+      "main": [
+        [{ "node": "Extract PDF Text", "type": "main", "index": 0 }],
+        [{ "node": "Extract DOCX Text", "type": "main", "index": 0 }]
+      ]
+    },
+    "Extract PDF Text": {
+      "main": [
+        [{ "node": "Merge Extraction", "type": "main", "index": 0 }]
+      ]
+    },
+    "Extract DOCX Text": {
+      "main": [
+        [{ "node": "Merge Extraction", "type": "main", "index": 0 }]
+      ]
+    },
+    "Merge Extraction": {
+      "main": [
+        [{ "node": "Claude Call 1 — Generate Opener", "type": "main", "index": 0 }]
+      ]
+    },
+    "Claude Call 1 — Generate Opener": {
+      "main": [
+        [{ "node": "Extract Opener", "type": "main", "index": 0 }]
+      ]
+    },
+    "Extract Opener": {
+      "main": [
+        [{ "node": "Claude Call 2 — Generate Observations + Actions", "type": "main", "index": 0 }]
+      ]
+    },
+    "Claude Call 2 — Generate Observations + Actions": {
+      "main": [
+        [{ "node": "Extract Structured Output", "type": "main", "index": 0 }]
+      ]
+    },
+    "Extract Structured Output": {
+      "main": [
+        [{ "node": "Compose Draft", "type": "main", "index": 0 }]
+      ]
+    },
+    "Compose Draft": {
+      "main": [
+        [{ "node": "Sign Callback", "type": "main", "index": 0 }]
+      ]
+    },
+    "Sign Callback": {
+      "main": [
+        [{ "node": "Send Callback", "type": "main", "index": 0 }]
+      ]
+    },
+    "Send Callback": {
+      "main": [
+        [{ "node": "Respond 200", "type": "main", "index": 0 }]
+      ]
+    },
+    "Error Handler": {
+      "main": [
+        [{ "node": "Send Failure Callback", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "",
+    "saveExecutionProgress": true
+  },
+  "staticData": null,
+  "tags": ["strategy-radar", "v0.3", "track-c"],
+  "triggerCount": 1,
+  "updatedAt": "2026-04-27T00:00:00.000Z",
+  "versionId": "v0.3-track-c-initial"
+}
