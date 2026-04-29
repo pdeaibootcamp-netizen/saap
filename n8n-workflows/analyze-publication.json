@@ -1,0 +1,1151 @@
+{
+  "name": "Strategy Radar — Analyze Publication",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "strategy-radar-analyze",
+        "options": {}
+      },
+      "id": "f95de433-7905-41d4-b018-df46e28b1c2a",
+      "name": "Publication Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "71a9ab5e-f1ce-41e5-85b3-47c2d2e83a5c"
+    },
+    {
+      "parameters": {
+        "jsCode": "const crypto = require('crypto');\nconst N8N_WEBHOOK_SECRET = '3e724d3f5e8587982aa19768d1eb717de56ab6798e4713b28c6c372d7c89fc3b';\nconst body = $input.first().json.body;\nconst rawBody = typeof body === 'string' ? body : JSON.stringify(body);\nconst sigHeader = $input.first().json.headers['x-signature-256'] || '';\nif (!sigHeader.startsWith('sha256=')) throw new Error('Missing or malformed X-Signature-256 header');\nconst receivedSig = sigHeader.slice('sha256='.length);\nconst computedSig = crypto.createHmac('sha256', N8N_WEBHOOK_SECRET).update(rawBody, 'utf8').digest('hex');\nif (!crypto.timingSafeEqual(Buffer.from(receivedSig, 'hex'), Buffer.from(computedSig, 'hex'))) throw new Error('HMAC mismatch');\nconst payload = typeof body === 'string' ? JSON.parse(body) : body;\nreturn [{ json: payload }];"
+      },
+      "id": "7920870b-f2a3-4ec4-b4db-ef2fb76897ff",
+      "name": "Verify HMAC",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.publicationFileUrl }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "22b4bb5d-65e6-42a3-ac91-8e25815fd942",
+      "name": "Fetch Publication File",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        448,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const payload = $input.first().json;\nconst fileUrl = (payload.publicationFileUrl || '').toLowerCase().split('?')[0];\nlet ext = '';\nif (fileUrl.endsWith('.pdf')) ext = 'pdf';\nelse if (fileUrl.endsWith('.docx') || fileUrl.endsWith('.doc')) ext = 'docx';\nelse if (fileUrl.endsWith('.md')) ext = 'md';\nelse if (fileUrl.endsWith('.txt')) ext = 'txt';\nelse throw new Error('Unsupported file type: ' + fileUrl);\nlet buf;\ntry { buf = await this.helpers.getBinaryDataBuffer(0, 'data'); } catch (err) { throw new Error('Could not load binary: ' + (err.message || err)); }\nif (!buf || buf.length === 0) throw new Error('Empty binary buffer.');\nlet extractedText = '';\nif (ext === 'md' || ext === 'txt') { extractedText = buf.toString('utf8'); }\nelse if (ext === 'docx') {\n  const raw = buf.toString('utf8', 0, Math.min(buf.length, 2_000_000));\n  const runs = raw.match(/<w:t[^>]*>([^<]+)<\\/w:t>/g) || [];\n  extractedText = runs.map(t => t.replace(/<[^>]+>/g, '')).filter(t => t.trim().length > 0).join(' ');\n} else {\n  const raw = buf.toString('latin1');\n  const streams = [];\n  const re = /stream[\\r\\n]([\\s\\S]*?)[\\r\\n]endstream/g;\n  let m;\n  while ((m = re.exec(raw)) !== null) streams.push(m[1]);\n  const parts = [];\n  for (const s of streams) {\n    const inP = s.match(/\\(([^)]{3,})\\)/g) || [];\n    for (const t of inP) {\n      const c = t.slice(1, -1).replace(/\\\\n/g, ' ').replace(/\\\\r/g, ' ').replace(/\\\\t/g, ' ').trim();\n      if (c.length > 2) parts.push(c);\n    }\n  }\n  extractedText = parts.join(' ');\n}\nif (extractedText.length > 8000) extractedText = extractedText.slice(0, 8000) + '\\n\\n[Zkraceno.]';\nif (!extractedText || extractedText.trim().length < 50) extractedText = '[Extrakce textu se nezdarila.]';\nreturn [{ json: { ...payload, extractedText, extractionMethod: ext } }];"
+      },
+      "id": "4e93c548-ff00-4377-92ca-468900b10324",
+      "name": "Extract Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.extractedText }}",
+        "options": {
+          "systemMessage": "Jsi prekladatel sektorovych analyz pro ceskeho maleho a stredniho podnikatele. Vygeneruj kratky cesky uvod (200-400 slov, vykani, vecny ton, bez statistickych terminu, bez anglicismu). Cisla pouze s kontextem. Vrat pouze samotny cesky text, bez nadpisu.",
+          "maxIterations": 3
+        }
+      },
+      "id": "517016a3-d09c-46a0-9267-af046a443c08",
+      "name": "Layperson Opener",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        880,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-haiku-4-5",
+          "cachedResultName": "Claude Haiku 4.5"
+        },
+        "options": {
+          "maxTokensToSample": 2048,
+          "temperature": 0.3
+        }
+      },
+      "id": "d8ed4340-6d55-46e1-ad7f-6dc6cc649a65",
+      "name": "Claude Haiku",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        880,
+        608
+      ],
+      "credentials": {
+        "anthropicApi": {
+          "id": "bppXucHCcEwUI4aH",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Cesky uvod publikace (kontext):\n{{ $('Layperson Opener').first().json.output }}\n\nPlne telo publikace:\n{{ $('Extract Text').first().json.extractedText }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "Jsi sektorový analytik České spořitelny pro výrobu nábytku (NACE 31).\nTYPICKÝ KLIENT: malý/střední výrobce nábytku, 10–50 zaměstnanců, B2B (kanceláře, hotely) i B2C (kuchyně, ložnice, sedací nábytek).\n\nRELEVANCE (buď liberální):\n- Přímo: nábytek, dřevařský průmysl, design interiéru, retail nábytku (IKEA, JYSK, ASKO), bytové doplňky, kuchyně, čalouněný nábytek.\n- Nepřímo: trh s bydlením a nemovitostmi, stavebnictví, ceny dřeva a kompozitů, retail trendy v ČR, mzdy ve výrobě, energie, EU regulace nábytku či dřeva, e-commerce s bytovým vybavením.\n\nPravidlo: pokud lze vyvodit alespoň jedno užitečné pozorování pro typického výrobce nábytku, vrať relevant=true. Jen publikace zcela bez vazby (např. zahraniční politika bez ekonomického dopadu) → relevant=false.\n\nVÝSTUP:\n- relevantní: { \"relevant\": true, \"reason\": null, \"insights\": [3 pozorování] }\n- nerelevantní: { \"relevant\": false, \"reason\": \"krátké vysvětlení\", \"insights\": [] }\n\nPOZOROVÁNÍ: headline ≤60 znaků; body 2 věty max 400 znaků, vykání, věcný tón; time_horizon ∈ {\"Okamžitě\",\"Do 3 měsíců\",\"Do 12 měsíců\",\"Více než rok\"}; is_email_teaser=true jen u prvního.\n\nVÝSTUPNÍ PRAVIDLA: pouze valid JSON, bez markdown bloků, bez komentářů. Začni { a skonči }. Boolean = true/false. Arrays = pole, ne stringifikované.",
+          "maxIterations": 3
+        }
+      },
+      "id": "4b91c309-9c7b-426a-8fd7-22bbe9a4849e",
+      "name": "Insights 31",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1104,
+        -544
+      ]
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"relevant\": true,\n  \"reason\": null,\n  \"insights\": [\n    { \"headline\": \"Krátký název\", \"body\": \"Dvě věty popisu.\", \"time_horizon\": \"Do 3 měsíců\", \"is_email_teaser\": true }\n  ]\n}",
+        "autoFix": true
+      },
+      "id": "a5cfefeb-f216-46cf-8ec5-9c2121715d2f",
+      "name": "Insights Parser 31",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1328,
+        -544
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "rel-31",
+              "leftValue": "={{ $json.output.relevant }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "0defe161-6269-4081-a5ca-244ec1caf856",
+      "name": "IF Relevant 31",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1328,
+        -448
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Pozorovani z predchoziho agenta:\n{{ JSON.stringify($('Insights 31').first().json.output.insights) }}\n\nPlne telo publikace:\n{{ $('Extract Text').first().json.extractedText }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "Jsi sektorovy analytik Ceske sporitelny pro NACE 31. Pro KAZDE z 3 pozorovani vygeneruj 1 doporuceny krok pro maleho/stredniho vyrobce nabytku.\n\nPRAVIDLA pro akce:\n- action_text (do 240 znaku, sloveso na zacatku, konkretni vystup)\n- time_horizon ∈ {\"1m\", \"3m\", \"6-12m\", \"1y+\"}\n- paired_observation_index 0/1/2 = index parovaneho pozorovani\n\nTODO: doplnit konkretni NACE 31 pravidla pro akce.\n\nVYSTUPNI PRAVIDLA (KRITICKE):\n- Vrat POUZE valid JSON. Bez markdown bloku ```json ... ```. Bez komentaru pred nebo za. Zacni primo znakem { a skonci znakem }.\n- Vsechny pole z prikladu jsou POVINNE.\n- Boolean hodnoty jsou true / false (ne \"true\" / \"false\" jako string).\n- Arrays jsou pole [{...}, {...}], ne stringifikovane.",
+          "maxIterations": 3
+        }
+      },
+      "id": "06c022d7-ae74-499d-8a64-4383dff3a0e9",
+      "name": "Actions 31",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1552,
+        -448
+      ]
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"actions\": [\n    { \"action_text\": \"Akce: konkrétní krok.\", \"time_horizon\": \"1m\", \"paired_observation_index\": 0 }\n  ]\n}",
+        "autoFix": true
+      },
+      "id": "ce759d2b-0c39-4e2f-bd9d-e29fc92f62f2",
+      "name": "Actions Parser 31",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1760,
+        -352
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const insightsOut = $('Insights 31').first().json.output || {};\nlet actionsOut = null;\ntry { actionsOut = $('Actions 31').first()?.json?.output || null; } catch (e) { actionsOut = null; }\nconst relevant = insightsOut.relevant === true;\nreturn [{ json: { nace: '31', relevant, insights: insightsOut.insights || [], actions: relevant && actionsOut ? (actionsOut.actions || []) : [], reason: insightsOut.reason || null } }];"
+      },
+      "id": "ebefefc9-e6cf-47f3-9b76-508239f0b811",
+      "name": "Tag 31",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1984,
+        -448
+      ]
+    },
+    {
+      "parameters": {
+        "numberInputs": 4
+      },
+      "id": "2d8f441e-a769-48fc-8597-cc0cd95a5790",
+      "name": "Merge NACE Results",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        2208,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Cesky uvod publikace (kontext):\n{{ $('Layperson Opener').first().json.output }}\n\nPlne telo publikace:\n{{ $('Extract Text').first().json.extractedText }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "Jsi sektorový analytik České spořitelny pro pozemní nákladní dopravu (NACE 49 — silniční, železniční, ostatní).\nTYPICKÝ KLIENT: malý/střední dopravce, 10–80 zaměstnanců, kamionová či kombinovaná doprava, B2B kontrakty s výrobou a retailem.\n\nRELEVANCE (buď liberální):\n- Přímo: silniční doprava, kamionová doprava, železniční nákladní doprava (ČD Cargo), spedice, logistika, mýtné, ceny paliv, řidiči, EU dopravní regulace, kombinovaná doprava.\n- Nepřímo: zásobovací řetězce, e-commerce logistika, ceny pohonných hmot a energie, infrastruktura, mzdy v dopravě, výroba a retail jako klientská základna, automobilový průmysl, EU emisní pravidla.\n\nPravidlo: pokud lze vyvodit alespoň jedno užitečné pozorování pro typického dopravce, vrať relevant=true. Jen publikace zcela bez vazby → relevant=false.\n\nVÝSTUP:\n- relevantní: { \"relevant\": true, \"reason\": null, \"insights\": [3 pozorování] }\n- nerelevantní: { \"relevant\": false, \"reason\": \"krátké vysvětlení\", \"insights\": [] }\n\nPOZOROVÁNÍ: headline ≤60 znaků; body 2 věty max 400 znaků, vykání, věcný tón; time_horizon ∈ {\"Okamžitě\",\"Do 3 měsíců\",\"Do 12 měsíců\",\"Více než rok\"}; is_email_teaser=true jen u prvního.\n\nVÝSTUPNÍ PRAVIDLA: pouze valid JSON, bez markdown bloků, bez komentářů. Začni { a skonči }. Boolean = true/false. Arrays = pole, ne stringifikované.",
+          "maxIterations": 3
+        }
+      },
+      "id": "6652e3c7-c8b5-4b12-b44b-2c68af72c518",
+      "name": "Insights 49",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1104,
+        -144
+      ]
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"relevant\": true,\n  \"reason\": null,\n  \"insights\": [\n    { \"headline\": \"Krátký název\", \"body\": \"Dvě věty popisu.\", \"time_horizon\": \"Do 3 měsíců\", \"is_email_teaser\": true }\n  ]\n}",
+        "autoFix": true
+      },
+      "id": "2bcd3c1d-767a-452b-a48f-8a19a0318745",
+      "name": "Insights Parser 49",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1328,
+        -144
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "rel-49",
+              "leftValue": "={{ $json.output.relevant }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "7da08124-4d9e-40dc-9b7c-1ed9c28f9ca8",
+      "name": "IF Relevant 49",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1328,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Pozorovani z predchoziho agenta:\n{{ JSON.stringify($('Insights 49').first().json.output.insights) }}\n\nPlne telo publikace:\n{{ $('Extract Text').first().json.extractedText }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "Jsi sektorovy analytik Ceske sporitelny pro NACE 49 (nakladni doprava). Pro KAZDE z 3 pozorovani vygeneruj 1 doporuceny krok.\n\nPRAVIDLA: action_text ≤240 znaku se slovesem na zacatku, time_horizon ∈ {1m, 3m, 6-12m, 1y+}, paired_observation_index 0/1/2.\n\nTODO: NACE 49 pravidla.\n\nVYSTUPNI PRAVIDLA (KRITICKE):\n- Vrat POUZE valid JSON. Bez markdown bloku ```json ... ```. Bez komentaru pred nebo za. Zacni primo znakem { a skonci znakem }.\n- Vsechny pole z prikladu jsou POVINNE.\n- Boolean hodnoty jsou true / false (ne \"true\" / \"false\" jako string).\n- Arrays jsou pole [{...}, {...}], ne stringifikovane.",
+          "maxIterations": 3
+        }
+      },
+      "id": "72faae18-a9a0-4337-be6a-80eca3dc75d9",
+      "name": "Actions 49",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1552,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"actions\": [\n    { \"action_text\": \"Akce: konkrétní krok.\", \"time_horizon\": \"1m\", \"paired_observation_index\": 0 }\n  ]\n}",
+        "autoFix": true
+      },
+      "id": "57094a48-98da-4420-a2a4-9ffa2184a1b5",
+      "name": "Actions Parser 49",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1760,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const insightsOut = $('Insights 49').first().json.output || {};\nlet actionsOut = null;\ntry { actionsOut = $('Actions 49').first()?.json?.output || null; } catch (e) { actionsOut = null; }\nconst relevant = insightsOut.relevant === true;\nreturn [{ json: { nace: '49', relevant, insights: insightsOut.insights || [], actions: relevant && actionsOut ? (actionsOut.actions || []) : [], reason: insightsOut.reason || null } }];"
+      },
+      "id": "255771b4-3b76-4ca5-937b-400214c8b869",
+      "name": "Tag 49",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1984,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Cesky uvod publikace (kontext):\n{{ $('Layperson Opener').first().json.output }}\n\nPlne telo publikace:\n{{ $('Extract Text').first().json.extractedText }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "Jsi sektorový analytik České spořitelny pro výrobu potravin se zaměřením na pekárny (NACE 10).\nTYPICKÝ KLIENT: malá/střední pekárna, 5–30 zaměstnanců, B2C maloobchod a B2B distribuce do regionu.\n\nRELEVANCE (buď liberální):\n- Přímo: pekárny, cukrářství, mlékárny, masný průmysl, výroba potravin, mouka, obilí, mléko, ceny vstupních surovin, retail potravin (Albert, Kaufland, Tesco, Lidl), spotřebitelské trendy v potravinách.\n- Nepřímo: zemědělské ceny, ceny energie, mzdy ve výrobě, FMCG retail, kupní síla domácností, sezónnost spotřeby, EU potravinářská regulace, hygiena, balení a obaly.\n\nPravidlo: pokud lze vyvodit alespoň jedno užitečné pozorování pro typickou pekárnu, vrať relevant=true. Jen publikace zcela bez vazby → relevant=false.\n\nVÝSTUP:\n- relevantní: { \"relevant\": true, \"reason\": null, \"insights\": [3 pozorování] }\n- nerelevantní: { \"relevant\": false, \"reason\": \"krátké vysvětlení\", \"insights\": [] }\n\nPOZOROVÁNÍ: headline ≤60 znaků; body 2 věty max 400 znaků, vykání, věcný tón; time_horizon ∈ {\"Okamžitě\",\"Do 3 měsíců\",\"Do 12 měsíců\",\"Více než rok\"}; is_email_teaser=true jen u prvního.\n\nVÝSTUPNÍ PRAVIDLA: pouze valid JSON, bez markdown bloků, bez komentářů. Začni { a skonči }. Boolean = true/false. Arrays = pole, ne stringifikované.",
+          "maxIterations": 3
+        }
+      },
+      "id": "d4c856e9-4157-442c-90d1-39c88267e9c3",
+      "name": "Insights 10",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1104,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"relevant\": true,\n  \"reason\": null,\n  \"insights\": [\n    { \"headline\": \"Krátký název\", \"body\": \"Dvě věty popisu.\", \"time_horizon\": \"Do 3 měsíců\", \"is_email_teaser\": true }\n  ]\n}",
+        "autoFix": true
+      },
+      "id": "d2bef172-66d6-4580-81ee-532c606ba541",
+      "name": "Insights Parser 10",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1328,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "rel-10",
+              "leftValue": "={{ $json.output.relevant }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "9073f07c-743c-45c4-b85a-a86a0ad315a6",
+      "name": "IF Relevant 10",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1328,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Pozorovani z predchoziho agenta:\n{{ JSON.stringify($('Insights 10').first().json.output.insights) }}\n\nPlne telo publikace:\n{{ $('Extract Text').first().json.extractedText }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "Jsi sektorovy analytik Ceske sporitelny pro NACE 10 (pekarstvi). Pro KAZDE z 3 pozorovani vygeneruj 1 doporuceny krok pro malou pekarnu.\n\nPRAVIDLA: action_text ≤240, time_horizon ∈ {1m, 3m, 6-12m, 1y+}, paired_observation_index 0/1/2.\n\nTODO: NACE 10 pravidla.\n\nVYSTUPNI PRAVIDLA (KRITICKE):\n- Vrat POUZE valid JSON. Bez markdown bloku ```json ... ```. Bez komentaru pred nebo za. Zacni primo znakem { a skonci znakem }.\n- Vsechny pole z prikladu jsou POVINNE.\n- Boolean hodnoty jsou true / false (ne \"true\" / \"false\" jako string).\n- Arrays jsou pole [{...}, {...}], ne stringifikovane.",
+          "maxIterations": 3
+        }
+      },
+      "id": "993dd72c-bd3d-42f7-9208-3131c5c2a111",
+      "name": "Actions 10",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1552,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"actions\": [\n    { \"action_text\": \"Akce: konkrétní krok.\", \"time_horizon\": \"1m\", \"paired_observation_index\": 0 }\n  ]\n}",
+        "autoFix": true
+      },
+      "id": "2db1aefb-f81c-48c6-a4ec-0bbd3eee2dce",
+      "name": "Actions Parser 10",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1760,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const insightsOut = $('Insights 10').first().json.output || {};\nlet actionsOut = null;\ntry { actionsOut = $('Actions 10').first()?.json?.output || null; } catch (e) { actionsOut = null; }\nconst relevant = insightsOut.relevant === true;\nreturn [{ json: { nace: '10', relevant, insights: insightsOut.insights || [], actions: relevant && actionsOut ? (actionsOut.actions || []) : [], reason: insightsOut.reason || null } }];"
+      },
+      "id": "9d53bff7-b47c-4d4c-a5d8-01de672b5eab",
+      "name": "Tag 10",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1984,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Cesky uvod publikace (kontext):\n{{ $('Layperson Opener').first().json.output }}\n\nPlne telo publikace:\n{{ $('Extract Text').first().json.extractedText }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "Jsi sektorový analytik České spořitelny pro velkoobchod kovy a kovovými polotovary (NACE 46).\nTYPICKÝ KLIENT: malý/střední distributor kovů (ocel, hliník, měď, polotovary), 10–60 zaměstnanců, B2B prodej do strojírenství, stavebnictví a automotive.\n\nRELEVANCE (buď liberální):\n- Přímo: velkoobchod kovy, ocel, hliník, měď, kovové polotovary, distribuce kovů, ceny kovů na světových trzích (LME), B2B prodej, sklady a logistika kovů.\n- Nepřímo: stavebnictví, automobilový průmysl, strojírenství, energetika (poptávka po kovech), EU obchodní politika, cla, sankce, doprava nákladu, ceny energií ve výrobě, kursy CZK/USD/EUR.\n\nPravidlo: pokud lze vyvodit alespoň jedno užitečné pozorování pro typického velkoobchodníka s kovy, vrať relevant=true. Jen publikace zcela bez vazby → relevant=false.\n\nVÝSTUP:\n- relevantní: { \"relevant\": true, \"reason\": null, \"insights\": [3 pozorování] }\n- nerelevantní: { \"relevant\": false, \"reason\": \"krátké vysvětlení\", \"insights\": [] }\n\nPOZOROVÁNÍ: headline ≤60 znaků; body 2 věty max 400 znaků, vykání, věcný tón; time_horizon ∈ {\"Okamžitě\",\"Do 3 měsíců\",\"Do 12 měsíců\",\"Více než rok\"}; is_email_teaser=true jen u prvního.\n\nVÝSTUPNÍ PRAVIDLA: pouze valid JSON, bez markdown bloků, bez komentářů. Začni { a skonči }. Boolean = true/false. Arrays = pole, ne stringifikované.",
+          "maxIterations": 3
+        }
+      },
+      "id": "f93b96e6-1ebc-4b08-bbb0-5daa876fca22",
+      "name": "Insights 46",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1104,
+        656
+      ]
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"relevant\": true,\n  \"reason\": null,\n  \"insights\": [\n    { \"headline\": \"Krátký název\", \"body\": \"Dvě věty popisu.\", \"time_horizon\": \"Do 3 měsíců\", \"is_email_teaser\": true }\n  ]\n}",
+        "autoFix": true
+      },
+      "id": "432038b1-3b03-4e41-b652-bb3a351731f6",
+      "name": "Insights Parser 46",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1328,
+        656
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "rel-46",
+              "leftValue": "={{ $json.output.relevant }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c6f81add-3cc0-4082-8893-c019cb87c77d",
+      "name": "IF Relevant 46",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1328,
+        752
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Pozorovani z predchoziho agenta:\n{{ JSON.stringify($('Insights 46').first().json.output.insights) }}\n\nPlne telo publikace:\n{{ $('Extract Text').first().json.extractedText }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "Jsi sektorovy analytik Ceske sporitelny pro NACE 46. Pro KAZDE z 3 pozorovani vygeneruj 1 doporuceny krok.\n\nPRAVIDLA: action_text ≤240, time_horizon ∈ {1m, 3m, 6-12m, 1y+}, paired_observation_index 0/1/2.\n\nTODO: NACE 46 pravidla.\n\nVYSTUPNI PRAVIDLA (KRITICKE):\n- Vrat POUZE valid JSON. Bez markdown bloku ```json ... ```. Bez komentaru pred nebo za. Zacni primo znakem { a skonci znakem }.\n- Vsechny pole z prikladu jsou POVINNE.\n- Boolean hodnoty jsou true / false (ne \"true\" / \"false\" jako string).\n- Arrays jsou pole [{...}, {...}], ne stringifikovane.",
+          "maxIterations": 3
+        }
+      },
+      "id": "dc3edb08-4dca-4e15-b25d-79099528e6ed",
+      "name": "Actions 46",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1552,
+        752
+      ]
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"actions\": [\n    { \"action_text\": \"Akce: konkrétní krok.\", \"time_horizon\": \"1m\", \"paired_observation_index\": 0 }\n  ]\n}",
+        "autoFix": true
+      },
+      "id": "4c858e4c-5de1-4d0a-86d1-1870b3fd1953",
+      "name": "Actions Parser 46",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1760,
+        864
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const insightsOut = $('Insights 46').first().json.output || {};\nlet actionsOut = null;\ntry { actionsOut = $('Actions 46').first()?.json?.output || null; } catch (e) { actionsOut = null; }\nconst relevant = insightsOut.relevant === true;\nreturn [{ json: { nace: '46', relevant, insights: insightsOut.insights || [], actions: relevant && actionsOut ? (actionsOut.actions || []) : [], reason: insightsOut.reason || null } }];"
+      },
+      "id": "ccb337dc-ef7b-4c58-a40c-8bad571bc936",
+      "name": "Tag 46",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1984,
+        752
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all().map(i => i.json);\nconst relevant = items.filter(it => it.relevant === true);\nconst webhookCtx = $('Verify HMAC').first().json;\nconst opener = $('Layperson Opener').first().json.output;\nconst extracted = $('Extract Text').first().json.extractedText;\nconst horizonMap = { '1m': 'Okamžitě', '3m': 'Do 3 měsíců', '6-12m': 'Do 12 měsíců', '1y+': 'Více než rok', 'Okamzite': 'Okamžitě', 'Do 3 mesicu': 'Do 3 měsíců', 'Do 12 mesicu': 'Do 12 měsíců', 'Vice nez rok': 'Více než rok' };\nconst tx = (h) => horizonMap[h] || (['Okamžitě','Do 3 měsíců','Do 12 měsíců','Více než rok'].indexOf(h) !== -1 ? h : 'Do 3 měsíců');\nconst perNaceContent = {};\nconst naceSectors = [];\nfor (const it of relevant) {\n  if (!Array.isArray(it.insights) || !Array.isArray(it.actions)) continue;\n  if (it.insights.length === 0 || it.actions.length === 0) continue;\n  naceSectors.push(it.nace);\n  perNaceContent[it.nace] = {\n    observations: it.insights.map((o, i) => ({\n      headline: String(o.headline || ('Pozorovani ' + (i+1))).slice(0, 80),\n      body: String(o.body || ''),\n      time_horizon: horizonMap[o.time_horizon] || (['Okamžitě','Do 3 měsíců','Do 12 měsíců','Více než rok'].indexOf(o.time_horizon) !== -1 ? o.time_horizon : 'Do 3 měsíců'),\n      is_email_teaser: typeof o.is_email_teaser === 'boolean' ? o.is_email_teaser : (i === 0),\n    })),\n    closing_actions: it.actions.map((a, i) => ({\n      action_text: String(a.action_text || ''),\n      time_horizon: tx(a.time_horizon),\n      paired_observation_index: typeof a.paired_observation_index === 'number' ? a.paired_observation_index : i,\n    })),\n  };\n}\nconst now = new Date();\nconst M = ['Leden','Unor','Brezen','Duben','Kveten','Cerven','Cervenec','Srpen','Zari','Rijen','Listopad','Prosinec'];\nconst publicationMonth = M[now.getMonth()] + ' ' + now.getFullYear();\nconst isoMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');\nconst dash = String.fromCharCode(8212);\nconst callbackPayload = {\n  jobId: webhookCtx.jobId,\n  status: 'done',\n  naceSectors,\n  publicationMonth,\n  publicationMonthIso: isoMonth,\n  title: 'Sektorova analyza ' + dash + ' ' + publicationMonth,\n  publication: { heading: 'Sektorova analyza', opener_markdown: String(opener || ''), full_text_markdown: String(extracted || ''), source: 'Ekonomicke a strategicke analyzy Ceske sporitelny ' + dash + ' ' + publicationMonth },\n  perNaceContent,\n  diagnostics: { total: items.length, relevant_count: naceSectors.length, dropped: items.filter(it => !it.relevant).map(it => ({ nace: it.nace, reason: it.reason })) },\n};\nconst passedGates = items.filter(it => it.relevant === true).length;\nif (passedGates > 0 && naceSectors.length < passedGates) {\n  throw new Error(\n    `Tag drop: ${passedGates} gates passed but only ${naceSectors.length} tagged. ` +\n    `items=${JSON.stringify(items.map(i => ({nace: i.nace, relevant: i.relevant, hasInsights: Array.isArray(i.insights), hasActions: Array.isArray(i.actions)})))}`\n  );\n}\nreturn [{ json: { callbackPayload, callbackUrl: webhookCtx.callbackUrl, jobId: webhookCtx.jobId } }];"
+      },
+      "id": "7711e360-7232-4091-8b96-04ae1d2e36fa",
+      "name": "Compose Bundle",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2432,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const crypto = require('crypto');\nconst N8N_CALLBACK_SECRET = '3e724d3f5e8587982aa19768d1eb717de56ab6798e4713b28c6c372d7c89fc3b';\nconst data = $input.first().json;\nconst bodyStr = JSON.stringify(data.callbackPayload);\nconst sig = crypto.createHmac('sha256', N8N_CALLBACK_SECRET).update(bodyStr, 'utf8').digest('hex');\nreturn [{ json: { callbackUrl: data.callbackUrl, callbackBody: bodyStr, signatureHeader: 'sha256=' + sig, jobId: data.jobId, naceSectors: data.callbackPayload.naceSectors, diagnostics: data.callbackPayload.diagnostics } }];"
+      },
+      "id": "da40f415-06e7-41b5-8d30-2a05144b7042",
+      "name": "Sign Callback",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.callbackUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Signature-256",
+              "value": "={{ $json.signatureHeader }}"
+            },
+            {
+              "name": "ngrok-skip-browser-warning",
+              "value": "true"
+            },
+            {
+              "name": "User-Agent",
+              "value": "StrategyRadar-n8n/1.0"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.callbackBody }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "c311fa22-f0b5-470f-8b9b-dace14382129",
+      "name": "Send Callback",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2864,
+        112
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Publication Webhook": {
+      "main": [
+        [
+          {
+            "node": "Verify HMAC",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify HMAC": {
+      "main": [
+        [
+          {
+            "node": "Fetch Publication File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Publication File": {
+      "main": [
+        [
+          {
+            "node": "Extract Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Text": {
+      "main": [
+        [
+          {
+            "node": "Layperson Opener",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Layperson Opener": {
+      "main": [
+        [
+          {
+            "node": "Insights 31",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Insights 49",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Insights 10",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Insights 46",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Haiku": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Layperson Opener",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Insights 31",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Insights Parser 31",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Actions 31",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Actions Parser 31",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Insights 49",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Insights Parser 49",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Actions 49",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Actions Parser 49",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Insights 10",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Insights Parser 10",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Actions 10",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Actions Parser 10",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Insights 46",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Insights Parser 46",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Actions 46",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Actions Parser 46",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insights 31": {
+      "main": [
+        [
+          {
+            "node": "IF Relevant 31",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insights Parser 31": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Insights 31",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Relevant 31": {
+      "main": [
+        [
+          {
+            "node": "Actions 31",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tag 31",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Actions 31": {
+      "main": [
+        [
+          {
+            "node": "Tag 31",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Actions Parser 31": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Actions 31",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag 31": {
+      "main": [
+        [
+          {
+            "node": "Merge NACE Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge NACE Results": {
+      "main": [
+        [
+          {
+            "node": "Compose Bundle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insights 49": {
+      "main": [
+        [
+          {
+            "node": "IF Relevant 49",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insights Parser 49": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Insights 49",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Relevant 49": {
+      "main": [
+        [
+          {
+            "node": "Actions 49",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tag 49",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Actions 49": {
+      "main": [
+        [
+          {
+            "node": "Tag 49",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Actions Parser 49": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Actions 49",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag 49": {
+      "main": [
+        [
+          {
+            "node": "Merge NACE Results",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Insights 10": {
+      "main": [
+        [
+          {
+            "node": "IF Relevant 10",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insights Parser 10": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Insights 10",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Relevant 10": {
+      "main": [
+        [
+          {
+            "node": "Actions 10",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tag 10",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Actions 10": {
+      "main": [
+        [
+          {
+            "node": "Tag 10",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Actions Parser 10": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Actions 10",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag 10": {
+      "main": [
+        [
+          {
+            "node": "Merge NACE Results",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Insights 46": {
+      "main": [
+        [
+          {
+            "node": "IF Relevant 46",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insights Parser 46": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Insights 46",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Relevant 46": {
+      "main": [
+        [
+          {
+            "node": "Actions 46",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tag 46",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Actions 46": {
+      "main": [
+        [
+          {
+            "node": "Tag 46",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Actions Parser 46": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Actions 46",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag 46": {
+      "main": [
+        [
+          {
+            "node": "Merge NACE Results",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "Compose Bundle": {
+      "main": [
+        [
+          {
+            "node": "Sign Callback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sign Callback": {
+      "main": [
+        [
+          {
+            "node": "Send Callback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "aa2e4aee-b04a-4c08-a333-1896a285bbc0",
+  "meta": {
+    "aiBuilderAssisted": true,
+    "instanceId": "516c09a688c1c0f7055395d34de83a95552f2cfb3a9b586f6523152d60360484"
+  },
+  "id": "Fnbbz2mT4k3HrBXd",
+  "tags": []
+}

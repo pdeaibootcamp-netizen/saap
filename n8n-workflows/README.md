@@ -1,109 +1,75 @@
 # n8n Workflows — Strategy Radar
 
-This directory contains importable n8n workflow JSON files for the Strategy Radar v0.3 analysis-automation pipeline.
+This directory holds importable n8n workflow JSON files for the v0.3 analysis-automation pipeline.
 
-## analysis-automation.json
+## Files
 
-The publication-analysis pipeline. Receives an uploaded PDF or DOCX from the app, extracts text, calls Claude twice (opener + structured observations/actions), and posts the draft back to the app.
-
----
-
-## Step-by-step setup
-
-### 1. Import the workflow
-
-1. Open your n8n workspace at `https://kappa3.app.n8n.cloud/`.
-2. Click **Workflows** in the left sidebar.
-3. Click **New** (top right), then **Import from File**.
-4. Select `analysis-automation.json` from this directory.
-5. The workflow opens in the canvas. Do not activate it yet.
-
-### 2. Add the Anthropic credential
-
-1. In n8n, go to **Settings → Credentials → New credential**.
-2. Search for **HTTP Header Auth**.
-3. Name it `Anthropic API Key`.
-4. Set **Name** to `x-api-key` and **Value** to your Anthropic API key (starts with `sk-ant-...`).
-5. Save.
-6. Back in the workflow, click the **Claude Call 1** node, then click **Credential for Header Auth** and select `Anthropic API Key`. Repeat for **Claude Call 2**.
-
-### 3. Set the two HMAC secrets
-
-The workflow uses two secrets:
-
-| Variable | Direction | Where to set |
+| File | Status | What it is |
 |---|---|---|
-| `N8N_WEBHOOK_SECRET` | app → n8n (verifying incoming webhook) | n8n workflow Static Data |
-| `N8N_CALLBACK_SECRET` | n8n → app (signing the callback) | n8n workflow Static Data |
+| `analyze-publication.json` | **LIVE** — source of truth, snapshot 2026-04-29 | Multi-NACE publication analysis (Webhook → 4 parallel NACE branches → bundled callback). The currently-deployed workflow on n8n Cloud as `Strategy Radar — Analyze Publication`. ~34 nodes. |
+| `analysis-automation.json` | Frozen, historical | Original single-NACE pipeline (D-026 era). 14–18 nodes. Used the Anthropic HTTP Request pattern; superseded by the langchain-agent + multi-NACE design. |
+| `mcp-draft-writer.json` | Frozen, abandoned | The aborted MCP-orchestrator approach (D-026, blocked by `$fromAI` resolution issues). Kept for context only. |
 
-**Setting via Static Data (recommended for n8n Cloud free tier):**
+`analyze-publication.json` is the only file the running system depends on. The other two are kept so future work can see what was tried and ruled out (D-026 → D-028 in `docs/project/decision-log.md`).
 
-n8n Cloud free tier does not expose environment variables. Use n8n's built-in Static Data instead:
+## How the live workflow snapshot is maintained
 
-1. In the workflow canvas, click **...** (workflow menu, top right) → **Settings** → **Static Data**.
-2. Add two entries:
-   - Key: `N8N_WEBHOOK_SECRET` — Value: generate with `openssl rand -hex 32`
-   - Key: `N8N_CALLBACK_SECRET` — generate with `openssl rand -hex 32`
-3. Copy both values — you will need them in the next step.
+The actual workflow lives in n8n Cloud (`kappa3.app.n8n.cloud`) under the workspace name `Strategy Radar — Analyze Publication`. n8n is the source of truth for *running* state; this repo is the source of truth for *versioned* state.
 
-**Alternative (hardcode for PoC only):**
-If Static Data is not working, you can temporarily hardcode the secrets directly in the Code nodes (`Verify HMAC` and `Sign Callback`). Replace `workflowData.N8N_WEBHOOK_SECRET` with the literal string. Rotate before any external exposure.
+When the workflow changes meaningfully:
 
-### 4. Paste the secrets into the app
+1. In n8n Cloud, open the workflow → ⋮ menu → **Download** (gives a file like `Strategy Radar — Analyze Publication.json`).
+2. Save it over `n8n-workflows/analyze-publication.json` in this repo (rename the download to drop the spaces and em-dash; the path here uses ASCII).
+3. Commit with a message describing what changed (e.g., "n8n: increase Merge to 4 inputs").
 
-Add the following to `src/.env.local`:
+Treat this as the rollback-of-last-resort: if someone overwrites a node in n8n's UI or the workspace gets deleted, importing the JSON re-creates the workflow exactly. It will not pick up live state changes (executions, secrets) — those have to be re-set in the UI.
 
-```bash
-N8N_WEBHOOK_SECRET=<the value you generated for N8N_WEBHOOK_SECRET>
-N8N_CALLBACK_SECRET=<the value you generated for N8N_CALLBACK_SECRET>
+## Live workflow shape (analyze-publication.json)
+
+```
+Webhook ─► Verify HMAC ─► Fetch File ─► Extract Text ─► Layperson Opener
+                                                              │
+                ┌─────────────────────┬───────────────────────┼──────────────────┐
+                ▼                     ▼                       ▼                  ▼
+         Insights 31          Insights 49            Insights 10          Insights 46
+        (langchain.agent)         …                       …                    …
+                │                     │                       │                  │
+         IF (relevant?)         IF (relevant?)         IF (relevant?)     IF (relevant?)
+            │       │              │      │               │      │           │      │
+         Actions  ───►Tag       Actions ─►Tag          Actions ─►Tag      Actions ─►Tag
+                │                     │                       │                  │
+                └──────────► Merge (4 inputs, append) ◄──────┘                   │
+                                       │                                         │
+                                Compose Bundle (filter relevant, build per-NACE)
+                                       │
+                                Sign Callback (HMAC)
+                                       │
+                                Send Callback ─► /api/admin/briefs/from-n8n
 ```
 
-### 5. Activate the workflow and copy the webhook URL
+Per-NACE prompts, the relevance gate, and the `roe` cohort metric are described in:
+- `docs/engineering/n8n-integration.md` — webhook contract + topology
+- `docs/data/analysis-pipeline-data.md` — data inputs/outputs
+- `docs/project/decision-log.md` — D-028…D-032
 
-1. Click **Activate** (top right toggle) in the workflow canvas.
-2. Click the **Webhook Trigger** node.
-3. Copy the **Production URL** shown (format: `https://kappa3.app.n8n.cloud/webhook/analysis-automation`).
-4. Paste it into `src/.env.local`:
+## Setup (for a fresh n8n workspace)
 
-```bash
-N8N_WEBHOOK_URL=https://kappa3.app.n8n.cloud/webhook/analysis-automation
-```
+If you're rebuilding from scratch (new workspace, lost workflow):
 
-5. Restart your Next.js dev server (`npm run dev`) to pick up the new env var.
-
----
-
-## Node overview (14 nodes)
-
-| # | Node name | Type | Purpose |
-|---|---|---|---|
-| 1 | Webhook Trigger | Webhook | Receives POST from the app |
-| 2 | Verify HMAC | Code | Validates X-Signature-256 header |
-| 3 | Fetch Publication File | HTTP Request | Downloads PDF/DOCX from signed Supabase URL |
-| 4 | Detect File Type | Code | Detects PDF vs DOCX from URL extension |
-| 5 | PDF or DOCX? | If | Branches on file type |
-| 6 | Extract PDF Text | Code | Extracts text from PDF binary |
-| 7 | Extract DOCX Text | Code | Extracts text from DOCX binary |
-| 8 | Merge Extraction | Code | Re-joins the two branches |
-| 9 | Claude Call 1 — Generate Opener | HTTP Request | Calls Anthropic API for the 200–400 word opener |
-| 10 | Extract Opener | Code | Pulls opener text from Claude response |
-| 11 | Claude Call 2 — Generate Observations + Actions | HTTP Request | Calls Anthropic API with tool_use for structured output |
-| 12 | Extract Structured Output | Code | Validates and extracts observations + actions |
-| 13 | Compose Draft | Code | Assembles the final callback payload |
-| 14 | Sign Callback | Code | Signs payload with N8N_CALLBACK_SECRET |
-| 15 | Send Callback | HTTP Request | POSTs draft to `/api/admin/briefs/from-n8n` |
-| 16 | Respond 200 | Respond to Webhook | Returns 200 immediately to the app |
-| 17 | Error Handler | Code | Catches any failure and sends a failure callback |
-| 18 | Send Failure Callback | HTTP Request | POSTs `status: failed` to the callback URL |
-
----
+1. **Import** `analyze-publication.json`.
+2. **Anthropic credential**: `Settings → Credentials → New → Anthropic API`. Paste API key. Re-attach to the model subnode `Claude Haiku` (it's shared by all 8 langchain.agent nodes).
+3. **HMAC secrets**: edit the `Verify HMAC` and `Sign Callback` Code nodes. The shared secret value is hardcoded inline at the top of each (see `N8N_CALLBACK_SECRET` constant). Generate with `openssl rand -hex 32`. Same value goes into the app's `src/.env.local` as both `N8N_WEBHOOK_SECRET` and `N8N_CALLBACK_SECRET` (they're identical by convention; HMAC signs both directions).
+4. **Webhook URL**: activate the workflow → click the **Webhook Trigger** node → copy the **Production URL** → paste into `src/.env.local` as `N8N_WEBHOOK_URL`.
+5. **Test**: upload a publication via `/admin/publications/new` in the dev app. Watch the n8n execution panel: 1 webhook → 4 NACE branches → all 4 reach Merge → 1 callback POST out.
 
 ## Troubleshooting
 
-**Signature mismatch (401 from app):** The `N8N_WEBHOOK_SECRET` in n8n Static Data does not match `N8N_WEBHOOK_SECRET` in the app's `.env.local`. Verify both are identical.
-
-**Claude returns empty content:** Check that the Anthropic credential is correctly attached to both Claude Call nodes. Confirm the API key is valid and has quota.
-
-**Job stays `queued` forever:** The callback is failing. In n8n, open the execution log and check the `Send Callback` node output. Common cause: `N8N_CALLBACK_SECRET` mismatch or the app's callback URL is unreachable from n8n Cloud (e.g., `localhost` — use a tunnel like ngrok for local dev).
-
-**PDF extraction produces garbage text:** The publication is a scanned (image-only) PDF. The current Code node cannot OCR it. Use a text-layer PDF or convert to DOCX first.
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| 401 from app on callback | HMAC secrets don't match | Confirm n8n's hardcoded secret matches `.env.local`; restart `npm run dev` (env reads at boot) |
+| Brief tagged with too few NACEs | Merge node has < 4 inputs (silently drops branches) | Merge node panel → ensure **4 input slots**, mode = **Append**; wire each Tag-N node to a distinct slot |
+| All gates return `relevant: false` | Insights agent prompts too strict | See `docs/engineering/n8n-integration.md` §7 for the lenient + tightened prompt template per NACE |
+| 50k input-tokens/min rate limit | Tier 1 Haiku on a publication > 8k chars | The Extract Text node truncates body to 8000 chars before the NACE branches fan out — confirm that line is intact |
+| `Model output doesn't fit required format` | Haiku returned non-JSON or missing fields | All output parsers have `autoFix: true`; system prompts include `STRICT_JSON_RULES` forbidding markdown fences |
+| Webhook 500 with circular-JSON error | Webhook responseMode is "lastNode" but the response object includes IncomingMessage | Set webhook **Respond** dropdown to **Immediately** (responds 200 before the chain runs; the chain still completes via callback) |
+| Body double-encoded `{"<json>":""}` | Send Callback HTTP node has `specifyBody: "string"` instead of `"raw"` | In Send Callback → Body Content Type = **Raw**; Content-Type header = `application/json`; Body = `{{ $json.callbackBody }}` |
