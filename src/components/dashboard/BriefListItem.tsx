@@ -52,8 +52,8 @@ export interface BriefListItemProps {
   title: string;
   /** Pre-formatted publication month, e.g. "Duben 2026" */
   publicationMonth: string;
-  /** NACE division code, e.g. "31" */
-  naceCode: string;
+  /** NACE division code, e.g. "31". Null for general (cross-sector) briefs. */
+  naceCode: string | null;
   /** Optional resolved Czech NACE label, e.g. "Výroba nábytku" */
   naceName: string | null;
   /** True if published_at is within 30 days of now */
@@ -71,7 +71,10 @@ export function BriefListItem({
   isNew,
 }: BriefListItemProps) {
   // NACE badge label — brief-list-item.md §6.1
-  const naceBadgeText = naceName
+  // v0.4 (D-033): null naceCode → "Obecné" pill for cross-sector briefs.
+  const naceBadgeText = !naceCode
+    ? "Obecné"
+    : naceName
     ? `NACE ${naceCode} — ${naceName}`
     : `NACE ${naceCode}`;
 

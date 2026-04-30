@@ -26,7 +26,7 @@
  *   correct approach; a Server Action redirect would not carry the param.
  */
 
-import { listPublishedBriefsByNace } from "@/lib/briefs";
+import { listPublishedBriefsByNace, getLatestBriefByPrimaryNace } from "@/lib/briefs";
 import type { Brief, BriefContent, Observation, ClosingAction } from "@/lib/briefs";
 import {
   BriefListItem,
@@ -240,8 +240,16 @@ export default async function DashboardPage({
     briefs = [];
   }
 
-  // ── Pulz oboru — latest brief content for the active NACE ────────────────
-  const pulzData = extractPulzData(briefs[0], activeNace);
+  // ── Pulz oboru — latest brief whose primary_nace matches the active NACE.
+  // v0.4 (D-033): cross-relevance briefs (in nace_sectors but not primary)
+  // still appear in Section (v) but don't dominate Pulz oboru.
+  let pulzBrief: Brief | null = null;
+  try {
+    pulzBrief = await getLatestBriefByPrimaryNace(activeNace);
+  } catch (err) {
+    console.error("[dashboard] Pulz brief fetch failed:", err);
+  }
+  const pulzData = extractPulzData(pulzBrief ?? undefined, activeNace);
 
   const now = Date.now();
 
@@ -1021,24 +1029,21 @@ export default async function DashboardPage({
                     const isNew = brief.published_at
                       ? now - new Date(brief.published_at).getTime() < THIRTY_DAYS_MS
                       : false;
+                    // v0.4 (D-033): label by the brief's primary NACE — the
+                    // topic the publication is ABOUT — not the viewer's NACE.
+                    // primary_nace IS NULL → general/cross-sector brief → null
+                    // pill ("Obecné"). Legacy briefs (pre-migration 0014) have
+                    // primary_nace backfilled from nace_sectors[1], so they
+                    // never hit the null branch.
+                    const labelNace = brief.primary_nace;
                     return (
                       <BriefListItem
                         key={brief.id}
                         briefId={brief.id}
                         title={title}
                         publicationMonth={publicationMonth}
-                        naceCode={
-                          brief.nace_sectors?.includes(activeNace)
-                            ? activeNace
-                            : brief.nace_sector
-                        }
-                        naceName={
-                          NACE_LABELS[
-                            brief.nace_sectors?.includes(activeNace)
-                              ? activeNace
-                              : brief.nace_sector
-                          ] ?? null
-                        }
+                        naceCode={labelNace}
+                        naceName={labelNace ? NACE_LABELS[labelNace] ?? null : null}
                         isNew={isNew}
                       />
                     );

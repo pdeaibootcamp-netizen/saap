@@ -34,7 +34,7 @@ function db(): SupabaseClient {
 }
 
 const BRIEF_COLUMNS =
-  "id, nace_sector, nace_sectors, publish_state, version, author_id, created_at, published_at, content_sections, benchmark_snippet";
+  "id, nace_sector, nace_sectors, primary_nace, publish_state, version, author_id, created_at, published_at, content_sections, benchmark_snippet";
 
 const DELIVERY_COLUMNS =
   "id, brief_id, brief_version, recipient_id, format, delivered_at";
@@ -56,6 +56,15 @@ export interface Brief {
    * For v0.1/v0.2 briefs this is `[nace_sector]`. (Migration 0011, Model B.)
    */
   nace_sectors: string[];
+  /**
+   * v0.4+ primary-NACE tag. The NACE division the publication is primarily
+   * ABOUT (chosen by the analyst at upload time). Used by the dashboard's
+   * Pulz oboru section to surface only the brief whose primary topic matches
+   * the active firm's NACE — cross-relevance briefs (in nace_sectors but not
+   * primary) still appear in the Section (v) Analýzy list. Nullable for
+   * legacy v0.1/v0.2/v0.3 briefs that pre-date the column. (Migration 0014.)
+   */
+  primary_nace: string | null;
   publish_state: PublishState;
   version: number;
   author_id: string;
@@ -239,10 +248,13 @@ export async function getPublishedBriefByNace(naceSector: string): Promise<Brief
  * `nace_sector` for those rows.
  */
 export async function listPublishedBriefsByNace(naceSector: string): Promise<Brief[]> {
+  // v0.4 (D-033): include general briefs (primary_nace IS NULL) regardless of
+  // nace_sectors — they surface to every firm in the Analýzy list. NACE-tagged
+  // briefs still filter by nace_sectors @> ARRAY[$1] (cross-relevance).
   const { data, error } = await db()
     .from("briefs")
     .select(BRIEF_COLUMNS)
-    .contains("nace_sectors", [naceSector])
+    .or(`primary_nace.is.null,nace_sectors.cs.{${naceSector}}`)
     .eq("publish_state", "published")
     .order("published_at", { ascending: false })
     .order("created_at", { ascending: false })
@@ -250,6 +262,29 @@ export async function listPublishedBriefsByNace(naceSector: string): Promise<Bri
     .limit(20);
   if (error) throw new Error(`[briefs] listPublishedBriefsByNace: ${error.message}`);
   return (data ?? []) as unknown as Brief[];
+}
+
+/**
+ * Latest published brief whose primary_nace == naceSector (v0.4, migration 0014).
+ * Powers the dashboard's Pulz oboru section so cross-relevance briefs (in
+ * nace_sectors[] but not primary) don't surface as the firm's "main brief."
+ *
+ * Returns null when no brief has been published with this primary NACE yet.
+ * The Section (v) Analýzy list keeps using listPublishedBriefsByNace so
+ * cross-relevance briefs still appear there with their primary_nace label.
+ */
+export async function getLatestBriefByPrimaryNace(naceSector: string): Promise<Brief | null> {
+  const { data, error } = await db()
+    .from("briefs")
+    .select(BRIEF_COLUMNS)
+    .eq("primary_nace", naceSector)
+    .eq("publish_state", "published")
+    .order("published_at", { ascending: false })
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(1);
+  if (error) throw new Error(`[briefs] getLatestBriefByPrimaryNace: ${error.message}`);
+  return ((data ?? [])[0] ?? null) as unknown as Brief | null;
 }
 
 /**
